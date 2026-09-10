@@ -79,6 +79,25 @@ async function callAI(message,mode='Chat',extra={}){
  finally{thinking(false);aiBusy=false}
 }
 
+
+async function rememberSilently(row,attachment=null){
+ try{
+  await sb.functions.invoke(FN,{body:{
+   action:'remember',roomId:room.id,currentUser:{id:user.id,name:myName()},
+   message:row?.content||'',source_message_id:row?.id||null,
+   attachment:attachment?await attachmentForAI(attachment):null
+  }});
+ }catch(e){console.warn('silent memory',e)}
+}
+async function rememberActivitySilently(a,responseRow){
+ try{
+  await sb.functions.invoke(FN,{body:{
+   action:'remember_activity',roomId:room.id,currentUser:{id:user.id,name:myName()},
+   source_activity_id:a.id,activity:{type:a.activity_type,title:a.title,question:a.question},
+   answer:responseRow?.response?.answer||''
+  }});
+ }catch(e){console.warn('activity memory',e)}
+}
 async function uploadFile(file,folder='uploads'){
  let safe=(file.name||'file').replace(/[^a-zA-Z0-9._-]+/g,'_'),path=`${room.id}/${folder}/${Date.now()}-${crypto.randomUUID()}-${safe}`;
  let {error}=await sb.storage.from(BUCKET).upload(path,file,{contentType:file.type||'application/octet-stream',upsert:false});if(error)throw error;
@@ -100,8 +119,9 @@ async function translateBubble(btn,el,original){if(btn.dataset.translated==='1')
 async function createActivity(a,mode){if(!a?.question)return;let type=a.type||mode.toLowerCase(),data={options:Array.isArray(a.options)?a.options:[],secret:a.secret!==false,instructions:a.instructions||'',source:'ai'};let {data:row,error}=await sb.from('activities').insert({room_id:room.id,created_by:'ai',activity_type:type,title:a.title||mode,question:a.question,data,status:'active'}).select().single();if(error)throw error;await renderActivity(row)}
 async function renderActivity(a){if(a.id&&seenAct.has(a.id))return;if(a.id)seenAct.add(a.id);activityCache.set(a.id,a);let r=document.createElement('section');r.className='activity';r.dataset.activity=a.id;r.innerHTML='<div class="actTag"></div><div class="actTitle"></div><div class="actQ" dir="auto"></div><div class="options"></div><div class="wait"></div><div class="answers hide"></div>';r.querySelector('.actTag').textContent=a.activity_type||'Activity';r.querySelector('.actTitle').textContent=a.title||'AI Activity';r.querySelector('.actQ').textContent=a.question||'';let opts=a.data?.options||[],box=r.querySelector('.options');if(opts.length){opts.forEach(o=>{let b=document.createElement('button');b.className='option';b.textContent=o;b.onclick=()=>answerActivity(a,o);box.append(b)})}else{let inp=document.createElement('textarea');inp.className='field';inp.placeholder=lang==='ar'?'إجابتك…':'Your answer…';let b=document.createElement('button');b.className='option';b.textContent=lang==='ar'?'إرسال الإجابة':'Submit answer';b.onclick=()=>{let v=inp.value.trim();if(v)answerActivity(a,v)};box.append(inp,b)}$('#chat').append(r);activityEls.set(a.id,r);await refreshActivity(a.id,a);bottom()}
 async function answerActivity(a,answer){
- let {error}=await sb.from('activity_responses').insert({activity_id:a.id,sender:user.id,response:{answer,name:myName()}});
+ let {data:responseRow,error}=await sb.from('activity_responses').insert({activity_id:a.id,sender:user.id,response:{answer,name:myName()}}).select().single();
  if(error){if(error.code==='23505')return toast(lang==='ar'?'إجابتك اتسجلت بالفعل ✓':'Your answer is already locked ✓');return toast(error.message)}
+ rememberActivitySilently(a,responseRow);
  await refreshActivity(a.id,a);
  let {data:all,error:re}=await sb.from('activity_responses').select('*').eq('activity_id',a.id);if(re)return toast(re.message);
  let unique=new Map((all||[]).map(x=>[x.sender,x]));
@@ -138,10 +158,14 @@ $('#mf').onsubmit=async e=>{
  try{
   let attachment=file?await uploadFile(file):null,replyPreview=replyTarget?((isAI(replyTarget)?'AI':(PEOPLE[String(replyTarget.sender)]||replyTarget.sender_name||'User'))+': '+((replyTarget.content||'').slice(0,90)||(replyTarget.metadata?.attachment?.name||'Attachment'))):null;
   let {data:row,error}=await sb.from('messages').insert({room_id:room.id,sender:user.id,sender_name:myName(),message_type:attachment?'attachment':'text',content:text||'',reply_to:replyTarget?.id||null,metadata:{...(attachment?{attachment}:{}),...(replyPreview?{reply_preview:replyPreview}:{})}}).select().single();
-  if(error)throw error;renderMessage(row);clearReply();
-  if(/@AI/i.test(text)){
-   let aiAttachment=attachment?await attachmentForAI(attachment):null;
-   await callAI(text.replace(/@AI/ig,'').trim()||(attachment?'Look at this attachment and respond naturally.':'Talk to us naturally.'),'Chat',{attachment:aiAttachment});
+  if(error)throw error;renderMessage(row);
+  rememberSilently(row,attachment);
+  let replySnapshot=replyTarget;
+  clearReply();
+  if(/@AI\b/i.test(text)){
+   let refAttachment=replySnapshot?.metadata?.attachment||null;
+   let aiAttachment=attachment?await attachmentForAI(attachment):(refAttachment?await attachmentForAI(refAttachment):null);
+   await callAI(text.replace(/@AI\b/ig,'').trim()||(aiAttachment?'Look at this attachment and respond naturally.':'Talk to us naturally.'),'Chat',{attachment:aiAttachment,replyTo:replySnapshot?{id:replySnapshot.id,content:replySnapshot.content||'',metadata:replySnapshot.metadata||{}}:null});
   }
  }catch(e){toast(e.message||'Send failed')}
 };
