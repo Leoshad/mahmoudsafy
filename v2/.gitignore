@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-preview/
+public/review-fixed.html
 .env
 .env.*
 !.env.example
