@@ -1,0 +1,5 @@
+import pg from 'pg';
+import {ActionError} from './game.ts';
+export function makePool(){const url=process.env.DATABASE_URL;if(!url)throw Error('V2 DATABASE_URL is required.');if(url.includes('oiwxwogdfjgrapigiqrw'))throw Error('V1 connections are forbidden.');return new pg.Pool({connectionString:url,max:4,ssl:{rejectUnauthorized:true},connectionTimeoutMillis:8000,statement_timeout:8000})}
+export async function transaction<T>(pool:pg.Pool,fn:(c:pg.PoolClient)=>Promise<T>):Promise<T>{const c=await pool.connect();try{await c.query('begin');await c.query('set local role ms_runtime');const identity=await c.query('select project_ref from private.app_identity where singleton=true');if(identity.rows[0]?.project_ref!=='hvjcugehjwqtrvzgbwnq')throw Error('V2 identity mismatch');const r=await fn(c);await c.query('commit');return r}catch(e){await c.query('rollback');throw e}finally{c.release()}}
+export async function member(c:pg.PoolClient,id:string){const r=await c.query('select user_id as id, name, room_id from private.members where user_id=$1',[id]);if(!r.rowCount)throw new ActionError('This account is not invited to this room.',403);return r.rows[0]}

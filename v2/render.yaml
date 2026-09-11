@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: mahmoud-safy-v2
+    runtime: node
+    region: frankfurt
+    plan: starter
+    branch: v2/first-slice
+    rootDir: v2
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BUDGET_MODE
+        value: test
+      - key: SUPABASE_URL
+        value: https://hvjcugehjwqtrvzgbwnq.supabase.co
+      - key: APP_ORIGIN
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false

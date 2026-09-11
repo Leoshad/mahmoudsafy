@@ -1,0 +1,28 @@
+-- V2 only. Applied as first_slice_private_core in the V2 migration history.
+create schema if not exists private;
+revoke all on schema private from public,anon,authenticated;
+create role ms_runtime nologin nosuperuser nobypassrls;
+grant usage on schema private to ms_runtime;
+create table private.app_identity(singleton boolean primary key default true check(singleton),project_ref text not null);
+insert into private.app_identity values(true,'hvjcugehjwqtrvzgbwnq');
+create table private.rooms(id uuid primary key default gen_random_uuid(),version integer not null default 0 check(version>=0),paused_by uuid[] not null default '{}',ai_epoch integer not null default 0,game jsonb);
+insert into private.rooms default values;
+create table private.members(user_id uuid primary key references auth.users(id) on delete cascade,room_id uuid not null references private.rooms(id),name text not null check(length(name) between 1 and 40),slot smallint not null check(slot in (1,2)),unique(room_id,slot));
+create table private.messages(id uuid primary key,room_id uuid not null references private.rooms(id),actor_id uuid references auth.users(id),name text not null,text text not null check(length(text)<=8000),kind text not null check(kind in ('human','ai')),ai_allowed boolean not null default false,created_at timestamptz not null default clock_timestamp(),check((kind='human' and actor_id is not null) or (kind='ai' and actor_id is null)));
+create index messages_room_time on private.messages(room_id,created_at,id);
+create index messages_actor_time on private.messages(actor_id,created_at);
+create table private.receipts(actor_id uuid not null references auth.users(id),command_id uuid not null,result jsonb not null,created_at timestamptz not null default now(),primary key(actor_id,command_id));
+create table private.history(id uuid primary key,room_id uuid not null references private.rooms(id),status text not null check(status in ('complete','abandoned')),scores jsonb not null,created_at timestamptz not null default now());
+create index history_room_time on private.history(room_id,created_at);
+create table private.budgets(key text primary key,spent bigint not null default 0 check(spent>=0),reserved bigint not null default 0 check(reserved>=0));
+create table private.ai_jobs(id uuid primary key,room_id uuid not null references private.rooms(id),epoch integer not null,status text not null check(status in ('queued','running','done','failed','cancelled')),context jsonb not null,budget_key text not null references private.budgets(key),created_at timestamptz not null default now(),started_at timestamptz);
+create unique index one_active_reply on private.ai_jobs(room_id) where status in ('queued','running');
+create index ai_jobs_queue on private.ai_jobs(status,created_at);
+do $$ declare t text;begin foreach t in array array['app_identity','rooms','members','messages','receipts','history','budgets','ai_jobs'] loop execute format('alter table private.%I enable row level security',t);execute format('alter table private.%I force row level security',t);execute format('create policy server_only on private.%I to ms_runtime using (true) with check (true)',t);end loop;end $$;
+revoke all on all tables in schema private from public,anon,authenticated;
+grant select on private.app_identity,private.members to ms_runtime;
+grant select,update on private.rooms to ms_runtime;
+grant select,insert on private.messages,private.receipts,private.history to ms_runtime;
+grant select,insert,update on private.budgets,private.ai_jobs to ms_runtime;
+grant ms_runtime to postgres;
+alter default privileges in schema private revoke all on tables from public,anon,authenticated;
