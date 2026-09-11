@@ -2,9 +2,10 @@ import React, {useEffect, useRef, useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {ArrowUp, ArrowLeft, ArrowRight, Check, CheckCheck, ChevronDown, CircleHelp, DoorOpen, Heart, LockKeyhole, MessageCircle, MoreHorizontal, Pause, Play, Plus, ShieldCheck, Sparkles, X} from 'lucide-react';
 import './style.css';
+import DesignPreview from './DesignPreview';
 
 type Message={id:string;name:string;text:string;kind:string};
-const demo=new URLSearchParams(location.search).has('preview');
+const demo=location.protocol==='file:'||new URLSearchParams(location.search).has('preview');
 const sample={me:'mahmoud',members:[{id:'mahmoud',name:'Mahmoud'},{id:'safy',name:'Safy'}],version:0,pausedBy:[],aiStatus:'idle',game:null,history:[],messages:[{id:'1',name:'Safy',text:'خلصت اللي ورايا.. نلعب حاجة؟',kind:'human'},{id:'2',name:'Mahmoud',text:'جاهز 😌 بس المرة دي مفيش تساهل',kind:'human'}]};
 function App(){
  const [state,setState]=useState<any>(demo?sample:null),[tab,setTab]=useState('room'),[text,setText]=useState(''),[ask,setAsk]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[rules,setRules]=useState(false),[pick,setPick]=useState<number|null>(null),[sync,setSync]=useState(demo?'Design preview':'Connecting'),[pending,setPending]=useState(false);
@@ -36,4 +37,4 @@ function App(){
  {rules&&<div className="modal-backdrop" onClick={()=>setRules(false)}><section role="dialog" aria-modal="true" aria-label="Secret Match rules" className="rules" onClick={e=>e.stopPropagation()}><button className="close icon-button" aria-label="Close" onClick={()=>setRules(false)}><X/></button><div className="tile-icon"><LockKeyhole size={24}/></div><p className="eyebrow">A GAME FOR TWO</p><h2>Secret Match</h2><p>Each of you secretly chooses a number from 1 to 10, then guesses the other person's number.</p><div className="rule-row"><span>Exact guess</span><b>3 points</b></div><div className="rule-row"><span>One number away</span><b>1 point</b></div><div className="rule-row"><span>Three rounds</span><b>Both ready to begin</b></div><p className="muted">Secrets reveal together, after both guesses. You can leave and continue later.</p><button className="primary" disabled={busy} onClick={async()=>{setRules(false);await command('game.start')}}>Bring it to our stage<ArrowRight size={17}/></button></section></div>}
  </div>
 }
-createRoot(document.getElementById('root')!).render(<App/>);
+createRoot(document.getElementById('root')!).render(demo?<DesignPreview/>:<App/>);
