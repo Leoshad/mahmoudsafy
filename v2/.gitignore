@@ -7,3 +7,5 @@ public/review-fixed.html
 !.env.example
 .sites-runtime/
 artifacts/
+
+public/review-mobile.html
