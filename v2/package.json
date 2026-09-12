@@ -7,7 +7,9 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "start": "node --import tsx server/index.ts",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts",
+    "world:start": "node world/server.mjs",
+    "world:test": "node --test world/tests/*.test.mjs"
   },
   "keywords": [],
   "author": "",

@@ -13,3 +13,9 @@ The user created OpenAI project `Mahmoud Safy` and a service account, and retain
 Budgets: SAR 80/month inclusive of fees/tax and SAR 20 additional for testing once. Revalidate model/service prices before incurring costs. Existing prices/model names in source are not approved current quotes. No service purchase is authorized by the source-saving approval.
 
 Read this status before older acceptance notes. Older product scope and prototype gates are historical where superseded by the user's newer direction. Preserve reusable code without silently treating historical UI as accepted.
+
+## 2026-09-12 world implementation checkpoint
+
+A separate `world/` trial now implements the new free-input direction, persistent SQLite state, two-person trial access, validated world actions, Just Us cancellation and a lifetime $3 conservative AI reservation guard. Use `npm run world:start`; the existing start/render configuration still serves the older V2 and is not the world deployment target. See `world/README.md` for exact boundaries. AI is not configured or live-tested. The browser could not access the local preview (ERR_BLOCKED_BY_CLIENT), so visual/mobile review remains outstanding. This is implementation progress, not a completed deployed app or design approval. No V1 or Supabase resources changed. No charges incurred.
+
+The previous attempt to save the world payload was blocked by automatic approval review. The user has now explicitly approved the exact action again: save the new V2 source to `Leoshad/mahmoudsafy`, branch `v2/first-slice`, under `v2/` only, without deployment or V1/main changes. This checkpoint uses that authorization; it does not authorize publication or purchases.

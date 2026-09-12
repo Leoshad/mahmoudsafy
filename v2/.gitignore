@@ -9,3 +9,9 @@ public/review-fixed.html
 artifacts/
 
 public/review-mobile.html
+
+# Trial state and local secrets
+*.db
+*.db-wal
+*.db-shm
+world/.env*
