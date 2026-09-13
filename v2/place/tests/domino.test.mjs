@@ -120,3 +120,26 @@ test('leaving a started match records no win and counts neither cancellation nor
  assert.equal(s.domino.records.shared.history[0].status,'abandoned');assert.equal(s.domino.records.shared.wins.Mahmoud,0);assert.equal(s.domino.records.shared.wins.Safy,0);
  assert.throws(()=>act(s,'Safy','leave'),/ended/);assert.equal(s.domino.records.shared.history.length,1);
 });
+test('turn timer starts on acceptance, survives reload and expires once with legal automatic play',()=>{
+ const s=initial(),now=100000;
+ dominoChange(s,'Mahmoud','domino.create',{mode:'shared',turnSeconds:30},now);let g=s.domino.shared;
+ assert.equal(g.turnDeadline,null);
+ dominoChange(s,'Safy','domino.accept',{game:g.id,revision:g.revision},now+1000);
+ assert.equal(g.turnDeadline,now+31000);assert.equal(dominoTick(s,now+30999),false);
+ const copy=JSON.parse(JSON.stringify(s));g=copy.domino.shared;
+ assert.throws(()=>dominoChange(copy,'Mahmoud','domino.play',{game:g.id,revision:g.revision,...legalMoves(g.hands.Mahmoud,g.chain)[0]},now+31000),/time ran out/);
+ assert.equal(dominoTick(copy,now+31000),true);assert.equal(g.chain.length,1);assert.equal(g.turn,'Safy');assert.equal(g.turnDeadline,now+61000);conservation(g);
+ const revision=g.revision;assert.equal(dominoTick(copy,now+31000),false);assert.equal(g.revision,revision);
+ assert.equal(dominoSnapshot(copy,'Safy',now+31000).shared.turnSeconds,30);
+});
+test('no timer remains unlimited; timer settings are validated and drawing does not reset the deadline',()=>{
+ const s=initial();assert.throws(()=>dominoChange(s,'Mahmoud','domino.create',{mode:'shared',turnSeconds:9}),/timer/);
+ dominoChange(s,'Mahmoud','domino.create',{mode:'shared',turnSeconds:0},100);
+ let g=s.domino.shared;dominoChange(s,'Safy','domino.accept',{game:g.id,revision:g.revision},200);
+ assert.equal(g.turnDeadline,null);assert.equal(dominoTick(s,1e12),false);
+ const timed=initial();dominoChange(timed,'Mahmoud','domino.create',{mode:'shared',turnSeconds:15},100);
+ g=timed.domino.shared;dominoChange(timed,'Safy','domino.accept',{game:g.id,revision:g.revision},200);
+ g.chain=[{id:'6-6',a:6,b:6}];g.hands.Mahmoud=[{id:'0-0',a:0,b:0}];g.stock=[{id:'0-6',a:0,b:6}];
+ const deadline=g.turnDeadline;dominoChange(timed,'Mahmoud','domino.draw',{game:g.id,revision:g.revision},1000);assert.equal(g.turnDeadline,deadline);
+ dominoChange(timed,'Mahmoud','domino.leave',{game:g.id,revision:g.revision},1100);assert.equal(g.turnDeadline,null);assert.equal(dominoTick(timed,99999),false);
+});

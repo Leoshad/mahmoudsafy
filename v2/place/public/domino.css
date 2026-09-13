@@ -145,3 +145,8 @@
 #our-place-trial .domino-result>small{display:block;line-height:1.5;padding:2px 0 5px}
 #our-place-trial .domino-result{position:relative;overflow:hidden}
 #our-place-trial .domino-leave{min-height:40px;padding:8px 14px;font-size:12px;border-radius:8px;color:#ecc5bd}
+
+#our-place-trial .domino-status-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#our-place-trial .domino-clock{font-size:12px;font-variant-numeric:tabular-nums;color:#dec89c;line-height:20px;padding:0 7px;border-radius:5px;background:#101a1480}
+#our-place-trial .domino-clock.clock-low{color:#ffb9a6;background:#542d2480}
+#our-place-trial .domino-timer-note{font-size:11px;line-height:1.5;color:#b5c1ae}

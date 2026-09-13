@@ -136,3 +136,10 @@ test('finished layout retains explicit rows and leave is a direct action',async(
  assert.equal(nodes.find(e=>e.className==='domino-hand').style.gridRow,'9');
  assert.equal(nodes.find(e=>e.className==='domino-zone-help domino-footer').style.gridRow,'10');
 });
+test('timer selection reaches the server and countdown is separate from table updates',async()=>{
+ const state=initial(),a=client('Mahmoud',state,[]);a.get('#domino-timer').value='30';await click(a.get('#domino-open'));await click(a.get('#domino-start'));
+ const g=state.domino.solo.Mahmoud;assert.equal(g.turnSeconds,30);
+ const clock=all(a.get('#domino-game')).find(e=>e.className==='domino-clock');assert.equal(clock.hidden,false);assert.match(clock.textContent,/^30s$/);
+ g.status='finished';g.result={winner:null,points:0,reason:'blocked',totals:{Mahmoud:8,Computer:8}};g.turnDeadline=null;state.version++;a.sync();
+ await click(all(a.get('#domino-game')).find(e=>e.textContent==='Next round'));assert.equal(g.turnSeconds,30);assert.ok(g.turnDeadline>Date.now());
+});

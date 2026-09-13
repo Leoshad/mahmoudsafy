@@ -16,8 +16,8 @@ export function botChoice(hand,chain,difficulty){
  return n;};
  return moves.reduce((best,m)=>score(m)>score(best)?m:best);
 }
-function deal(g){
- const deck=shuffled();g.hands={[g.players[0]]:deck.splice(0,7),[g.players[1]]:deck.splice(0,7)};g.stock=deck;g.chain=[];g.passes=0;g.result=null;g.lastMove=null;g.moveNumber=0;g.botDueAt=null;g.turn=g.players[(g.round-1)%2];g.status='active';g.last={text:g.turn+' starts the round.'};
+function deal(g,now=Date.now()){
+ const deck=shuffled();g.hands={[g.players[0]]:deck.splice(0,7),[g.players[1]]:deck.splice(0,7)};g.stock=deck;g.chain=[];g.passes=0;g.result=null;g.lastMove=null;g.moveNumber=0;g.botDueAt=null;g.turn=g.players[(g.round-1)%2];g.status='active';g.last={text:g.turn+' starts the round.'};resetClock(g,now);
 }
 function finish(g,winner,reason){
  g.status='finished';g.turn=null;const totals=Object.fromEntries(g.players.map(n=>[n,sum(g.hands[n])]));
@@ -62,10 +62,24 @@ function archive(s,g,now,completed){
 function settleMatch(s,g,now){
  if(g.status==='finished'&&g.result?.winner&&g.scores[g.result.winner]>=(g.target??100)){g.status='complete';g.matchWinner=g.result.winner;archive(s,g,now,true);}
 }
+function resetClock(g,now){g.turnDeadline=g.status==='active'&&g.turnSeconds?now+g.turnSeconds*1000:null;}
 function scheduleBot(g,now){g.botDueAt=g.status==='active'&&g.turn==='Computer'?now+1100:null;}
+export function dominoDue(s,now=Date.now()){
+ return [s.domino?.shared,...Object.values(s.domino?.solo??{})].some(g=>g?.status==='active'&&(g.turn==='Computer'&&(g.botDueAt??0)<=now||g.turnDeadline&&g.turnDeadline<=now));
+}
+function timedMove(g){
+ const who=g.turn;let drawn=0,move=legalMoves(g.hands[who],g.chain)[0];
+ while(!move&&g.stock.length){g.hands[who].push(g.stock.pop());drawn++;move=legalMoves(g.hands[who],g.chain)[0];}
+ if(move)play(g,who,move.tile,move.side);else pass(g,who);
+ g.last.text=who+' ran out of time. '+(drawn?'Drew '+drawn+' tile'+(drawn===1?'':'s')+'. ':'')+g.last.text;
+}
 export function dominoTick(s,now=Date.now()){
- let changed=false;for(const g of Object.values(s.domino?.solo??{})){
-  if(g.status==='active'&&g.turn==='Computer'&&(g.botDueAt??0)<=now){bots(g);g.botDueAt=null;g.revision++;settleMatch(s,g,now);changed=true;}
+ let changed=false;for(const g of [s.domino?.shared,...Object.values(s.domino?.solo??{})]){
+  if(!g||g.status!=='active')continue;
+  if(g.turn==='Computer'&&(g.botDueAt??0)<=now){bots(g);g.botDueAt=null;}
+  else if(g.turnDeadline&&g.turnDeadline<=now){timedMove(g);scheduleBot(g,now);}
+  else continue;
+  g.revision++;settleMatch(s,g,now);resetClock(g,now);changed=true;
  }
  if(changed)s.version++;return changed;
 }
@@ -74,19 +88,20 @@ export function dominoChange(s,who,type,p={},now=Date.now()){
  check(names.includes(who),'Not invited.',403);s.domino??={solo:{},shared:null};
  if(type==='domino.create'){
   check(['solo','shared'].includes(p.mode),'Choose solo or together.');
+  check(p.turnSeconds===undefined||[0,15,30,45,60].includes(p.turnSeconds),'Choose no timer, 15, 30, 45 or 60 seconds.');
   check(p.target===undefined||[50,100].includes(p.target),'Choose a target of 50 or 100 points.');
   if(p.mode==='solo')check(['easy','medium','hard'].includes(p.difficulty),'Choose a difficulty.');
   const old=p.mode==='solo'?s.domino.solo[who]:s.domino.shared;
   check(!old||['complete','ended','declined'].includes(old.status)||old.status==='waiting'&&old.expires<=now,'Finish or leave your current game first.',409);
   const players=[who,p.mode==='solo'?'Computer':names.find(n=>n!==who)];
-  const g={target:p.target??50,id:randomUUID(),revision:1,owner:who,mode:p.mode,difficulty:p.mode==='solo'?p.difficulty:null,players,status:'waiting',expires:now+600000,round:1,scores:Object.fromEntries(players.map(n=>[n,0])),hands:{},chain:[],stock:[],turn:null,result:null,last:{text:'Invitation sent.'}};
-  if(p.mode==='solo'){deal(g);s.domino.solo[who]=g;}else s.domino.shared=g;
+  const g={turnSeconds:p.turnSeconds??0,turnDeadline:null,target:p.target??50,id:randomUUID(),revision:1,owner:who,mode:p.mode,difficulty:p.mode==='solo'?p.difficulty:null,players,status:'waiting',expires:now+600000,round:1,scores:Object.fromEntries(players.map(n=>[n,0])),hands:{},chain:[],stock:[],turn:null,result:null,last:{text:'Invitation sent.'}};
+  if(p.mode==='solo'){deal(g,now);s.domino.solo[who]=g;}else s.domino.shared=g;
  }else{
   const g=get(s,p.game);check(g,'This game is no longer available.',409);check(g.players.includes(who),'This game is private.',403);
   check(p.revision===g.revision,'The game changed. Try again.',409);
   if(type==='domino.accept'||type==='domino.decline'){
    check(g.mode==='shared'&&g.owner!==who&&g.status==='waiting'&&g.expires>now,'This invitation has expired or changed.',409);
-   if(type==='domino.accept')deal(g);else{g.status='declined';g.last={text:who+' declined the invitation.'};}
+   if(type==='domino.accept')deal(g,now);else{g.status='declined';g.last={text:who+' declined the invitation.'};}
   }else if(type==='domino.leave'){
    check(g.status==='active'||g.status==='waiting'||g.status==='finished'||g.status==='complete','This game has ended.',409);
    check(g.status!=='waiting'||g.owner===who,'Accept or decline this invitation.',403);
@@ -94,15 +109,17 @@ export function dominoChange(s,who,type,p={},now=Date.now()){
   }else if(type==='domino.rematch'){
    check(g.status==='finished','Finish this round first.',409);g.round++;g.result=null;
    if(g.mode==='shared'){g.owner=who;g.status='waiting';g.expires=now+600000;g.hands={};g.stock=[];g.chain=[];g.last={text:who+' invited you to another round.'};}
-   else{deal(g);scheduleBot(g,now);}
+   else{deal(g,now);scheduleBot(g,now);}
   }else{
    check(g.status==='active'&&g.turn===who,'Wait for your turn.',409);
+   check(!g.turnDeadline||g.turnDeadline>now,'Your time ran out. The game is updating.',409);
    if(type==='domino.play')play(g,who,p.tile,p.side);
    else if(type==='domino.draw'){check(!legalMoves(g.hands[who],g.chain).length,'Play a matching tile first.');check(g.stock.length,'No tiles left to draw. Pass instead.');g.hands[who].push(g.stock.pop());g.last={text:who+' drew a tile.'};}
    else if(type==='domino.pass')pass(g,who);
    else check(false,'Unknown domino action.');
-   settleMatch(s,g,now);scheduleBot(g,now);
+   settleMatch(s,g,now);scheduleBot(g,now);if(type!=='domino.draw')resetClock(g,now);
   }
+  if(g.status!=='active')g.turnDeadline=null;
   g.revision++;
  }
  s.version++;
@@ -111,6 +128,6 @@ function view(g,who,now){
  if(!g||!g.players.includes(who))return null;
  const status=g.status==='waiting'&&g.expires<=now?'expired':g.status;
  const hand=g.hands[who]??[],other=opponent(g,who),legal=status==='active'&&g.turn===who?legalMoves(hand,g.chain):[];
- return {id:g.id,revision:g.revision,target:g.target??100,matchWinner:g.matchWinner??null,lastMove:g.lastMove??null,botDueAt:g.botDueAt??null,owner:g.owner,mode:g.mode,difficulty:g.difficulty,players:g.players,status,expires:g.expires,round:g.round,scores:g.scores,chain:g.chain,turn:g.turn,result:g.result,last:g.last,hand:status==='waiting'||status==='expired'?[]:hand,opponent:other,opponentCount:g.hands[other]?.length??0,stockCount:g.stock.length,legal,canDraw:status==='active'&&g.turn===who&&!legal.length&&!!g.stock.length,canPass:status==='active'&&g.turn===who&&!legal.length&&!g.stock.length};
+ return {turnSeconds:g.turnSeconds??0,turnDeadline:g.turnDeadline??null,id:g.id,revision:g.revision,target:g.target??100,matchWinner:g.matchWinner??null,lastMove:g.lastMove??null,botDueAt:g.botDueAt??null,owner:g.owner,mode:g.mode,difficulty:g.difficulty,players:g.players,status,expires:g.expires,round:g.round,scores:g.scores,chain:g.chain,turn:g.turn,result:g.result,last:g.last,hand:status==='waiting'||status==='expired'?[]:hand,opponent:other,opponentCount:g.hands[other]?.length??0,stockCount:g.stock.length,legal,canDraw:status==='active'&&g.turn===who&&!legal.length&&!!g.stock.length,canPass:status==='active'&&g.turn===who&&!legal.length&&!g.stock.length};
 }
 export function dominoSnapshot(s,who,now=Date.now()){return {solo:view(s.domino?.solo?.[who],who,now),shared:view(s.domino?.shared,who,now),records:{shared:s.domino?.records?.shared??{wins:{Mahmoud:0,Safy:0},history:[]},solo:s.domino?.records?.solo?.[who]??{wins:{[who]:0,Computer:0},history:[]}}};}

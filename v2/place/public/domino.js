@@ -2,7 +2,8 @@
 const $=s=>document.querySelector(s),make=(tag,text,root,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;root?.append(e);return e;};
 let host,who=null,games={},mode='solo',opened=false,busy=false,picked=null,signature='',version=-1;
 const game=()=>games[mode];
-let fullView=true;
+let fullView=true,clockOffset=0;
+function updateClock(){const g=game(),e=view?.clock;if(!e)return;e.hidden=!(g?.status==='active'&&g.turnSeconds);if(e.hidden)return;const seconds=Math.max(0,Math.ceil((g.turnDeadline-(Date.now()+clockOffset))/1000));e.textContent=seconds+'s';e.classList.toggle('clock-low',seconds<=5);e.setAttribute('aria-label',g.turn+' has '+seconds+' seconds remaining');}
 function focused(){return opened&&fullView&&['active','finished','complete'].includes(game()?.status);}
 let soundOn=true,audioContext=null;
 const heardMoves=new Map();
@@ -147,7 +148,7 @@ function scoreboard(g,root){
 }
 function invite(){
  const g=games.shared,root=$('#domino-invitation');root.replaceChildren();root.hidden=!(g?.status==='waiting'&&g.owner!==who);
- if(root.hidden)return;make('span',g.owner+' invited you to Dominoes · first to '+g.target+'.',root);
+ if(root.hidden)return;make('span',g.owner+' invited you to Dominoes · first to '+g.target+' · '+(g.turnSeconds?g.turnSeconds+'s per turn':'no timer')+'.',root);
  btn('Join',root,async()=>{mode='shared';opened=true;host.goto('together');await command('accept',{},g);show();},'primary').disabled=busy;
  btn('Not now',root,()=>command('decline',{},g)).disabled=busy;
 }
@@ -175,7 +176,7 @@ function render(){
   else{btn('Accept invitation',root,()=>command('accept'),'primary').disabled=busy;btn('Not now',root,()=>command('decline')).disabled=busy;}return;
  }
  const status=g.status==='complete'?g.matchWinner+' wins the match!':g.status==='finished'?(g.result.winner?g.result.winner+' wins · +'+g.result.points+' points':'Draw · equal remaining pips'):g.turn===who?'Your turn':g.turn==='Computer'?'Computer is choosing…':g.turn+'’s turn';
- make('p',status,slot('status'),'domino-turn').setAttribute('role','status');
+ const statusRow=make('div',undefined,slot('status'),'domino-status-row');make('p',status,statusRow,'domino-turn').setAttribute('role','status');view.clock=make('span',undefined,statusRow,'domino-clock');updateClock();
  const meta=make('div',undefined,slot('meta'),'domino-table-meta');make('span',g.opponent+' · '+g.opponentCount+' tiles',meta);
  const backs=make('div',undefined,meta,'domino-opponent');backs.setAttribute('aria-label',g.opponent+' has '+g.opponentCount+' hidden tiles');for(let i=0;i<g.opponentCount;i++)make('span',undefined,backs).setAttribute('aria-hidden','true');
  const ends=make('div',undefined,slot('ends'),'domino-ends');make('span',g.chain.length?'A · '+g.chain[0].a:'Place any tile to start',ends);if(g.chain.length)make('span','B · '+g.chain.at(-1).b,ends);
@@ -218,10 +219,10 @@ function render(){
  }
 }
 function init(h){
- host=h;soundButton();$('#domino-panel').addEventListener?.('pointerdown',unlockSound);$('#domino-panel').addEventListener?.('keydown',unlockSound);$('#domino-sound').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('our-place:domino:sound',soundOn?'on':'off');}catch{}soundButton();if(soundOn)unlockSound();};$('#domino-open').onclick=()=>{opened=true;show();render();};
+ host=h;if(typeof setInterval!=='undefined')setInterval(updateClock,250);soundButton();$('#domino-panel').addEventListener?.('pointerdown',unlockSound);$('#domino-panel').addEventListener?.('keydown',unlockSound);$('#domino-sound').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('our-place:domino:sound',soundOn?'on':'off');}catch{}soundButton();if(soundOn)unlockSound();};$('#domino-open').onclick=()=>{opened=true;show();render();};
  $('#domino-collapse').onclick=()=>{opened=false;show();};
  for(const m of ['solo','shared'])$('#domino-'+m+'-tab').onclick=()=>{mode=m;picked=null;signature='';render();};
- $('#domino-start').onclick=()=>command('create',{mode,difficulty:$('#domino-difficulty').value,target:Number($('#domino-target').value)},null);
+ $('#domino-start').onclick=()=>command('create',{mode,difficulty:$('#domino-difficulty').value,target:Number($('#domino-target').value),turnSeconds:Number($('#domino-timer').value)||0},null);
  $('#domino-chat').onclick=()=>{opened=false;show();host.goto('chat');};
 
 }
@@ -229,6 +230,6 @@ window.OurDomino={init,sync(s){
  if(Number.isFinite(s.version)&&who===s.who&&s.version<version)return;
  if(who!==s.who){heardMoves.clear();who=s.who;opened=false;mode='solo';picked=null;signature='';
  try{const saved=JSON.parse(localStorage.getItem('our-place:domino:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;}}catch{}}
- version=s.version;hearMoves(s.domino??{});games=s.domino??{};if(picked&&!game()?.legal.some(m=>m.tile===picked))picked=null;render();
+ if(Number.isFinite(s.serverNow))clockOffset=s.serverNow-Date.now();version=s.version;hearMoves(s.domino??{});games=s.domino??{};if(picked&&!game()?.legal.some(m=>m.tile===picked))picked=null;render();
 },reset(){drawSeen.clear();heardMoves.clear();boardObserver?.disconnect();historySignature='';view=null;$('#domino-records').replaceChildren();$('#domino-history-list').replaceChildren();who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
 })();
