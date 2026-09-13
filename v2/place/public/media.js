@@ -67,6 +67,7 @@ function init(options){host=options;
  document.addEventListener('scroll',scheduleLayout,true);window.addEventListener('resize',scheduleLayout);
  window.visualViewport?.addEventListener('resize',scheduleLayout);window.visualViewport?.addEventListener('scroll',scheduleLayout);
  if(typeof ResizeObserver!=='undefined'){const layoutObserver=new ResizeObserver(scheduleLayout);layoutObserver.observe($('#media-player-anchor'));layoutObserver.observe($('#our-place-trial'));}
+ $('#media-more').onkeydown=e=>{if(e.key==='Escape'){$('#media-more').open=false;}};
  $('#media-title').onclick=()=>{$('#media-title').classList.toggle('media-title-open');scheduleLayout();};
  $('#media-title').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#media-title').onclick();}};
  const grip=$('#media-resize');
@@ -93,7 +94,7 @@ $('#media-search').onsubmit=find;document.querySelectorAll('[data-media-mode]').
  if(lastSample&&Math.abs(actual-lastSample.time-(lastSample.playing?(now-lastSample.at)/1000:0))>2){lastSample={time:actual,at:now,playing};publish(playing).catch(fail);return;}
  lastSample={time:actual,at:now,playing};},1000);
 }
-window.OurMedia={init,connection(connected){if(!connected&&current())say('Reconnecting · playback continues on your device.');},sync(s){if(who&&who!==s.who)this.reset();if(Number.isFinite(s.version)&&s.version<seenVersion)return;if(Number.isFinite(s.version))seenVersion=s.version;who=s.who;const previous=shared;shared=s.media??null;if(s.serverNow&&clockOffset===0)clockOffset=s.serverNow-Date.now();if(activeId&&(!shared||shared.id!==activeId||!shared.participants.includes(who))){activeId=null;selected=null;destroy();$('#media-player-area').hidden=true;say('Shared session ended.');}if(current()){if(previous?.revision!==shared.revision)applyPlayback();if(loadedId&&loadedId!==shared.track.videoId&&allowed&&visible())mount(shared.track,true);}render();},tab(next){appTab=next;const target=next==='chat'&&selected?$('#chat'):next==='together'?$('#media-home'):null;
+window.OurMedia={init,connection(connected){if(!connected&&current())say('Reconnecting · playback continues on your device.');},sync(s){if(who&&who!==s.who)this.reset();if(Number.isFinite(s.version)&&s.version<seenVersion)return;if(Number.isFinite(s.version))seenVersion=s.version;who=s.who;const previous=shared;shared=s.media??null;if(s.serverNow&&clockOffset===0)clockOffset=s.serverNow-Date.now();if(activeId&&(!shared||shared.id!==activeId||!shared.participants.includes(who))){activeId=null;selected=null;destroy();$('#media-player-area').hidden=true;say('Shared session ended.');}if(current()){if(previous?.revision!==shared.revision)applyPlayback();if(loadedId&&loadedId!==shared.track.videoId&&allowed&&visible())mount(shared.track,true);}render();},tab(next){appTab=next;$('#media-more').open=false;const target=next==='chat'&&selected?$('#chat'):next==='together'?$('#media-home'):null;
  if(target&&pane().parentNode!==target){if(next==='chat')target.insertBefore(pane(),$('.conversation-window'));else target.append(pane());}
  pane().classList.toggle('media-in-chat',next==='chat');pane().classList.remove('media-expanded');
  $('#media-expand').textContent='Enlarge';$('#media-chat').textContent=next==='chat'?'Find more':'Chat alongside';
