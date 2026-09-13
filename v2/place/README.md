@@ -40,7 +40,7 @@ Before live use:
 
 1. Confirm Render workspace, inspect services and billing, and validate/apply the prepared Blueprint within the disclosed budget.
 2. Create the two intended confirmed password users in Supabase **V2 only**, project `hvjcugehjwqtrvzgbwnq`. Set `MAHMOUD_EMAIL`, `SAFY_EMAIL`, and its publishable key in server environment settings. Never use V1 (`oiwxwogdfjgrapigiqrw`). No new Supabase tables are needed: V2 supplies Auth; room data uses the server disk.
-3. Set the actual HTTPS service URL as `APP_ORIGIN`; use the generated `SESSION_SECRET`. Enter the user's OpenAI key as `OPENAI_API_KEY` in Render's secure environment settings. Never paste it into a conversation.
+3. Set `APP_ORIGIN=auto` to use the actual service URL provided by Render (`RENDER_EXTERNAL_URL`); no guessed hostname is needed. For a custom domain, set its explicit HTTPS origin; use the generated `SESSION_SECRET`. Enter the user's OpenAI key as `OPENAI_API_KEY` in Render's secure environment settings. Never paste it into a conversation.
 4. Run a real two-device sign-in, message, image, AI quiz and stop/reconnect journey. Measure first-token and total response latency (saved per completed job); do not infer production speed from local test timings.
 5. Check actual phone layout/keyboard and reduced motion. Browser visual testing is not completed in this environment; no browser binary or browser tool was available.
 

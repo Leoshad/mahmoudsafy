@@ -6,6 +6,7 @@ import {createCipheriv,createDecipheriv,randomBytes,randomUUID} from 'node:crypt
 import {Store,hash} from './store.mjs';
 import {check,Fault,change,text,names} from './domain.mjs';
 import {respond,MODEL} from './ai.mjs';
+import {resolveOrigin} from './config.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
 const V2='https://hvjcugehjwqtrvzgbwnq.supabase.co';
@@ -120,6 +121,6 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});
   check(process.env.SUPABASE_PUBLISHABLE_KEY&&process.env.MAHMOUD_EMAIL&&process.env.SAFY_EMAIL,'Configure the V2 publishable key and both invited email addresses.',503);check(process.env.MAHMOUD_EMAIL.toLowerCase()!==process.env.SAFY_EMAIL.toLowerCase(),'Use two different invited accounts.',503);
-  const store=new Store(join(dir,'our-place.sqlite'));const server=createApp({store,origin:process.env.APP_ORIGIN,secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>console.log('Our Place server ready.'));
+  const store=new Store(join(dir,'our-place.sqlite'));const server=createApp({store,origin:resolveOrigin(),secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>console.log('Our Place server ready.'));
   process.on('SIGTERM',()=>server.close(()=>{store.close();process.exit(0);}));
 }
