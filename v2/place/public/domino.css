@@ -37,3 +37,36 @@
 #our-place-trial #domino-invitation button{font-size:12px;padding:8px}
 #our-place-trial #domino-error{font-size:12px;color:#ffb8b8}
 @media(max-width:500px){#our-place-trial #domino-panel{padding:12px}#our-place-trial #domino-open{padding:18px}#our-place-trial .domino-head h3{font-size:22px}}
+
+/* Compact, fully visible table and hand: no inner scrolling. */
+#our-place-trial .domino-board{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:150px;padding:16px 12px;overflow:visible;border-radius:9px;box-sizing:border-box}
+#our-place-trial .domino-lane{display:flex;gap:2px;position:relative;flex:none;height:24px}
+#our-place-trial .domino-lane.reverse{flex-direction:row-reverse}
+#our-place-trial .domino-lane.connected::after{content:'';position:absolute;right:-7px;top:11px;width:6px;height:36px;border:2px solid #bca97b;border-left:0;border-radius:0 7px 7px 0;box-sizing:border-box;pointer-events:none}
+#our-place-trial .domino-lane.reverse.connected::after{right:auto;left:-7px;border:2px solid #bca97b;border-right:0;border-radius:7px 0 0 7px}
+#our-place-trial .domino-board .domino-piece{width:42px;height:24px;box-sizing:border-box;padding:1px;gap:0;border-radius:3px}
+#our-place-trial .domino-board .domino-half{width:19px;height:20px;gap:1px;padding:2px;flex-shrink:0}
+#our-place-trial .domino-hand{gap:6px;max-height:none;overflow:visible;padding:6px 2px;margin:4px 0}
+#our-place-trial .domino-hand .domino-piece{width:32px;height:60px;min-width:32px;min-height:60px;padding:2px;gap:0;border-radius:4px}
+#our-place-trial .domino-hand .domino-half{width:26px;height:26px;padding:3px;gap:1px}
+#our-place-trial .domino-turn{font-size:16px;margin:10px 0}
+#our-place-trial .domino-tabs{margin:10px 0}
+#our-place-trial .domino-scoreboard{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:stretch;margin:10px 0;padding:8px;border:1px solid #716147;border-radius:12px;background:linear-gradient(120deg,#29222b,#1c241f)}
+#our-place-trial .domino-player-score{display:grid;grid-template-columns:1fr auto;align-items:center;gap:0 8px;padding:5px 8px;border-radius:8px;border:1px solid transparent}
+#our-place-trial .domino-player-score span{font-size:12px}
+#our-place-trial .domino-player-score strong{grid-column:2;grid-row:1 / span 2;font-size:27px;line-height:1.2;font-variant-numeric:tabular-nums}
+#our-place-trial .domino-player-score small{font-size:8px;letter-spacing:1px;color:#b6ab98}
+#our-place-trial .domino-player-score.mahmoud{color:#c8a7c5;background:#46344466}
+#our-place-trial .domino-player-score.safy{color:#ecb2c8;background:#59374266}
+#our-place-trial .domino-player-score.computer{color:#c6d2bc;background:#30423166}
+#our-place-trial .domino-player-score.current-turn{border-color:#d1b078}
+#our-place-trial .domino-round{display:flex;flex-direction:column;justify-content:center;text-align:center;color:#d1b078}
+#our-place-trial .domino-round small{font-size:8px;letter-spacing:1px}
+#our-place-trial .domino-round strong{font-size:16px}
+
+#our-place-trial .domino-board .domino-piece{position:relative}
+#our-place-trial .domino-board .chain-start::before{content:'A';position:absolute;top:-13px;left:0;font:bold 9px system-ui;color:#edd097}
+#our-place-trial .domino-board .chain-end::after{content:'B';position:absolute;bottom:-13px;right:0;font:bold 9px system-ui;color:#edd097}
+
+#our-place-trial .domino-opponent{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;margin:4px 0 7px}
+#our-place-trial .domino-opponent span{display:block;width:11px;height:21px;border:1px solid #a08969;border-radius:3px;background:linear-gradient(135deg,#6d5367,#362c38);box-shadow:0 1px 2px #0006}

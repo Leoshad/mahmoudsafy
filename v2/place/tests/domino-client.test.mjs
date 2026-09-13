@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 import {initial} from '../domain.mjs';
-import {dominoChange,dominoSnapshot} from '../domino.mjs';
+import {dominoChange,dominoSnapshot,tiles} from '../domino.mjs';
 const script=readFileSync(new URL('../public/domino.js',import.meta.url),'utf8');
 function client(who,state,clients,storage=new Map()){
  class Element{
-  constructor(tag='div'){this.tag=tag;this.children=[];this.hidden=false;this.value='medium';this.scrollWidth=500;const set=new Set();this.classList={toggle:(k,v)=>v?set.add(k):set.delete(k),contains:k=>set.has(k)};}
+  constructor(tag='div'){this.tag=tag;this.children=[];this.style={};this.dataset={};this.clientWidth=300;this.hidden=false;this.value='medium';this.scrollWidth=500;const set=new Set();this.classList={toggle:(k,v)=>v?set.add(k):set.delete(k),contains:k=>set.has(k)};}
   append(x){this.children.push(x);}replaceChildren(){this.children=[];}setAttribute(k,v){this[k]=v;}
  }
  const elements=new Map(),get=k=>{if(!elements.has(k))elements.set(k,new Element());return elements.get(k);};
@@ -32,4 +32,19 @@ test('shared invitation requires a click and grants only turn-based controls',as
  await click(b.get('#domino-invitation').children.find(e=>e.textContent==='Join'));assert.equal(state.domino.shared.status,'active');assert.equal(b.get('#domino-panel').hidden,false);
  const hand=all(b.get('#domino-game')).find(e=>e.className==='domino-hand');assert.ok(hand.children.every(e=>e.disabled));
  b.context.OurDomino.reset();assert.equal(b.get('#domino-panel').hidden,true);assert.equal(b.get('#domino-game').children.length,0);
+});
+
+test('full table renders all 28 compact tiles in bounded snake rows and both shared scores',()=>{
+ const state=initial();dominoChange(state,'Mahmoud','domino.create',{mode:'shared'});
+ let g=state.domino.shared;dominoChange(state,'Safy','domino.accept',{game:g.id,revision:g.revision});
+ g.chain=tiles();g.scores={Mahmoud:34,Safy:27};
+ const a=client('Mahmoud',state,[]);a.get('#domino-shared-tab').onclick();
+ const nodes=all(a.get('#domino-game')),board=nodes.find(e=>e.className==='domino-board');
+ const laid=all(board).filter(e=>e.className==='domino-piece');
+ assert.equal(laid.length,28);assert.ok(board.children.length>1);
+ for(const lane of board.children){assert.ok(parseInt(lane.style.width)<=board.clientWidth-24);assert.ok(lane.children.length<=6);}
+ const reversed=board.children[1];assert.ok(reversed.className.includes('reverse'));assert.equal(reversed.children[0]['aria-label'],g.chain[6].b+'–'+g.chain[6].a);
+ const score=nodes.find(e=>e.className==='domino-scoreboard');
+ assert.ok(all(score).some(e=>e.textContent==='Mahmoud'));assert.ok(all(score).some(e=>e.textContent==='Safy'));
+ assert.ok(all(score).some(e=>e.textContent==='34'));assert.ok(all(score).some(e=>e.textContent==='27'));
 });

@@ -17,6 +17,26 @@ function piece(tile,root,interactive=false){
  const e=make(interactive?'button':'span',undefined,root,'domino-piece');if(interactive)e.type='button';e.setAttribute('aria-label',tile.a+'–'+tile.b);
  for(const value of [tile.a,tile.b]){const half=make('span',undefined,e,'domino-half');half.setAttribute('aria-hidden','true');for(let i=0;i<9;i++)make('i',undefined,half,dots[value].includes(i)?'pip':'');}return e;
 }
+let boardObserver=null;
+function arrangeBoard(board,chain){
+ const columns=Math.max(3,Math.min(10,Math.floor(((board.clientWidth||280)-28)/44)));
+ if(board.dataset.columns===String(columns))return;board.dataset.columns=String(columns);board.replaceChildren();
+ if(!chain.length){make('span','Your table is ready.',board,'domino-board-empty');return;}
+ for(let start=0;start<chain.length;start+=columns){
+  const row=Math.floor(start/columns),reverse=row%2===1,lane=make('div',undefined,board,'domino-lane'+(reverse?' reverse':'')+(start+columns<chain.length?' connected':''));
+  lane.style.width=(columns*44-2)+'px';
+  for(const [offset,tile] of chain.slice(start,start+columns).entries()){const e=piece(reverse?{...tile,a:tile.b,b:tile.a}:tile,lane);e.classList.toggle('chain-start',start+offset===0);e.classList.toggle('chain-end',start+offset===chain.length-1);}
+ }
+}
+function scoreboard(g,root){
+ const score=make('div',undefined,root,'domino-scoreboard');score.setAttribute('aria-label','Game score');
+ const order=g.mode==='shared'?['Mahmoud','Safy']:g.players;
+ for(let i=0;i<order.length;i++){
+  if(i===1){const round=make('div',undefined,score,'domino-round');make('small','ROUND',round);make('strong',String(g.round),round);}
+  const name=order[i],card=make('div',undefined,score,'domino-player-score '+(name==='Mahmoud'?'mahmoud':name==='Safy'?'safy':'computer'));
+  card.classList.toggle('current-turn',g.turn===name);make('span',name,card);make('strong',String(g.scores[name]??0),card);make('small','POINTS',card);
+ }
+}
 function invite(){
  const g=games.shared,root=$('#domino-invitation');root.replaceChildren();root.hidden=!(g?.status==='waiting'&&g.owner!==who);
  if(root.hidden)return;make('span',g.owner+' invited you to Dominoes.',root);
@@ -29,7 +49,7 @@ function render(){
  $('#domino-solo-tab').classList.toggle('selected',mode==='solo');$('#domino-shared-tab').classList.toggle('selected',mode==='shared');
  $('#domino-open-note').textContent=games.shared?.status==='active'?'Your shared game is saved.':games.solo?.status==='active'?'Your solo game is saved.':'A quiet table. A little competition.';
  if(key===signature)return;signature=key;
- const root=$('#domino-game');root.replaceChildren();
+ const root=$('#domino-game');boardObserver?.disconnect();root.replaceChildren();if(g)scoreboard(g,root);
  const live=g&&['waiting','active','finished'].includes(g.status);
  $('#domino-setup').hidden=!!live;
  $('#domino-difficulty-row').hidden=mode!=='solo';
@@ -41,14 +61,15 @@ function render(){
   if(g.owner===who)btn('Cancel invitation',root,()=>command('leave')).disabled=busy;
   else{btn('Accept invitation',root,()=>command('accept'),'primary').disabled=busy;btn('Not now',root,()=>command('decline')).disabled=busy;}return;
  }
- const score=make('div',undefined,root,'domino-score');make('span','ROUND '+g.round,score);for(const name of g.players)make('span',name+' · '+g.scores[name]+' pts',score);
  const status=g.status==='finished'?(g.result.winner?g.result.winner+' wins · +'+g.result.points+' points':'Draw · equal remaining pips'):g.turn===who?'Your turn':g.turn+'’s turn';
  make('p',status,root,'domino-turn').setAttribute('role','status');
  const meta=make('div',undefined,root,'domino-table-meta');make('span',g.opponent+' · '+g.opponentCount+' tiles',meta);make('span','Draw pile · '+g.stockCount,meta);
- const ends=make('div',undefined,root,'domino-ends');make('span',g.chain.length?'Left end · '+g.chain[0].a:'Place any tile to start',ends);if(g.chain.length)make('span','Right end · '+g.chain.at(-1).b,ends);
- const board=make('div',undefined,root,'domino-board');board.setAttribute('aria-label','Played tiles, from left to right');
- if(!g.chain.length)make('span','Your table is ready.',board,'domino-board-empty');else for(const tile of g.chain)piece(tile,board);
- if(g.last?.side==='right')requestAnimationFrame(()=>{board.scrollLeft=board.scrollWidth;});
+ const backs=make('div',undefined,root,'domino-opponent');backs.setAttribute('aria-label',g.opponent+' has '+g.opponentCount+' hidden tiles');for(let i=0;i<g.opponentCount;i++)make('span',undefined,backs).setAttribute('aria-hidden','true');
+ const ends=make('div',undefined,root,'domino-ends');make('span',g.chain.length?'End A · '+g.chain[0].a:'Place any tile to start',ends);if(g.chain.length)make('span','End B · '+g.chain.at(-1).b,ends);
+ const board=make('div',undefined,root,'domino-board');board.setAttribute('aria-label','All played tiles in a connected snake, starting at the top left');
+ arrangeBoard(board,g.chain);
+ requestAnimationFrame(()=>{if(board.isConnected!==false)arrangeBoard(board,g.chain);});
+ if(typeof ResizeObserver!=='undefined'){boardObserver=new ResizeObserver(()=>arrangeBoard(board,g.chain));boardObserver.observe(board);}
  make('p',g.last?.text||'',root,'domino-last');
  if(g.status==='finished'){
   if(g.result.reason==='blocked')make('p','Blocked table · '+g.players.map(n=>n+': '+g.result.totals[n]+' pips').join(' / '),root,'muted');
@@ -56,7 +77,7 @@ function render(){
   btn('Finish game',root,()=>command('leave')).disabled=busy;
  }else{
   const controls=make('div',undefined,root,'domino-actions');
-  if(picked&&g.legal.some(m=>m.tile===picked)){make('span','Choose an end:',controls);for(const move of g.legal.filter(m=>m.tile===picked))btn(move.side==='left'?'← Left':'Right →',controls,()=>command('play',move),'primary').disabled=busy;}
+  if(picked&&g.legal.some(m=>m.tile===picked)){make('span','Choose an end:',controls);for(const move of g.legal.filter(m=>m.tile===picked))btn(move.side==='left'?'End A':'End B',controls,()=>command('play',move),'primary').disabled=busy;}
   if(g.canDraw)btn('Draw a tile',controls,()=>command('draw'),'primary').disabled=busy;
   if(g.canPass)btn('Pass turn',controls,()=>command('pass'),'primary').disabled=busy;
  }
@@ -84,5 +105,5 @@ window.OurDomino={init,sync(s){
  if(who!==s.who){who=s.who;opened=false;mode='solo';picked=null;signature='';
  try{const saved=JSON.parse(localStorage.getItem('our-place:domino:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;}}catch{}}
  version=s.version;games=s.domino??{};if(picked&&!game()?.legal.some(m=>m.tile===picked))picked=null;render();
-},reset(){who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
+},reset(){boardObserver?.disconnect();who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
 })();
