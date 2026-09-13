@@ -1,0 +1,39 @@
+#our-place-trial #domino-open{display:flex;width:100%;align-items:center;gap:16px;text-align:left;padding:22px;margin:18px 0;background:radial-gradient(ellipse at 90% 0,#72857626,transparent 70%),linear-gradient(125deg,#27322d,#181b1c);border:1px solid #6f806d;border-radius:16px}
+#our-place-trial .domino-mark{font-size:38px;color:#d1b078;line-height:1}
+#our-place-trial #domino-open strong{display:block;font:25px Georgia,serif;color:#eee8e9}
+#our-place-trial #domino-open small{display:block;font-size:12px;color:#b8c2b9;margin-top:5px}
+#our-place-trial #domino-panel{margin:18px 0;padding:16px;border:1px solid #6c7968;border-radius:16px;background:#181e1b;min-width:0}
+#our-place-trial .domino-head,#our-place-trial .domino-tabs,#our-place-trial .domino-score,#our-place-trial .domino-table-meta,#our-place-trial .domino-ends,#our-place-trial .domino-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#our-place-trial .domino-head h3{font:24px Georgia,serif;margin:0}
+#our-place-trial .domino-head button{padding:6px 12px}
+#our-place-trial .domino-tabs{justify-content:flex-start;margin:16px 0}
+#our-place-trial .domino-tabs button{font-size:12px}
+#our-place-trial .domino-tabs .selected{background:#d1b078;color:#17121a}
+#our-place-trial #domino-setup label{display:grid;gap:6px;font-size:12px;margin:12px 0}
+#our-place-trial .domino-score{font-size:11px;color:#c9bfa9;border-bottom:1px solid #405345;padding-bottom:8px}
+#our-place-trial .domino-turn{font-size:20px;color:#e4c994;margin:16px 0}
+#our-place-trial .domino-table-meta,#our-place-trial .domino-ends{font-size:12px;color:#b7c2b8;margin:8px 0}
+#our-place-trial .domino-board{display:flex;align-items:center;gap:2px;min-height:110px;padding:18px 8px;overflow-x:auto;background:radial-gradient(ellipse,#33483c,#1e3025);border:1px solid #637963;border-radius:12px;scrollbar-color:#9e8b64 #1e3025}
+#our-place-trial .domino-board-empty{margin:auto;color:#bcc8b9;font:italic 16px Georgia,serif}
+#our-place-trial .domino-piece{display:inline-flex;align-items:center;flex-shrink:0;background:#e7decc;color:#241e1b;border:1px solid #b1a18a;border-radius:5px;box-shadow:0 2px 2px #0007;padding:2px;gap:2px}
+#our-place-trial .domino-half{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:2px;padding:3px;width:26px;height:26px;box-sizing:border-box}
+#our-place-trial .domino-half+.domino-half{border-left:1px solid #9a8d7b}
+#our-place-trial .domino-half i{display:block;border-radius:50%}
+#our-place-trial .domino-half i.pip{background:#29221c}
+#our-place-trial .domino-hand{display:flex;gap:8px;flex-wrap:wrap;max-height:220px;overflow:auto;padding:8px 3px;margin:6px 0}
+#our-place-trial .domino-hand .domino-piece{flex-direction:column;width:46px;height:86px;justify-content:center;padding:3px}
+#our-place-trial .domino-hand .domino-half{width:36px;height:36px;padding:4px}
+#our-place-trial .domino-hand .domino-half+.domino-half{border-left:0;border-top:1px solid #9a8d7b}
+#our-place-trial .domino-hand .domino-piece:disabled{opacity:.65;cursor:default}
+#our-place-trial .domino-hand .playable{outline:2px solid #d1b078;outline-offset:1px;cursor:pointer}
+#our-place-trial .domino-hand .picked{outline:3px solid #edbbdf;transform:translateY(-3px)}
+#our-place-trial .domino-actions{justify-content:flex-start;margin:8px 0}
+#our-place-trial .domino-actions button{min-height:40px;font-size:12px}
+#our-place-trial .domino-last,#our-place-trial .domino-help{font-size:12px;color:#c2bba9;margin:8px 0}
+#our-place-trial .domino-rules,#our-place-trial .domino-game-tools{font-size:12px;margin-top:14px;color:#bfc4ba}
+#our-place-trial .domino-rules summary,#our-place-trial .domino-game-tools summary{cursor:pointer;padding:7px 0}
+#our-place-trial #domino-invitation{display:flex;align-items:center;gap:8px;padding:10px;background:#25362b;border-bottom:1px solid #657d60}
+#our-place-trial #domino-invitation span{flex:1;font-size:12px}
+#our-place-trial #domino-invitation button{font-size:12px;padding:8px}
+#our-place-trial #domino-error{font-size:12px;color:#ffb8b8}
+@media(max-width:500px){#our-place-trial #domino-panel{padding:12px}#our-place-trial #domino-open{padding:18px}#our-place-trial .domino-head h3{font-size:22px}}

@@ -7,6 +7,7 @@ import {Store,hash} from './store.mjs';
 import {check,Fault,change,text,names} from './domain.mjs';
 import {respond,MODEL} from './ai.mjs';
 import {mediaChange,youtubeService} from './media.mjs';
+import {dominoChange,dominoSnapshot} from './domino.mjs';
 import {resolveOrigin} from './config.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
@@ -36,7 +37,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
   }
   const send=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};
   async function body(req,max=8*1024*1024){let size=0,chunks=[];for await(const c of req){size+=c.length;check(size<=max,'This attachment is too large.',413);chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString());}catch{throw new Fault('Invalid request.');}}
-  function snapshot(who){const s=store.snapshot(who);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.who=who;s.media=store.state().media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
+  function snapshot(who){const s=store.snapshot(who);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.who=who;s.domino=dominoSnapshot(store.state(),who);s.media=store.state().media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
     s.proposals=store.db.prepare("SELECT id,actor,scope,body FROM jobs WHERE status='done' ORDER BY createdAt DESC LIMIT 20").all().flatMap(j=>{const b=JSON.parse(j.body);return j.actor===who&&!b.accepted?(b.proposals??[]).flatMap((p,index)=>(b.acceptedIndices??[]).includes(index)?[]:[{job:j.id,index,type:p.type,title:p.title,count:p.questions?.length,itemType:p.itemType}]):[];});return s;}
   function emit(event,data,who){for(const [res,meta] of streams){if(!who||meta.who===who)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);}}
   function refresh(){for(const [res,meta]of streams)res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}
@@ -94,6 +95,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
         if(['media.create','media.enqueue'].includes(p.type)){limit('youtube:'+who,12);verifiedTrack=await youtube.resolve(p.data?.track?.videoId);}
         const result=store.once(who,p.id,p,()=>{
           const s=store.state();const data={...(p.data??{})};
+          if(p.type?.startsWith('domino.')){dominoChange(s,who,p.type,data);store.save(s);return {ok:true};}
           if(p.type?.startsWith('media.')){if(verifiedTrack)data.track=verifiedTrack;mediaChange(s,who,p.type,data);store.save(s);return {ok:true};}
           if(p.type==='message'){
             const value=data.text?.trim()?text(data.text,4000):'';check(value||data.image,'Write a message or attach a photo.');if(data.image)photoData(data.image);if(data.reply)check(store.db.prepare('SELECT 1 FROM messages WHERE id=?').get(data.reply),'The original message is unavailable.');
@@ -125,7 +127,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
       if(path==='/api/export'&&req.method==='GET'){res.setHeader('Content-Disposition','attachment; filename="our-place-backup.json"');return send(res,200,{...snapshot(who),messages:store.db.prepare('SELECT * FROM messages ORDER BY rowid').all(),note:'Shared chat and your own drafts. Download photos separately. Keep this file private.'});}
       throw new Fault('Not found.',404);
     }
-    check(req.method==='GET','Method not allowed.',405);const files={'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
+    check(req.method==='GET','Method not allowed.',405);const files={'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
   const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   server.on('close',()=>{for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
