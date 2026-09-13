@@ -47,7 +47,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
         if(j.scope==='shared'){emit('delta',{id,text:delta});if(Date.now()-lastSave>300){store.db.prepare('UPDATE messages SET text=? WHERE id=?').run(output,id);lastSave=Date.now();}}
       }});
       if(store.job(id).status!=='running'||controller.signal.aborted)return;
-      store.tx(()=>{const liveQuiz=proposals.find(p=>p.type==='start');if(liveQuiz){check(j.scope==='shared','Live activities belong in shared chat.');const current=store.state();change(current,j.actor,'quiz.launch',liveQuiz);store.save(current);proposals.splice(proposals.indexOf(liveQuiz),1);output=output||'Let’s begin — one question at a time.';}store.settle(id,usage);store.db.prepare('UPDATE jobs SET body=?,status=? WHERE id=?').run(JSON.stringify({proposals,accepted:false,latency:{firstTokenMs:first,totalMs:Date.now()-started}}),'done',id);
+      store.tx(()=>{const liveQuiz=proposals.find(p=>p.type==='start');if(liveQuiz){check(j.scope==='shared','Live activities belong in shared chat.');const current=store.state();change(current,j.actor,'quiz.launch',{...liveQuiz,afterSequence:store.messages().at(-1)?.sequence??0});store.save(current);proposals.splice(proposals.indexOf(liveQuiz),1);output=output||'Let’s begin — one question at a time.';}store.settle(id,usage);store.db.prepare('UPDATE jobs SET body=?,status=? WHERE id=?').run(JSON.stringify({proposals,accepted:false,latency:{firstTokenMs:first,totalMs:Date.now()-started}}),'done',id);
         if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||(proposals.length?'I prepared something for you to review.':'I could not produce a reply.'),'sent',id);
       });
     }catch(e){if(store.job(id).status==='running')store.status(id,controller.signal.aborted?'interrupted':'failed');if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||'Echo could not finish. Your chat is still available.',store.job(id).status,id);emit('notice',{text:controller.signal.aborted?'Echo stopped.':'Echo could not finish. Try again when you are ready.'},j.scope==='private'?j.actor:undefined);
@@ -109,7 +109,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
           if(p.type==='echo.invite'&&data.value===false){for(const job of store.db.prepare("SELECT id FROM jobs WHERE scope='shared' AND status='running'").all()){store.status(job.id,'cancelled');store.db.prepare("UPDATE messages SET status='cancelled' WHERE id=?").run(job.id);running.get(job.id)?.controller.abort();}}
           if(p.type==='item.save'&&data.image)photoData(data.image);
           if(p.type==='pause'&&data.value)cancel(who,true);
-          change(s,who,p.type,data);store.save(s);return {ok:true};
+          if(['quiz.start','quiz.launch','quiz.answer'].includes(p.type))data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);store.save(s);return {ok:true};
         });
         send(res,200,result);refresh();if(result.job)setImmediate(()=>run(result.job));return;
       }

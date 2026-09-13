@@ -136,7 +136,7 @@ test('live ten-question round preserves draft and archives every answer once',()
  const qs=Array.from({length:10},(_,i)=>({q:'Question '+i,options:['A','B'],correct:0}));
  change(s,'Mahmoud','quiz.launch',{target:'Safy',questions:qs});const id=s.activity.id;
  assert.deepEqual(s.drafts.Mahmoud,quiz);
- assert.throws(()=>change(s,'Mahmoud','quiz.launch',{target:'Safy',questions:qs}),/Finish/);
+
  for(let i=0;i<10;i++){assert.equal(project(s,'Safy').activity.current.q,'Question '+i);change(s,'Safy','quiz.answer',{activity:id,index:i,option:0});}
  assert.equal(s.activity.answers.length,10);assert.equal(s.activity.score,10);assert.equal(s.items[0].type,'Result');
  assert.throws(()=>change(s,'Safy','quiz.answer',{activity:id,index:9,option:0}),/changed/);assert.equal(s.items.length,1);
@@ -151,4 +151,18 @@ test('provider offers direct start in shared chat and keeps private preparation 
  }});
  assert.equal(result.proposals[0].type,privatePrep?'quiz':'start');
  }
+});
+
+test('multiple activities survive serialization with separate progress, controls and results',()=>{
+ let s=initial();change(s,'Mahmoud','quiz.launch',{target:'Safy',questions:quiz,afterSequence:5});const first=s.activity.id;
+ change(s,'Safy','quiz.launch',{target:'Mahmoud',questions:quiz,afterSequence:10});const second=s.activity.id;
+ s=JSON.parse(JSON.stringify(s));
+ change(s,'Safy','quiz.answer',{activity:first,index:0,option:1,afterSequence:15});
+ assert.equal(s.activities.find(a=>a.id===first).index,1);assert.equal(s.activities.find(a=>a.id===first).afterSequence,15);
+ assert.equal(s.activities.find(a=>a.id===second).index,0);
+ change(s,'Mahmoud','quiz.pause',{activity:first,value:true});
+ assert.equal(s.activities.find(a=>a.id===second).pauses.length,0);
+ change(s,'Mahmoud','quiz.end',{activity:second});assert.equal(s.items[0].source,second);
+ assert.equal(s.activities.find(a=>a.id===first).status,'active');
+ const view=project(s,'Safy');assert.ok(view.activities.every(a=>!('qs' in a)));assert.ok(!JSON.stringify(view.activities).includes('correct'));
 });

@@ -236,3 +236,12 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial .compact-room[open] .room-chevron{transform:rotate(180deg)}
 #our-place-trial #welcome-splash{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#111115;color:#eee8e9;font:500 clamp(25px,7vw,40px) Georgia,serif}
 #our-place-trial #welcome-splash small{font:13px system-ui;color:#d1b078;margin-top:18px;letter-spacing:2px}
+
+#our-place-trial #activity-reminder{flex-shrink:0;position:relative;padding:4px 0}
+#our-place-trial #resume-activities{width:100%;min-height:38px;font-size:12px;background:#282219;border-color:#655036;color:#d1b078}
+#our-place-trial #activity-list{position:absolute;bottom:100%;left:0;right:0;background:#211921;border:1px solid #655036;border-radius:12px;max-height:35dvh;overflow:auto;padding:8px;z-index:30}
+#our-place-trial #activity-list button{display:block;width:100%;text-align:left;margin:4px 0}
+#our-place-trial .splash-heart{font:90px/1 Georgia,serif;color:#ce9ab1;margin-bottom:24px}
+#our-place-trial #welcome-splash{transition:opacity .25s}
+#our-place-trial #welcome-splash.leaving{opacity:0;pointer-events:none}
+@media(prefers-reduced-motion:reduce){#our-place-trial #welcome-splash{transition:none}}
