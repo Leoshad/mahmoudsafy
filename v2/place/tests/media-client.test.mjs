@@ -96,3 +96,18 @@ test('expired shared membership and malformed saved media never restore a player
  storage.set('our-place:media:v1:Mahmoud','{broken');
  const b=client('Mahmoud',initial(),[],storage);await settle();assert.equal(b.made(),0);
 });
+
+test('played history persists, reopens a closed video, and direct close leaves only the local participant',async()=>{
+ const room=initial(),storage=new Map(),clients=[],a=client('Mahmoud',room,clients,storage),b=client('Safy',room,clients);
+ a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';
+ await a.get('#media-search').onsubmit({preventDefault(){}});await settle();
+ assert.equal(JSON.parse(storage.get('our-place:media:v1:Mahmoud')).plays[0].videoId,song.videoId);
+ assert.equal(a.get('#media-recent-list').children.length,2);
+ await a.get('#media-close').onclick();assert.equal(a.get('#media-player-area').hidden,true);assert.equal(a.get('#media-panel').hidden,false);
+ await a.get('#media-recent-list').children[0].onclick();await settle();assert.equal(a.player().ps,1);
+ await a.get('#media-invite').onclick();await settle();
+ await b.get('#media-invitation').children.find(x=>x.textContent==='Join').onclick();await settle();
+ assert.equal(a.get('#media-close').hidden,false);
+ await a.get('#media-close').onclick();assert.deepEqual(room.media.participants,['Safy']);assert.equal(a.get('#media-player-box').hidden,true);assert.equal(b.made(),1);
+ a.get('#media-collapse').onclick();assert.equal(a.get('#media-panel').hidden,true);
+});

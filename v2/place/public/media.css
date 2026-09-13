@@ -115,3 +115,16 @@
 #our-place-trial .media-history-head{display:flex;align-items:center;justify-content:space-between;color:#bdaeb7;padding:0 4px 5px}
 #our-place-trial .media-history-head button{font-size:11px;padding:4px 8px}
 #our-place-trial .media-history-item{display:block;width:100%;text-align:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;background:transparent;font-size:12px;padding:9px}
+
+/* A single entry: the open panel replaces its launcher, never duplicates it. */
+#our-place-trial #together:has(#media-home #media-panel:not([hidden])) .media-choices{display:none}
+#our-place-trial #media-collapse{padding:4px 10px;font-size:20px}
+#our-place-trial #media-recent{border-top:1px solid #51404c;margin:10px 0 4px;padding-top:8px}
+#our-place-trial #media-recent>summary{cursor:pointer;font-size:12px;color:#d1b078;padding:5px 0}
+#our-place-trial #media-recent-list{max-height:200px;overflow:auto;padding:4px 0}
+#our-place-trial .media-recent-item{display:block;width:100%;text-align:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:9px;font-size:12px;margin:3px 0}
+#our-place-trial .media-recent-clear{font-size:11px;padding:5px 9px;margin-top:4px}
+#our-place-trial .media-in-chat #media-close::after{content:'×';font-size:22px}
+#our-place-trial #media-close{min-width:32px;min-height:32px;padding:3px 9px;font-size:22px}
+
+#our-place-trial .media-in-chat #media-close{font-size:0}
