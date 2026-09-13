@@ -40,10 +40,6 @@
 
 /* Compact, fully visible table and hand: no inner scrolling. */
 #our-place-trial .domino-board{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;min-height:150px;padding:16px 12px;overflow:visible;border-radius:9px;box-sizing:border-box}
-#our-place-trial .domino-lane{display:flex;gap:2px;position:relative;flex:none;height:24px}
-#our-place-trial .domino-lane.reverse{flex-direction:row-reverse}
-#our-place-trial .domino-lane.connected::after{content:'';position:absolute;right:-7px;top:11px;width:6px;height:36px;border:2px solid #bca97b;border-left:0;border-radius:0 7px 7px 0;box-sizing:border-box;pointer-events:none}
-#our-place-trial .domino-lane.reverse.connected::after{right:auto;left:-7px;border:2px solid #bca97b;border-right:0;border-radius:7px 0 0 7px}
 #our-place-trial .domino-board .domino-piece{width:42px;height:24px;box-sizing:border-box;padding:1px;gap:0;border-radius:3px}
 #our-place-trial .domino-board .domino-half{width:19px;height:20px;gap:1px;padding:2px;flex-shrink:0}
 #our-place-trial .domino-hand{gap:6px;max-height:none;overflow:visible;padding:6px 2px;margin:4px 0}
@@ -65,8 +61,29 @@
 #our-place-trial .domino-round strong{font-size:16px}
 
 #our-place-trial .domino-board .domino-piece{position:relative}
-#our-place-trial .domino-board .chain-start::before{content:'A';position:absolute;top:-13px;left:0;font:bold 9px system-ui;color:#edd097}
-#our-place-trial .domino-board .chain-end::after{content:'B';position:absolute;bottom:-13px;right:0;font:bold 9px system-ui;color:#edd097}
 
 #our-place-trial .domino-opponent{display:flex;gap:3px;flex-wrap:wrap;justify-content:center;margin:4px 0 7px}
 #our-place-trial .domino-opponent span{display:block;width:11px;height:21px;border:1px solid #a08969;border-radius:3px;background:linear-gradient(135deg,#6d5367,#362c38);box-shadow:0 1px 2px #0006}
+
+/* A centered table with physical bends and crosswise doubles. */
+#our-place-trial .domino-board{display:block;position:relative;height:260px;min-height:230px;padding:0;overflow:visible;background:radial-gradient(ellipse at 50% 45%,#355544,#1e3428);border:2px solid #68816a;box-shadow:inset 0 0 25px #0004}
+#our-place-trial .domino-board-empty{position:absolute;inset:0;display:grid;place-items:center}
+#our-place-trial .domino-placement{position:absolute;display:block;width:0;height:0}
+#our-place-trial .domino-board .domino-piece{position:absolute;display:flex;width:calc(var(--domino-unit)*2);height:var(--domino-unit);padding:1px;border-radius:3px;transform-origin:center}
+#our-place-trial .domino-board .domino-half{width:calc(var(--domino-unit) - 2px);height:calc(var(--domino-unit) - 2px);padding:2px;gap:1px;flex-shrink:0}
+#our-place-trial .domino-end-label{position:absolute;font:bold 9px system-ui;color:#edcf8f}
+#our-place-trial .domino-board .computer-last{outline:2px solid #f1c65e;outline-offset:2px;box-shadow:0 0 9px #e8b84877}
+#our-place-trial .domino-arriving{animation:domino-arrive .55s ease-out both;z-index:2}
+@keyframes domino-arrive{from{transform:translate(var(--arrival-x),var(--arrival-y));opacity:.2}to{transform:translate(0,0);opacity:1}}
+@media(prefers-reduced-motion:reduce){#our-place-trial .domino-arriving{animation:none}}
+#our-place-trial .domino-player-score strong{font-size:20px}
+#our-place-trial #domino-records{display:flex;flex-wrap:wrap;gap:5px 14px;padding:8px 0;border-bottom:1px solid #47513e;font-size:11px;color:#d1b078}
+#our-place-trial #domino-records>small{width:100%;font-size:8px;letter-spacing:1px}
+#our-place-trial .domino-win-total{font-size:12px}
+#our-place-trial #domino-history-list{max-height:250px;overflow:auto}
+#our-place-trial .domino-history-row{display:grid;gap:4px;padding:10px 0;border-bottom:1px solid #41503f}
+#our-place-trial .domino-history-row span{font-size:11px}
+#our-place-trial .domino-history-row small{font-size:10px;color:#a8b5a3}
+
+#our-place-trial .domino-player-score{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:5px 3px;min-width:0}
+#our-place-trial .domino-player-score strong{font-size:20px;white-space:nowrap}

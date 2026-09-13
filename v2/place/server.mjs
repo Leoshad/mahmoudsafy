@@ -7,7 +7,7 @@ import {Store,hash} from './store.mjs';
 import {check,Fault,change,text,names} from './domain.mjs';
 import {respond,MODEL} from './ai.mjs';
 import {mediaChange,youtubeService} from './media.mjs';
-import {dominoChange,dominoSnapshot} from './domino.mjs';
+import {dominoChange,dominoSnapshot,dominoTick} from './domino.mjs';
 import {resolveOrigin} from './config.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
@@ -130,7 +130,8 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
     check(req.method==='GET','Method not allowed.',405);const files={'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
   const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
-  server.on('close',()=>{for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
+  const dominoTimer=setInterval(()=>{try{if(!Object.values(store.state().domino?.solo??{}).some(g=>g.status==='active'&&g.turn==='Computer'&&(g.botDueAt??0)<=Date.now()))return;const changed=store.tx(()=>{const s=store.state();if(!dominoTick(s))return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
+  server.on('close',()=>{clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});

@@ -5,10 +5,10 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {initial} from '../domain.mjs';
-import {dominoChange,dominoSnapshot,legalMoves,botChoice,tiles} from '../domino.mjs';
+import {dominoChange,dominoSnapshot,dominoTick,legalMoves,botChoice,tiles} from '../domino.mjs';
 import {Store} from '../store.mjs';
 import {createApp} from '../server.mjs';
-const act=(s,who,type,data={},g=s.domino.shared??s.domino.solo[who])=>dominoChange(s,who,'domino.'+type,{game:g?.id,revision:g?.revision,...data});
+const act=(s,who,type,data={},g=s.domino.shared??s.domino.solo[who])=>{dominoChange(s,who,'domino.'+type,{game:g?.id,revision:g?.revision,...data});dominoTick(s,Date.now()+2000);};
 function conservation(g){
  const all=[...g.stock,...Object.values(g.hands).flat(),...g.chain];assert.equal(all.length,28);assert.equal(new Set(all.map(t=>t.id)).size,28);
  for(let i=1;i<g.chain.length;i++)assert.equal(g.chain[i-1].b,g.chain[i].a);
@@ -36,8 +36,8 @@ test('solo games finish at all difficulties with 28 unique tiles, legal chains a
    const v=dominoSnapshot(s,'Mahmoud').solo;conservation(g);assert.equal(g.turn,'Mahmoud');
    if(v.legal.length)act(s,'Mahmoud','play',v.legal[0],g);else act(s,'Mahmoud',v.canDraw?'draw':'pass',{},g);
   }
-  assert.equal(g.status,'finished');conservation(g);assert.ok(g.result);
-  act(s,'Mahmoud','rematch',{},g);assert.equal(g.round,2);assert.equal(g.turn,'Mahmoud');conservation(g);
+  assert.ok(['finished','complete'].includes(g.status));conservation(g);assert.ok(g.result);
+  if(g.status==='complete')continue;act(s,'Mahmoud','rematch',{},g);assert.equal(g.round,2);assert.equal(g.turn,'Mahmoud');conservation(g);
  }
 });
 test('blocked score, empty-hand win, both-end orientations, and illegal draw/pass',()=>{
@@ -85,4 +85,38 @@ test('HTTP two accounts: idempotent moves, private snapshots/SSE and saved game 
  await new Promise(r=>server.close(r));store.close();store=new Store(path);await start();
  const restored=(await request('safy','state')).data.domino.shared;assert.equal(restored.id,b.id);assert.deepEqual(restored.hand,b.hand);assert.equal(restored.chain.length,1);
  }finally{if(server?.listening)await new Promise(r=>server.close(r));store.close();rmSync(folder,{recursive:true,force:true});}
+});
+
+test('50/100 match targets archive one win, survive persistence, and separate solo records',()=>{
+ const s=initial();assert.throws(()=>dominoChange(s,'Mahmoud','domino.create',{mode:'shared',target:75}),/50 or 100/);
+ dominoChange(s,'Mahmoud','domino.create',{mode:'shared',target:50});act(s,'Safy','accept');let g=s.domino.shared;
+ g.scores.Mahmoud=49;g.hands={Mahmoud:[{id:'1-1',a:1,b:1}],Safy:[{id:'3-4',a:3,b:4}]};g.chain=[];g.turn='Mahmoud';
+ act(s,'Mahmoud','play',{tile:'1-1',side:'right'});
+ assert.equal(g.status,'complete');assert.equal(g.matchWinner,'Mahmoud');
+ assert.equal(s.domino.records.shared.wins.Mahmoud,1);assert.equal(s.domino.records.shared.history[0].scores.Mahmoud,56);
+ assert.throws(()=>act(s,'Mahmoud','rematch'),/Finish/);dominoTick(s,Date.now()+5000);
+ assert.equal(s.domino.records.shared.history.length,1);
+ const store=new Store(':memory:');store.save(s);const recovered=store.state();store.close();
+ assert.equal(dominoSnapshot(recovered,'Safy').records.shared.wins.Mahmoud,1);
+ act(s,'Mahmoud','create',{mode:'shared',target:100});g=s.domino.shared;assert.equal(g.target,100);assert.equal(g.scores.Mahmoud,0);
+ dominoChange(s,'Mahmoud','domino.create',{mode:'solo',difficulty:'easy',target:50});const solo=s.domino.solo.Mahmoud;
+ solo.scores.Mahmoud=49;solo.hands={Mahmoud:[{id:'1-1',a:1,b:1}],Computer:[{id:'3-4',a:3,b:4}]};
+ act(s,'Mahmoud','play',{tile:'1-1',side:'right'},solo);
+ assert.equal(dominoSnapshot(s,'Mahmoud').records.solo.wins.Mahmoud,1);assert.equal(dominoSnapshot(s,'Safy').records.solo.history.length,0);
+ assert.equal(s.domino.records.shared.wins.Mahmoud,1);
+});
+test('computer waits, resumes a persisted pending turn, and ticks only once',()=>{
+ const s=initial();dominoChange(s,'Mahmoud','domino.create',{mode:'solo',difficulty:'medium',target:100},1000);
+ const g=s.domino.solo.Mahmoud,move=legalMoves(g.hands.Mahmoud,g.chain)[0];
+ dominoChange(s,'Mahmoud','domino.play',{game:g.id,revision:g.revision,...move},2000);
+ assert.equal(g.turn,'Computer');assert.equal(g.chain.length,1);assert.equal(g.botDueAt,3100);
+ assert.equal(dominoTick(s,3000),false);
+ const recovered=JSON.parse(JSON.stringify(s));assert.equal(dominoTick(recovered,3100),true);
+ const after=recovered.domino.solo.Mahmoud;assert.equal(after.turn,'Mahmoud');assert.equal(after.chain.length,2);assert.equal(after.lastMove.by,'Computer');
+ assert.equal(dominoTick(recovered,8000),false);conservation(after);
+});
+test('leaving a started match records no win and counts neither cancellation nor replay as a win',()=>{
+ const s=initial();dominoChange(s,'Mahmoud','domino.create',{mode:'shared',target:50});act(s,'Safy','accept');act(s,'Mahmoud','leave');
+ assert.equal(s.domino.records.shared.history[0].status,'abandoned');assert.equal(s.domino.records.shared.wins.Mahmoud,0);assert.equal(s.domino.records.shared.wins.Safy,0);
+ assert.throws(()=>act(s,'Safy','leave'),/ended/);assert.equal(s.domino.records.shared.history.length,1);
 });

@@ -2,6 +2,32 @@
 const $=s=>document.querySelector(s),make=(tag,text,root,cls)=>{const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;root?.append(e);return e;};
 let host,who=null,games={},mode='solo',opened=false,busy=false,picked=null,signature='',version=-1;
 const game=()=>games[mode];
+let soundOn=true,audioContext=null;
+const heardMoves=new Map();
+try{soundOn=localStorage.getItem('our-place:domino:sound')!=='off';}catch{}
+function soundButton(){const b=$('#domino-sound');b.textContent=soundOn?'Sound on':'Muted';b.setAttribute('aria-pressed',String(soundOn));b.setAttribute('aria-label',soundOn?'Mute domino sounds':'Enable domino sounds');}
+function unlockSound(){
+ if(!soundOn)return;
+ try{const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;audioContext??=new Audio();if(audioContext.state==='suspended')audioContext.resume().catch(()=>{});}catch{}
+}
+function tileSound(){
+ if(!soundOn||!opened||document.hidden||$('#domino-panel').getClientRects?.().length===0||audioContext?.state!=='running')return;
+ try{
+  const now=audioContext.currentTime;
+  for(const [delay,hz,volume] of [[0,760,.075],[.018,420,.05]]){
+   const tone=audioContext.createOscillator(),gain=audioContext.createGain();tone.type='triangle';tone.frequency.setValueAtTime(hz,now+delay);tone.frequency.exponentialRampToValueAtTime(hz*.45,now+delay+.045);
+   gain.gain.setValueAtTime(volume,now+delay);gain.gain.exponentialRampToValueAtTime(.001,now+delay+.065);tone.connect(gain);gain.connect(audioContext.destination);tone.start(now+delay);tone.stop(now+delay+.07);tone.onended=()=>{tone.disconnect();gain.disconnect();};
+  }
+ }catch{}
+}
+function hearMoves(next){
+ for(const m of ['solo','shared']){
+  const g=next[m],key=g?g.id+':'+g.round:null,order=g?.lastMove?.order??0,previous=heardMoves.get(m);
+  if(previous&&previous.key===key&&order>previous.order&&m===mode)tileSound();
+  heardMoves.set(m,{key,order});
+ }
+}
+
 function save(){try{if(who)localStorage.setItem('our-place:domino:'+who,JSON.stringify({mode,opened}));}catch{}}
 function show(){ $('#domino-panel').hidden=!opened;$('#domino-open').hidden=opened;save();}
 function error(e){$('#domino-error').textContent=e.message||'Could not connect. Your game is saved.';}
@@ -17,40 +43,76 @@ function piece(tile,root,interactive=false){
  const e=make(interactive?'button':'span',undefined,root,'domino-piece');if(interactive)e.type='button';e.setAttribute('aria-label',tile.a+'–'+tile.b);
  for(const value of [tile.a,tile.b]){const half=make('span',undefined,e,'domino-half');half.setAttribute('aria-hidden','true');for(let i=0;i<9;i++)make('i',undefined,half,dots[value].includes(i)?'pip':'');}return e;
 }
-let boardObserver=null;
-function arrangeBoard(board,chain){
- const columns=Math.max(3,Math.min(10,Math.floor(((board.clientWidth||280)-28)/44)));
- if(board.dataset.columns===String(columns))return;board.dataset.columns=String(columns);board.replaceChildren();
+let boardObserver=null,animationSeen='',historySignature='';
+function tableLayout(chain){
+ const out=[];let direction=0,rowY=0,horizontal=0;
+ const pose=(tile,dir,previous)=>{
+  const double=tile.a===tile.b,len=double?1:2,cross=double?2:1,dx=[1,0,-1,0][dir],dy=[0,1,0,-1][dir];let x=0,y=0;
+  if(previous){
+   if(dir===previous.dir){x=previous.x+dx*(previous.len/2+len/2+.08);y=previous.y+dy*(previous.len/2+len/2+.08);}
+   else{const oldDx=[1,0,-1,0][previous.dir],oldDy=[0,1,0,-1][previous.dir],half=previous.double?0:previous.len/2-.5;
+    x=previous.x+oldDx*half+dx*(previous.cross/2+len/2+.08);y=previous.y+oldDy*half+dy*(previous.cross/2+len/2+.08);}
+  }
+  return {tile,x,y,dir,len,cross,double,w:dir%2?cross:len,h:dir%2?len:cross,angle:dir*90+(double?90:0)};
+ };
+ for(const tile of chain){
+  let previous=out.at(-1),next=pose(tile,direction,previous);
+  if(previous&&direction%2===0&&(next.x+next.w/2>8||next.x-next.w/2< -8)){horizontal=direction;direction=1;next=pose(tile,direction,previous);}
+  else if(previous&&direction===1&&previous.y-rowY>=3){direction=horizontal===0?2:0;next=pose(tile,direction,previous);rowY=next.y;}
+  out.push(next);
+ }
+ return out;
+}
+function arrangeBoard(board,chain,lastMove,key){
+ const width=board.clientWidth||280;
+ if(board.dataset.layout===String(width))return;board.dataset.layout=String(width);board.replaceChildren();
  if(!chain.length){make('span','Your table is ready.',board,'domino-board-empty');return;}
- for(let start=0;start<chain.length;start+=columns){
-  const row=Math.floor(start/columns),reverse=row%2===1,lane=make('div',undefined,board,'domino-lane'+(reverse?' reverse':'')+(start+columns<chain.length?' connected':''));
-  lane.style.width=(columns*44-2)+'px';
-  for(const [offset,tile] of chain.slice(start,start+columns).entries()){const e=piece(reverse?{...tile,a:tile.b,b:tile.a}:tile,lane);e.classList.toggle('chain-start',start+offset===0);e.classList.toggle('chain-end',start+offset===chain.length-1);}
+ const poses=tableLayout(chain),minX=Math.min(...poses.map(p=>p.x-p.w/2)),maxX=Math.max(...poses.map(p=>p.x+p.w/2)),minY=Math.min(...poses.map(p=>p.y-p.h/2)),maxY=Math.max(...poses.map(p=>p.y+p.h/2));
+ const height=Math.max(230,Math.min(330,width*.9)),unit=Math.min(24,(width-30)/(maxX-minX),(height-34)/(maxY-minY));
+ board.style.height=height+'px';board.style.setProperty('--domino-unit',unit+'px');
+ const offsetX=(width-(maxX-minX)*unit)/2,offsetY=(height-(maxY-minY)*unit)/2;
+ const animate=lastMove?.by==='Computer'&&animationSeen!==key;animationSeen=key;
+ for(const [index,p] of poses.entries()){
+  const x=offsetX+(p.x-minX)*unit,y=offsetY+(p.y-minY)*unit,wrap=make('span',undefined,board,'domino-placement');
+  wrap.style.left=x+'px';wrap.style.top=y+'px';wrap.style.setProperty('--arrival-x',(width/2-x)+'px');wrap.style.setProperty('--arrival-y',(12-y)+'px');
+  const e=piece(p.tile,wrap);e.style.transform='translate(-50%,-50%) rotate('+p.angle+'deg)';
+  const latest=lastMove?.id===p.tile.id&&lastMove?.by==='Computer';e.classList.toggle('computer-last',latest);wrap.classList.toggle('domino-arriving',latest&&animate);
+  if(index===0||index===poses.length-1){const label=make('small',index===0?'A':'B',wrap,'domino-end-label');label.style.top=(p.h*unit/2+3)+'px';}
  }
 }
+function renderRecords(){
+ const record=games.records?.[mode]??{wins:{},history:[]},sig=JSON.stringify([mode,record]);if(sig===historySignature)return;historySignature=sig;
+ const root=$('#domino-records');root.replaceChildren();const people=mode==='shared'?['Mahmoud','Safy']:[who,'Computer'];
+ make('small',mode==='shared'?'YOUR RIVALRY · MATCH WINS':'SOLO · MATCH WINS',root,'label');
+ for(const name of people)make('span',name+' · '+(record.wins[name]??0)+' wins',root,'domino-win-total');
+ const list=$('#domino-history-list');list.replaceChildren();
+ if(!record.history.length)make('p','Completed matches will be remembered here.',list,'muted');
+ for(const entry of record.history){const row=make('div',undefined,list,'domino-history-row');make('strong',entry.status==='completed'?entry.winner+' won':'Unfinished match',row);make('span',Object.entries(entry.scores).map(([n,p])=>n+' '+p).join(' · ')+' / target '+entry.target,row);make('small',new Date(entry.date).toLocaleDateString()+' · '+entry.rounds+' rounds'+(entry.difficulty?' · '+entry.difficulty:''),row);}
+}
+window.DominoTable={layout:tableLayout};
 function scoreboard(g,root){
  const score=make('div',undefined,root,'domino-scoreboard');score.setAttribute('aria-label','Game score');
  const order=g.mode==='shared'?['Mahmoud','Safy']:g.players;
  for(let i=0;i<order.length;i++){
   if(i===1){const round=make('div',undefined,score,'domino-round');make('small','ROUND',round);make('strong',String(g.round),round);}
   const name=order[i],card=make('div',undefined,score,'domino-player-score '+(name==='Mahmoud'?'mahmoud':name==='Safy'?'safy':'computer'));
-  card.classList.toggle('current-turn',g.turn===name);make('span',name,card);make('strong',String(g.scores[name]??0),card);make('small','POINTS',card);
+  card.classList.toggle('current-turn',g.turn===name);make('span',name,card);make('strong',String(g.scores[name]??0)+'/'+g.target,card);make('small','POINTS',card);
  }
 }
 function invite(){
  const g=games.shared,root=$('#domino-invitation');root.replaceChildren();root.hidden=!(g?.status==='waiting'&&g.owner!==who);
- if(root.hidden)return;make('span',g.owner+' invited you to Dominoes.',root);
+ if(root.hidden)return;make('span',g.owner+' invited you to Dominoes · first to '+g.target+'.',root);
  btn('Join',root,async()=>{mode='shared';opened=true;host.goto('together');await command('accept',{},g);show();},'primary').disabled=busy;
  btn('Not now',root,()=>command('decline',{},g)).disabled=busy;
 }
 function render(){
- show();invite();
+ show();invite();renderRecords();
  const g=game(),key=JSON.stringify([g,mode,busy,picked]);
  $('#domino-solo-tab').classList.toggle('selected',mode==='solo');$('#domino-shared-tab').classList.toggle('selected',mode==='shared');
  $('#domino-open-note').textContent=games.shared?.status==='active'?'Your shared game is saved.':games.solo?.status==='active'?'Your solo game is saved.':'A quiet table. A little competition.';
  if(key===signature)return;signature=key;
  const root=$('#domino-game');boardObserver?.disconnect();root.replaceChildren();if(g)scoreboard(g,root);
- const live=g&&['waiting','active','finished'].includes(g.status);
+ const live=g&&['waiting','active','finished','complete'].includes(g.status);
  $('#domino-setup').hidden=!!live;
  $('#domino-difficulty-row').hidden=mode!=='solo';
  $('#domino-start').textContent=mode==='solo'?'Play against computer':'Invite '+(who==='Mahmoud'?'Safy':'Mahmoud');
@@ -61,20 +123,20 @@ function render(){
   if(g.owner===who)btn('Cancel invitation',root,()=>command('leave')).disabled=busy;
   else{btn('Accept invitation',root,()=>command('accept'),'primary').disabled=busy;btn('Not now',root,()=>command('decline')).disabled=busy;}return;
  }
- const status=g.status==='finished'?(g.result.winner?g.result.winner+' wins · +'+g.result.points+' points':'Draw · equal remaining pips'):g.turn===who?'Your turn':g.turn+'’s turn';
+ const status=g.status==='complete'?g.matchWinner+' wins the match!':g.status==='finished'?(g.result.winner?g.result.winner+' wins · +'+g.result.points+' points':'Draw · equal remaining pips'):g.turn===who?'Your turn':g.turn==='Computer'?'Computer is choosing…':g.turn+'’s turn';
  make('p',status,root,'domino-turn').setAttribute('role','status');
  const meta=make('div',undefined,root,'domino-table-meta');make('span',g.opponent+' · '+g.opponentCount+' tiles',meta);make('span','Draw pile · '+g.stockCount,meta);
  const backs=make('div',undefined,root,'domino-opponent');backs.setAttribute('aria-label',g.opponent+' has '+g.opponentCount+' hidden tiles');for(let i=0;i<g.opponentCount;i++)make('span',undefined,backs).setAttribute('aria-hidden','true');
  const ends=make('div',undefined,root,'domino-ends');make('span',g.chain.length?'End A · '+g.chain[0].a:'Place any tile to start',ends);if(g.chain.length)make('span','End B · '+g.chain.at(-1).b,ends);
  const board=make('div',undefined,root,'domino-board');board.setAttribute('aria-label','All played tiles in a connected snake, starting at the top left');
- arrangeBoard(board,g.chain);
- requestAnimationFrame(()=>{if(board.isConnected!==false)arrangeBoard(board,g.chain);});
- if(typeof ResizeObserver!=='undefined'){boardObserver=new ResizeObserver(()=>arrangeBoard(board,g.chain));boardObserver.observe(board);}
+ arrangeBoard(board,g.chain,g.lastMove,g.id+':'+g.round+':'+(g.lastMove?.order??0));
+ requestAnimationFrame(()=>{if(board.isConnected!==false)arrangeBoard(board,g.chain,g.lastMove,g.id+':'+g.round+':'+(g.lastMove?.order??0));});
+ if(typeof ResizeObserver!=='undefined'){boardObserver=new ResizeObserver(()=>arrangeBoard(board,g.chain,g.lastMove,g.id+':'+g.round+':'+(g.lastMove?.order??0)));boardObserver.observe(board);}
  make('p',g.last?.text||'',root,'domino-last');
- if(g.status==='finished'){
+ if(g.status==='finished'||g.status==='complete'){
   if(g.result.reason==='blocked')make('p','Blocked table · '+g.players.map(n=>n+': '+g.result.totals[n]+' pips').join(' / '),root,'muted');
-  btn(g.mode==='solo'?'Next round':'Invite to next round',root,()=>command('rematch'),'primary').disabled=busy;
-  btn('Finish game',root,()=>command('leave')).disabled=busy;
+  if(g.status==='complete')btn('New match',root,()=>command('leave'),'primary').disabled=busy;
+  else{btn(g.mode==='solo'?'Next round':'Invite to next round',root,()=>command('rematch'),'primary').disabled=busy;btn('Finish game',root,()=>command('leave')).disabled=busy;}
  }else{
   const controls=make('div',undefined,root,'domino-actions');
   if(picked&&g.legal.some(m=>m.tile===picked)){make('span','Choose an end:',controls);for(const move of g.legal.filter(m=>m.tile===picked))btn(move.side==='left'?'End A':'End B',controls,()=>command('play',move),'primary').disabled=busy;}
@@ -94,16 +156,16 @@ function render(){
  }
 }
 function init(h){
- host=h;$('#domino-open').onclick=()=>{opened=true;show();render();};
+ host=h;soundButton();$('#domino-panel').addEventListener?.('pointerdown',unlockSound);$('#domino-panel').addEventListener?.('keydown',unlockSound);$('#domino-sound').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('our-place:domino:sound',soundOn?'on':'off');}catch{}soundButton();if(soundOn)unlockSound();};$('#domino-open').onclick=()=>{opened=true;show();render();};
  $('#domino-collapse').onclick=()=>{opened=false;show();};
  for(const m of ['solo','shared'])$('#domino-'+m+'-tab').onclick=()=>{mode=m;picked=null;signature='';render();};
- $('#domino-start').onclick=()=>command('create',{mode,difficulty:$('#domino-difficulty').value},null);
+ $('#domino-start').onclick=()=>command('create',{mode,difficulty:$('#domino-difficulty').value,target:Number($('#domino-target').value)},null);
  $('#domino-chat').onclick=()=>host.goto('chat');
 }
 window.OurDomino={init,sync(s){
  if(Number.isFinite(s.version)&&who===s.who&&s.version<version)return;
- if(who!==s.who){who=s.who;opened=false;mode='solo';picked=null;signature='';
+ if(who!==s.who){heardMoves.clear();who=s.who;opened=false;mode='solo';picked=null;signature='';
  try{const saved=JSON.parse(localStorage.getItem('our-place:domino:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;}}catch{}}
- version=s.version;games=s.domino??{};if(picked&&!game()?.legal.some(m=>m.tile===picked))picked=null;render();
-},reset(){boardObserver?.disconnect();who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
+ version=s.version;hearMoves(s.domino??{});games=s.domino??{};if(picked&&!game()?.legal.some(m=>m.tile===picked))picked=null;render();
+},reset(){heardMoves.clear();boardObserver?.disconnect();historySignature='';animationSeen='';$('#domino-records').replaceChildren();$('#domino-history-list').replaceChildren();who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
 })();
