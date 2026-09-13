@@ -52,3 +52,16 @@ test('Echo emphasis renders safely without stars while human text stays literal'
  assert.equal(p.children.map(n=>n.textContent).join(''),'Hello <img onerror=alert(1)> world');
  ctx.renderMessageText(p,{author:'Safy',text:'Keep **my stars**'});assert.equal(p.textContent,'Keep **my stars**');
 });
+
+test('message gestures distinguish hold, left reply and vertical scrolling',()=>{
+ const handlers={},timers=new Map();let serial=0,menus=0,replies=0;
+ const row={addEventListener:(n,f)=>handlers[n]=f,classList:{remove(){},toggle(){}}};
+ const ctx=vm.createContext({setTimeout:f=>{timers.set(++serial,f);return serial;},clearTimeout:id=>timers.delete(id),openMessageMenu:()=>menus++,paintReply:()=>replies++,$:()=>({focus(){}}),reply:null});
+ vm.runInContext(source.slice(source.indexOf('function messageGestures('),source.indexOf('function renderMessageText(')),ctx);
+ ctx.messageGestures(row,{status:'sent',id:'test'});
+ const event=(x,y)=>({isPrimary:true,button:0,pointerId:1,clientX:x,clientY:y,target:{closest:()=>null}});
+ handlers.pointerdown(event(150,100));handlers.pointermove(event(140,160));handlers.pointerup(event(70,160));assert.equal(replies,0);assert.equal(timers.size,0);
+ handlers.pointerdown(event(150,100));handlers.pointermove(event(80,105));handlers.pointerup(event(80,105));assert.equal(replies,1);assert.equal(ctx.reply.id,'test');
+ handlers.pointerdown(event(150,100));for(const f of timers.values())f();handlers.pointerup(event(150,100));assert.equal(menus,1);assert.equal(replies,1);
+ handlers.pointerdown(event(150,100));handlers.pointercancel();assert.equal(timers.size,0);
+});
