@@ -99,7 +99,8 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial.signed-in #chat{height:100%;display:flex;flex-direction:column;min-height:0}
 #our-place-trial.signed-in .timeline{flex:1;min-height:100px;max-height:none}
 #our-place-trial.signed-in footer{display:none}
-#our-place-trial #latest{align-self:center;min-height:32px;padding:5px 12px;font-size:12px;color:var(--gold)}
+#our-place-trial #latest{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:14;max-width:calc(100% - 24px);min-height:40px;padding:7px 14px;font-size:12px;color:var(--gold);background:#27212af5;border-radius:20px;box-shadow:0 3px 14px #0006}
+#our-place-trial #activity-reminder:not([hidden])~#latest{bottom:56px}
 /* Chat is one distinct surface; navigation and creation tools sit outside it. */
 #our-place-trial .shell{background:#0d0c11}
 #our-place-trial #chat{padding:18px;border:1px solid #674553;border-radius:20px;background:#18141b;box-shadow:0 12px 36px #00000026}
