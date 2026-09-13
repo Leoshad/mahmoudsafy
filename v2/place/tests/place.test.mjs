@@ -40,6 +40,14 @@ test('provider streams text immediately and validates quiz tool output',async()=
  process.env.OPENAI_API_KEY='test-only';let observed='';const eventList=[{type:'response.output_text.delta',delta:'Hello'},{type:'response.completed',response:{usage:{input_tokens:10,output_tokens:20},output:[{type:'function_call',name:'prepare_quiz',arguments:JSON.stringify({title:'Play',questions:quiz})}]}}];
  const r=await respond({actor:'Safy',prompt:'Quiz',context:'',onText:t=>observed+=t,fetcher:async(_url,opts)=>{const p=JSON.parse(opts.body);assert.equal(p.stream,true);assert.equal(p.store,false);assert.equal(p.model,'gpt-5.6-luna');return new Response(eventList.map(e=>'data: '+JSON.stringify(e)+'\n\n').join(''));}});assert.equal(observed,'Hello');assert.equal(r.proposals[0].questions.length,2);
 });
+test('Our Space creation requests a usable item proposal without changing the model or adding a second AI call',async()=>{
+ process.env.OPENAI_API_KEY='test-only';let calls=0;
+ const result=await respond({actor:'Mahmoud',prompt:'Plan our evening',purpose:'space',context:'',onText(){},fetcher:async(_url,opts)=>{
+  calls++;const body=JSON.parse(opts.body);assert.equal(body.tool_choice.name,'propose_item');assert.equal(body.model,'gpt-5.6-luna');assert.equal(body.parallel_tool_calls,false);assert.match(body.instructions,/ready-to-use/);
+  return new Response('data: '+JSON.stringify({type:'response.completed',response:{usage:{input_tokens:10,output_tokens:10},output:[{type:'function_call',name:'propose_item',arguments:JSON.stringify({type:'Plan',title:'Our evening\n1. Choose a film\n2. Play a quiz'})}]}})+'\n\n');
+ }});
+ assert.equal(calls,1);assert.equal(result.proposals[0].itemType,'Plan');assert.match(result.proposals[0].title,/Choose a film/);
+});
 
 test('two authenticated HTTP clients: shared chat, private preparation, live stream and cancellation',async t=>{
  process.env.MAHMOUD_EMAIL='mahmoud@example.test';process.env.SAFY_EMAIL='safy@example.test';process.env.OPENAI_API_KEY='test-only';
@@ -59,6 +67,41 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  await t.test('Just Us messages are excluded; Ask once does not resume AI',async()=>{await cmd('safy','message',{text:'Private pause text'});assert.equal((await cmd('mahmoud','ai.ask',{prompt:'No explicit once'})).status,409);activeAI=null;const r=await cmd('mahmoud','ai.ask',{prompt:'One answer',once:true});for(let i=0;i<100&&!activeAI;i++)await new Promise(r=>setTimeout(r,5));assert.equal(activeAI.context,'');release();await waitJob(r.body.job);assert.deepEqual(s.state().pauses,['Safy']);await cmd('safy','pause',{value:false});});
  await t.test('private proposals require owner and never expose solutions',async()=>{const id=randomUUID();s.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,'Safy','private','done',JSON.stringify({proposals:[{type:'quiz',title:'New quiz',questions:quiz}]}),new Date().toISOString());assert.ok(!(await request('mahmoud','state')).body.proposals.some(p=>p.job===id));assert.equal((await cmd('mahmoud','proposal.accept',{job:id})).status,403);assert.ok(!JSON.stringify((await request('safy','state')).body.proposals).includes('correct'));assert.equal((await cmd('safy','proposal.accept',{job:id})).status,200);});
  await t.test('media requires authentication, sniffs bytes and rejects HTML',async()=>{assert.equal((await request('safy','photos',{data:Buffer.from('<script>alert(1)</script>').toString('base64')})).status,400);const png=Buffer.from([137,80,78,71,13,10,26,10,0,0]);const p=await request('safy','photos',{data:png.toString('base64')});assert.equal(p.status,201);const r=await fetch(base+'/api/photos/'+p.body.id);assert.equal(r.status,401);});
+ await t.test('source lookup requires authentication and returns the exact shared message',async()=>{
+  const id=randomUUID();await cmd('mahmoud','message',{text:'Source of our plan'},id);
+  assert.equal((await request('none','messages/'+id)).status,401);
+  const found=await request('safy','messages/'+id);assert.equal(found.status,200);assert.equal(found.body.text,'Source of our plan');assert.ok(found.body.sequence>0);
+  assert.equal((await request('safy','messages/'+randomUUID())).status,404);
+ });
+ await t.test('each proposal accepts its own index once and remains private to its requester',async()=>{
+  const id=randomUUID();s.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,'Safy','private','done',JSON.stringify({proposals:[{type:'item',itemType:'Idea',title:'First idea'},{type:'item',itemType:'Plan',title:'Second plan'}]}),new Date().toISOString());
+  assert.equal((await cmd('mahmoud','proposal.accept',{job:id,index:1})).status,403);
+  assert.equal((await cmd('safy','proposal.accept',{job:id,index:2})).status,404);
+  assert.equal((await cmd('safy','proposal.accept',{job:id,index:1})).status,200);
+  assert.equal(s.state().items[0].title,'Second plan');
+  const remaining=(await request('safy','state')).body.proposals.filter(p=>p.job===id);assert.equal(remaining.length,1);assert.equal(remaining[0].index,0);assert.equal(remaining[0].title,'First idea');
+  assert.equal((await cmd('safy','proposal.accept',{job:id,index:1})).status,409);
+  assert.equal((await cmd('safy','proposal.accept',{job:id,index:0})).status,200);
+  assert.equal(s.state().items[0].title,'First idea');
+  assert.ok(!(await request('safy','state')).body.proposals.some(p=>p.job===id));
+ });
+ await t.test('pins use server message text and are shared, reversible and idempotent',async()=>{
+ const id=randomUUID();await cmd('mahmoud','message',{text:'Our pinned plan'},id);
+ const key=randomUUID();const payload={id,value:true,text:'spoofed',author:'Echo'};
+ assert.equal((await cmd('mahmoud','message.pin',payload,key)).status,200);
+ assert.equal((await cmd('mahmoud','message.pin',payload,key)).status,200);
+ const view=(await request('safy','state')).body;assert.equal(view.pins[0].text,'Our pinned plan');assert.equal(view.pins[0].author,'Mahmoud');
+ assert.equal((await cmd('safy','message.pin',{id:randomUUID(),value:true})).status,404);
+ await cmd('safy','message.pin',{id,value:false});assert.equal((await request('mahmoud','state')).body.pins.length,0);
+ });
  await t.test('logout revokes the old cookie server-side',async()=>{const old=cookies.mahmoud;await request('mahmoud','logout',{});cookies.mahmoud=old;assert.equal((await request('mahmoud','state')).status,401);});
  }finally{release?.();server.closeAllConnections();await new Promise(r=>server.close(r));s.close();}
+});
+
+test('shared pins support old state, both profiles, deduplication and unpin',()=>{
+ const s=initial();assert.deepEqual(project(s,'Safy').pins,[]);
+ change(s,'Mahmoud','message.pin',{id:'one',value:true,text:'Meet at eight',author:'Safy'});
+ change(s,'Mahmoud','message.pin',{id:'one',value:true,text:'Meet at eight',author:'Safy'});
+ assert.equal(project(s,'Safy').pins.length,1);
+ change(s,'Safy','message.pin',{id:'one',value:false});assert.equal(project(s,'Mahmoud').pins.length,0);
 });

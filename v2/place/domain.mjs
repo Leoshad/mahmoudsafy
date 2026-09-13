@@ -16,10 +16,16 @@ export function publicActivity(a,who){
   // Solutions and future questions never leave the server, even for the author after launch.
   return {...visible,total:qs.length,max:qs.filter(q=>q.correct>=0).length,current:a.status==='active'?{q:qs[a.index].q,options:qs[a.index].options}:null};
 }
-export function project(s,who){return {version:s.version,pauses:s.pauses,draft:s.drafts[who],activity:publicActivity(s.activity,who),items:s.items};}
+export function project(s,who){return {version:s.version,pauses:s.pauses,draft:s.drafts[who],activity:publicActivity(s.activity,who),items:s.items,pins:s.pins??[]};}
 export function change(s,who,type,p={}){
   check(names.includes(who),'Not invited.',403);
   switch(type){
+    case 'message.pin': {
+      check(typeof p.id==='string'&&typeof p.value==='boolean','Invalid pin.');
+      s.pins??=[];
+      if(p.value&&!s.pins.some(x=>x.id===p.id)){check(s.pins.length<10,'Unpin a message first. You can keep 10 pinned messages.');s.pins.push({id:p.id,text:text(p.text,4000),author:text(p.author,40),by:who});}
+      if(!p.value)s.pins=s.pins.filter(x=>x.id!==p.id);break;
+    }
     case 'pause': s.pauses=p.value?[...new Set([...s.pauses,who])]:s.pauses.filter(x=>x!==who);break;
     case 'draft.save': s.drafts[who]=p.questions.length?questions(p.questions):[];break;
     case 'quiz.start': {
@@ -54,3 +60,4 @@ export function change(s,who,type,p={}){
   s.version++;return s;
 }
 function archive(s,a,who){s.items.unshift({id:randomUUID(),type:'Result',title:`Quiz by ${a.owner} for ${a.target} · ${a.status}\n${a.answers.map(v=>v.q+' → '+v.answer).join('\n')}\n${a.score} points`,by:who,source:a.id,status:a.status,done:a.status==='completed',approvals:[],revision:1,aiAllowed:false,createdAt:new Date().toISOString()});}
+
