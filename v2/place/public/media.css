@@ -39,3 +39,9 @@
 #our-place-trial #media-panel.media-expanded #media-player-box{height:65dvh;min-height:200px}
 #our-place-trial #media-panel.media-in-chat.media-expanded{max-height:65dvh}
 @media(max-width:650px){#our-place-trial .media-choice{padding:12px;gap:9px;min-height:90px}#our-place-trial .media-choice strong{font-size:16px}#our-place-trial .media-choice svg{width:30px;height:30px;flex-basis:30px}#our-place-trial .media-choice small{font-size:11px}#our-place-trial #media-panel{padding:12px}#our-place-trial .media-result img{width:62px;height:45px}#our-place-trial #media-invitation{padding:8px}}
+
+/* Keep the actual player visible while scrolling; its anchor never moves. */
+#our-place-trial #media-player-anchor{height:clamp(200px,42vw,440px);min-height:200px}
+#our-place-trial .media-in-chat #media-player-anchor{height:200px}
+#our-place-trial #media-panel.media-expanded #media-player-anchor{height:65dvh}
+#our-place-trial #media-panel #media-player-box.media-floating{position:fixed;right:12px;bottom:max(12px,env(safe-area-inset-bottom));width:min(356px,calc(100vw - 24px));height:200px;min-height:200px;z-index:60;box-shadow:0 10px 34px #000a;border:1px solid #957381;border-radius:12px}
