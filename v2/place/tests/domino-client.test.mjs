@@ -8,7 +8,7 @@ const script=readFileSync(new URL('../public/domino.js',import.meta.url),'utf8')
 function client(who,state,clients,storage=new Map()){
  class Element{
   constructor(tag='div'){this.tag=tag;this.children=[];this.style={setProperty(k,v){this[k]=v;}};this.dataset={};this.clientWidth=300;this.hidden=false;this.value='medium';this.scrollWidth=500;const set=new Set();this.classList={toggle:(k,v)=>v?set.add(k):set.delete(k),contains:k=>set.has(k)};}
-  append(x){this.children.push(x);}replaceChildren(){this.children=[];}setAttribute(k,v){this[k]=v;}
+  append(x){x.parentElement=this;this.children.push(x);}remove(){if(this.parentElement)this.parentElement.children=this.parentElement.children.filter(e=>e!==this);}replaceChildren(){this.children=[];}setAttribute(k,v){this[k]=v;}
  }
  const elements=new Map(),get=k=>{if(!elements.has(k))elements.set(k,new Element());return elements.get(k);};
  get('#domino-target').value='50';
@@ -99,4 +99,13 @@ test('draw pile shows exact hidden count and received tile; board nodes survive 
  assert.equal(wrap.style.left,x);assert.equal(wrap.style.top,y);
  assert.equal(nodes.filter(e=>e.className==='domino-stock-back').length,count-1);
  assert.ok(nodes.some(e=>e.classList.contains('domino-drawn')));
+});
+test('game refresh retains the table container and unplayed hand buttons',async()=>{
+ const state=initial(),a=client('Mahmoud',state,[]);await click(a.get('#domino-open'));await click(a.get('#domino-start'));
+ const get=cls=>all(a.get('#domino-game')).find(e=>e.className===cls),board=get('domino-board'),area=get('domino-table-area'),hand=get('domino-hand'),buttons=[...hand.children];
+ const g=state.domino.solo.Mahmoud,tile=g.hands.Mahmoud[0];g.hands.Mahmoud.shift();g.chain.push({...tile,order:1});state.version++;a.sync();
+ assert.equal(get('domino-board'),board);assert.equal(get('domino-table-area'),area);assert.equal(get('domino-hand'),hand);assert.equal(hand.children.length,6);
+ assert.equal(hand.children[0],buttons[1]);assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),true);
+ assert.equal(board._unit,25,'opening tile uses readable full size');
+ await click(a.get('#domino-chat'));assert.equal(a.get('#domino-panel').hidden,true);
 });
