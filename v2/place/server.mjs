@@ -92,7 +92,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
             store.message({id:p.id,author:who,text:value,image:data.image,reply:data.reply,aiAllowed:!s.pauses.length});return {ok:true};
           }
           if(p.type==='ai.ask'){
-            check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);const scope=data.private?'private':'shared';
+            check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);const scope=data.private?'private':'shared';if(data.session)check(s.echoInvited&&!s.pauses.length,'Echo is no longer invited.',409);
             check(!s.pauses.length||scope==='private'||data.once===true,'Echo is paused. Choose Ask once explicitly.',409);
             const prompt=text(data.prompt,3000);const image=data.image?photoData(data.image):null;
             const id=store.reserve(who,scope,{prompt,purpose:data.purpose==='space'?'space':'chat',context:scope==='private'||s.pauses.length?'':context(s),image});
@@ -106,6 +106,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
             b.acceptedIndices=[...(b.acceptedIndices??[]),index];b.accepted=b.acceptedIndices.length===b.proposals.length;store.db.prepare('UPDATE jobs SET body=? WHERE id=?').run(JSON.stringify(b),j.id);s.version++;store.save(s);return {kind:proposal.type};
           }
           if(p.type==='message.pin'&&data.value){const m=store.db.prepare('SELECT * FROM messages WHERE id=?').get(data.id);check(m&&m.status==='sent','Only a sent shared message can be pinned.',404);data.text=m.text||'Shared photo';data.author=m.author;}
+          if(p.type==='echo.invite'&&data.value===false){for(const job of store.db.prepare("SELECT id FROM jobs WHERE scope='shared' AND status='running'").all()){store.status(job.id,'cancelled');store.db.prepare("UPDATE messages SET status='cancelled' WHERE id=?").run(job.id);running.get(job.id)?.controller.abort();}}
           if(p.type==='item.save'&&data.image)photoData(data.image);
           if(p.type==='pause'&&data.value)cancel(who,true);
           change(s,who,p.type,data);store.save(s);return {ok:true};

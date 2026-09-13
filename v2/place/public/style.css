@@ -215,3 +215,9 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial.signed-in{min-height:0}
 
 #our-place-trial .history-button{display:block;margin:0 auto 12px;background:transparent;color:var(--gold);font-size:12px;min-height:44px}
+
+#our-place-trial .header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+#our-place-trial #install-app{font-size:12px;min-height:40px;padding:6px 10px}
+#our-place-trial dialog{max-width:min(460px,90vw);background:#211921;color:#eee8e9;border:1px solid #765767;border-radius:16px;padding:24px}
+#our-place-trial dialog::backdrop{background:#0009}
+#our-place-trial .delete-confirm{padding:12px;border:1px solid #996c81;border-radius:10px}

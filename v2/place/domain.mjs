@@ -16,17 +16,19 @@ export function publicActivity(a,who){
   // Solutions and future questions never leave the server, even for the author after launch.
   return {...visible,total:qs.length,max:qs.filter(q=>q.correct>=0).length,current:a.status==='active'?{q:qs[a.index].q,options:qs[a.index].options}:null};
 }
-export function project(s,who){return {version:s.version,pauses:s.pauses,draft:s.drafts[who],activity:publicActivity(s.activity,who),items:s.items,pins:s.pins??[]};}
+export function project(s,who){return {version:s.version,pauses:s.pauses,draft:s.drafts[who],activity:publicActivity(s.activity,who),items:s.items,echoInvited:!!s.echoInvited,pins:s.pins??[]};}
 export function change(s,who,type,p={}){
   check(names.includes(who),'Not invited.',403);
   switch(type){
+    case 'echo.invite': check(typeof p.value==='boolean','Choose on or off.');if(p.value)check(!s.pauses.length,'Echo is paused. Resume permissions first.',409);s.echoInvited=p.value;break;
+    case 'item.delete': {const i=s.items.find(i=>i.id===p.id);check(i&&i.revision===p.revision,'This item changed. Refresh before deleting.',409);s.items=s.items.filter(i=>i.id!==p.id);break;}
     case 'message.pin': {
       check(typeof p.id==='string'&&typeof p.value==='boolean','Invalid pin.');
       s.pins??=[];
       if(p.value&&!s.pins.some(x=>x.id===p.id)){check(s.pins.length<10,'Unpin a message first. You can keep 10 pinned messages.');s.pins.push({id:p.id,text:text(p.text,4000),author:text(p.author,40),by:who});}
       if(!p.value)s.pins=s.pins.filter(x=>x.id!==p.id);break;
     }
-    case 'pause': s.pauses=p.value?[...new Set([...s.pauses,who])]:s.pauses.filter(x=>x!==who);break;
+    case 'pause': if(p.value)s.echoInvited=false;s.pauses=p.value?[...new Set([...s.pauses,who])]:s.pauses.filter(x=>x!==who);break;
     case 'draft.save': s.drafts[who]=p.questions.length?questions(p.questions):[];break;
     case 'quiz.start': {
       check(!s.activity||s.activity.status!=='active','Finish or end the current activity first.',409);

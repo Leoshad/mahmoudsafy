@@ -94,6 +94,25 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  assert.equal((await cmd('safy','message.pin',{id:randomUUID(),value:true})).status,404);
  await cmd('safy','message.pin',{id,value:false});assert.equal((await request('mahmoud','state')).body.pins.length,0);
  });
+ await t.test('shared invitation persists and either partner can stop it without stopping private prep',async()=>{
+ await cmd('mahmoud','echo.invite',{value:true});
+ assert.equal((await request('safy','state')).body.echoInvited,true);
+ await cmd('safy','message',{text:'Still invited'});assert.equal((await request('mahmoud','state')).body.echoInvited,true);
+ const response=await cmd('mahmoud','ai.ask',{prompt:'Join us',session:true});assert.equal(response.status,200);
+ await cmd('safy','echo.invite',{value:false});await waitJob(response.body.job);
+ assert.equal(s.job(response.body.job).status,'cancelled');
+ assert.equal((await cmd('mahmoud','ai.ask',{prompt:'Stale request',session:true})).status,409);
+ const prep=await cmd('mahmoud','ai.ask',{prompt:'Private prep',private:true});assert.equal(prep.status,200);
+ await cmd('safy','echo.invite',{value:false});assert.equal(s.job(prep.body.job).status,'running');release();await waitJob(prep.body.job);
+ });
+ await t.test('delete removes only the selected space item and rejects stale revisions',async()=>{
+ await cmd('mahmoud','item.save',{type:'Plan',title:'Delete test'});
+ const item=(await request('safy','state')).body.items.find(i=>i.title==='Delete test');
+ const count=s.messages().length;
+ assert.equal((await cmd('safy','item.delete',{id:item.id,revision:item.revision+1})).status,409);
+ assert.equal((await cmd('safy','item.delete',{id:item.id,revision:item.revision})).status,200);
+ assert.ok(!(await request('mahmoud','state')).body.items.some(i=>i.id===item.id));assert.equal(s.messages().length,count);
+ });
  await t.test('logout revokes the old cookie server-side',async()=>{const old=cookies.mahmoud;await request('mahmoud','logout',{});cookies.mahmoud=old;assert.equal((await request('mahmoud','state')).status,401);});
  }finally{release?.();server.closeAllConnections();await new Promise(r=>server.close(r));s.close();}
 });
