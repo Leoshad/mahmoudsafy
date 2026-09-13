@@ -118,10 +118,21 @@ test('completed match presents result and next steps separately from the hand',a
  await click(nodes.find(e=>e.textContent==='Exit full screen'));assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),false);assert.equal(g.status,'complete');
  await click(all(a.get('#domino-game')).find(e=>e.textContent==='Back'));assert.equal(a.get('#domino-panel').hidden,true);
 });
-test('round result offers next round and table pips counter-rotate consistently',async()=>{
+test('round result offers next round and table pips retain their natural orientation',async()=>{
  const state=initial(),a=client('Mahmoud',state,[]);await click(a.get('#domino-open'));await click(a.get('#domino-start'));
  const g=state.domino.solo.Mahmoud;g.chain=[{id:'6-6',a:6,b:6,order:1}];g.status='finished';g.result={winner:'Mahmoud',points:8,reason:'empty',totals:{Mahmoud:0,Computer:8}};state.version++;a.sync();
  const nodes=all(a.get('#domino-game')),board=nodes.find(e=>e.className==='domino-board'),tile=all(board).find(e=>e.className==='domino-piece');
- assert.equal(tile.style['--pip-rotation'],'-90deg');assert.equal(all(tile).filter(e=>e.className==='domino-pips').length,2);
+ assert.equal(tile.style['--pip-rotation'],'90deg');assert.equal(all(tile).filter(e=>e.className==='domino-pips').length,2);
  assert.ok(nodes.some(e=>e.textContent==='You won this round!'));await click(nodes.find(e=>e.textContent==='Next round'));assert.equal(g.round,2);assert.equal(g.status,'active');
+});
+
+test('finished layout retains explicit rows and leave is a direct action',async()=>{
+ const state=initial(),a=client('Mahmoud',state,[]);await click(a.get('#domino-open'));await click(a.get('#domino-start'));
+ let nodes=all(a.get('#domino-game'));assert.ok(nodes.some(e=>e.textContent==='Leave game'));assert.ok(!nodes.some(e=>e.textContent==='Game options'));
+ const g=state.domino.solo.Mahmoud;g.status='finished';g.result={winner:'Computer',points:12,reason:'empty',totals:{Mahmoud:12,Computer:0}};state.version++;a.sync();
+ nodes=all(a.get('#domino-game'));
+ assert.equal(nodes.find(e=>e.className==='domino-zone-table').style.gridRow,'5');
+ assert.equal(nodes.find(e=>e.className==='domino-zone-actions').style.gridRow,'7');
+ assert.equal(nodes.find(e=>e.className==='domino-hand').style.gridRow,'9');
+ assert.equal(nodes.find(e=>e.className==='domino-zone-help domino-footer').style.gridRow,'10');
 });

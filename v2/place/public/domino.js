@@ -93,7 +93,7 @@ function arrangeBoard(board,chain,lastMove,key){
   if(fresh){wrap=make('span',undefined,board,'domino-placement');wrap._piece=piece(p.tile,wrap);wrap._label=make('small','',wrap,'domino-end-label');board._nodes.set(p.tile.id,wrap);}
   const x=board._cx+p.x*unit,y=board._cy+p.y*unit,e=wrap._piece;
   wrap.style.left=x+'px';wrap.style.top=y+'px';wrap.style.setProperty('--arrival-x',(width/2-x)+'px');wrap.style.setProperty('--arrival-y',((lastMove?.by===who?height-12:12)-y)+'px');
-  e.style.transform='translate(-50%,-50%) rotate('+p.angle+'deg)';e.style.setProperty('--pip-rotation',(-p.angle)+'deg');
+  e.style.transform='translate(-50%,-50%) rotate('+p.angle+'deg)';e.style.setProperty('--pip-rotation','90deg');
   e.classList.toggle('computer-last',lastMove?.id===p.tile.id);
   wrap.classList.toggle('domino-arriving',fresh&&board._ready&&lastMove?.id===p.tile.id);
   wrap._label.textContent=index===0?'A':index===poses.length-1?'B':'';wrap._label.style.top=(p.h*unit/2+3)+'px';
@@ -160,7 +160,7 @@ function render(){
  const root=$('#domino-game'),viewKey=mode+':'+g?.id+':'+g?.round+':'+(['active','finished','complete'].includes(g?.status)?'table':g?.status);
  if(view?.key!==viewKey){
   boardObserver?.disconnect();root.replaceChildren();view={key:viewKey};
-  for(const name of ['score','status','meta','ends','table','last','actions','handTitle','hand','help'])view[name]=make('div',undefined,root,'domino-zone-'+name);
+  for(const [index,name] of ['score','status','meta','ends','table','last','actions','handTitle','hand','help'].entries()){view[name]=make('div',undefined,root,'domino-zone-'+name);view[name].style.gridRow=String(index+1);}
  }
  if(g)scoreboard(g,slot('score'));
  const live=g&&['waiting','active','finished','complete'].includes(g.status);
@@ -213,8 +213,8 @@ function render(){
  }
  const help=slot('help');help.className='domino-zone-help domino-footer';
  btn(focused()?'Exit full screen':'Full screen',help,()=>{fullView=!fullView;show();signature='';render();},'domino-size-toggle').setAttribute('aria-label',focused()?'Exit full screen; keep game saved':'Fill screen with game');
- if(g.status==='active'){
-  const tools=make('details',undefined,help,'domino-game-tools');make('summary','Game options',tools);btn('Leave game',tools,()=>command('leave')).disabled=busy;
+ if(g.status==='active'||g.status==='finished'){
+  btn('Leave game',help,()=>command('leave'),'domino-leave').disabled=busy;
  }
 }
 function init(h){
