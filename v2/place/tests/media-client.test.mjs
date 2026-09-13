@@ -6,7 +6,8 @@ import {mediaChange} from '../media.mjs';
 import {initial} from '../domain.mjs';
 const script=readFileSync(new URL('../public/media.js',import.meta.url),'utf8');
 const song={videoId:'M7lc1UVf-VE',title:'Sample music',channel:'Sample',duration:240};
-function client(who,room,clients){
+function client(who,room,clients,storage=new Map()){
+ const windowEvents={};
  const elements=new Map();
  class Element{
   constructor(tag='div'){this.tag=tag;this.children=[];this.hidden=false;this.value='';this.parentNode=null;this.dataset={};this.style={setProperty(k,v){this[k]=v;}};this.rect={left:20,top:200,bottom:400,width:320,height:200};const classes=new Set();this.classList={add:n=>classes.add(n),remove:n=>classes.delete(n),toggle:(n,v)=>{if(v??!classes.has(n))classes.add(n);else classes.delete(n);},contains:n=>classes.has(n)};}
@@ -25,8 +26,8 @@ function client(who,room,clients){
   getCurrentTime(){return this.time;}getPlayerState(){return this.ps;}getVolume(){return 70;}setVolume(){}getPlaybackRate(){return 1;}setPlaybackRate(){}getIframe(){return {};}
   playVideo(){this.ps=1;this.config.events.onStateChange({data:1});}pauseVideo(){this.ps=2;this.config.events.onStateChange({data:2});}seekTo(t){this.time=t;}destroy(){this.ps=2;}
  }
- const context={IntersectionObserver:class{constructor(fn){intersection=fn;}observe(){}disconnect(){}},requestAnimationFrame:fn=>setImmediate(fn),addEventListener(){},innerWidth:400,innerHeight:800,document,console,URL,location:{origin:'https://test.example'},performance:{now:()=>now},Date,setTimeout,clearTimeout,setInterval:fn=>{interval=fn;},YT:{Player}};context.window=context;vm.createContext(context);vm.runInContext(script,context);
- const c={who,context,get,document,made:()=>made,player:()=>latestPlayer,commands:()=>commands,scroll:away=>{get('#media-player-anchor').rect.top=away?-20:200;document.scroll();},advance:()=>{now+=2000;},tick:()=>interval(),sync(){context.OurMedia.sync({who,media:structuredClone(room.media??null),serverNow:Date.now()});}};clients.push(c);
+ const context={IntersectionObserver:class{constructor(fn){intersection=fn;}observe(){}disconnect(){}},requestAnimationFrame:fn=>setImmediate(fn),addEventListener(t,fn){windowEvents[t]=fn;},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},innerWidth:400,innerHeight:800,document,console,URL,location:{origin:'https://test.example'},performance:{now:()=>now},Date,setTimeout,clearTimeout,setInterval:fn=>{interval=fn;},YT:{Player}};context.window=context;vm.createContext(context);vm.runInContext(script,context);
+ const c={pagehide:()=>windowEvents.pagehide(),who,context,get,document,made:()=>made,player:()=>latestPlayer,commands:()=>commands,scroll:away=>{get('#media-player-anchor').rect.top=away?-20:200;document.scroll();},advance:()=>{now+=2000;},tick:()=>interval(),sync(){context.OurMedia.sync({who,media:structuredClone(room.media??null),serverNow:Date.now()});}};clients.push(c);
  context.OurMedia.init({api:async path=>path.startsWith('media/clock')?{now:Date.now()}:path.startsWith('media/resolve')?{track:song}:{items:[song]},command:async(type,data)=>{commands++;mediaChange(room,who,type,data);},sync:async()=>{clients.forEach(c=>c.sync());},goto(next){get('#chat').hidden=next!=='chat';get('#media-home').hidden=next!=='together';context.OurMedia.tab(next);},info(){}});c.sync();return c;
 }
 const settle=()=>new Promise(r=>setImmediate(r));
@@ -71,4 +72,27 @@ test('navigation and drag resizing preserve player, position and playing or paus
  grip.onkeydown({key:'Home',preventDefault(){}});assert.equal(a.get('#media-panel').style['--media-chat-height'],'200px');
  player.pauseVideo();a.get('#media-chat').onclick();await settle();assert.equal(player.ps,2);assert.equal(a.made(),1);
  a.get('#media-close').onclick();assert.equal(a.get('#media-player-box').hidden,true);
+});
+
+test('reload restores local media, position, tab and search history without autoplay; account isolation and close',async()=>{
+ const room=initial(),storage=new Map(),a=client('Mahmoud',room,[],storage);
+ a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';
+ await a.get('#media-search').onsubmit({preventDefault(){}});await settle();
+ a.player().time=91;a.get('#media-chat').onclick();a.pagehide();
+ const saved=JSON.parse(storage.get('our-place:media:v1:Mahmoud'));assert.equal(saved.position,91);assert.equal(saved.tab,'chat');
+ const b=client('Mahmoud',room,[],storage);await settle();await settle();await settle();
+ assert.equal(b.made(),1);assert.equal(b.player().time,91);assert.notEqual(b.player().ps,1);
+ assert.equal(b.get('#media-panel').classList.contains('media-in-chat'),true);
+ b.get('#media-query').onfocus();assert.equal(b.get('#media-history').hidden,false);
+ assert.equal(b.get('#media-history').children[1].textContent,'https://youtu.be/M7lc1UVf-VE');
+ const safy=client('Safy',room,[],storage);await settle();assert.equal(safy.made(),0);safy.get('#media-query').onfocus();assert.equal(safy.get('#media-history').hidden,true);
+ await b.get('#media-history').children[0].children[1].onclick();assert.equal(b.get('#media-history').hidden,true);
+ b.get('#media-close').onclick();b.pagehide();
+ const c=client('Mahmoud',room,[],storage);await settle();assert.equal(c.made(),0);assert.equal(c.get('#media-panel').hidden,true);
+});
+test('expired shared membership and malformed saved media never restore a player',async()=>{
+ const storage=new Map([['our-place:media:v1:Mahmoud',JSON.stringify({version:1,session:'ended',track:song,tab:'chat',searches:['example']})]]);
+ const a=client('Mahmoud',initial(),[],storage);await settle();assert.equal(a.made(),0);
+ storage.set('our-place:media:v1:Mahmoud','{broken');
+ const b=client('Mahmoud',initial(),[],storage);await settle();assert.equal(b.made(),0);
 });
