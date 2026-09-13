@@ -3,6 +3,7 @@ const need=(ok,message,status=400)=>{if(!ok){const e=new Error(message);e.status
 export function videoId(value){
  need(typeof value==='string'&&value.length<2048,'Paste a YouTube video link.');
  if(/^[\w-]{11}$/.test(value))return value;
+ if(/^(?:(?:www\.|m\.|music\.)?youtube\.com|youtu\.be)\//i.test(value))value='https://'+value;
  let u;try{u=new URL(value);}catch{need(false,'Paste a valid YouTube link.');}
  need(u.protocol==='https:'&&!u.username&&!u.password&&!u.port,'Use a secure YouTube link.');
  const host=u.hostname.toLowerCase(),parts=u.pathname.split('/').filter(Boolean);
@@ -53,6 +54,6 @@ export function youtubeService({key=()=>process.env.YOUTUBE_API_KEY,fetcher=fetc
  async function details(ids){if(!ids.length)return [];const data=await request('videos',{part:'snippet,contentDetails,status',id:ids.join(',')});return (data.items??[]).filter(v=>v.status?.embeddable&&v.status?.privacyStatus==='public'&&v.snippet?.liveBroadcastContent==='none'&&seconds(v.contentDetails?.duration)>0&&seconds(v.contentDetails?.duration)<=86400).map(v=>track({videoId:v.id,title:v.snippet.title.slice(0,300),channel:v.snippet.channelTitle,duration:seconds(v.contentDetails.duration)}));}
  return {
   async resolve(value){const id=videoId(value);return cached('v:'+id,async()=>{const list=await details([id]);need(list.length,'This video is private, live, unavailable, or cannot play here.',404);return list[0];});},
-  async search(query){need(typeof query==='string'&&query.trim().length>=2&&query.length<=100,'Enter an artist or song name (2–100 characters).');const q=query.trim();return cached('q:'+q.toLowerCase(),async()=>{reserve();const data=await request('search',{part:'snippet',q,type:'video',videoCategoryId:'10',videoEmbeddable:'true',videoSyndicated:'true',maxResults:'8'});return details((data.items??[]).map(v=>v.id?.videoId).filter(Boolean));});}
+  async search(query){need(typeof query==='string'&&query.trim().length>=2&&query.length<=100,'Enter a song, video, or artist name (2–100 characters).');const q=query.trim();return cached('q:'+q.toLowerCase(),async()=>{reserve();const data=await request('search',{part:'snippet',q,type:'video',videoEmbeddable:'true',videoSyndicated:'true',maxResults:'8'});return details((data.items??[]).map(v=>v.id?.videoId).filter(Boolean));});}
  };
 }

@@ -33,8 +33,8 @@ test('decline and expired invitations do not admit the recipient; new sessions c
  assert.throws(()=>apply(s,'Safy','media.create',{mode:'video',track:song}),/End/);
 });
 const youtubeItem={id:song.videoId,snippet:{title:song.title,channelTitle:song.channel,liveBroadcastContent:'none'},contentDetails:{duration:'PT4M'},status:{embeddable:true,privacyStatus:'public'}};
-test('search uses server credential, bounded music results, cached requests and sanitized errors',async()=>{
- let requests=0,reservations=0;const service=youtubeService({key:()=> 'fake-test-key',reserve:()=>reservations++,fetcher:async(url,opts)=>{requests++;assert.equal(opts.headers['X-Goog-Api-Key'],'fake-test-key');assert.ok(!url.href.includes('fake-test-key'));if(url.pathname.endsWith('/search')){assert.equal(url.searchParams.get('videoCategoryId'),'10');return Response.json({items:[{id:{videoId:song.videoId}}]});}return Response.json({items:[youtubeItem,{...youtubeItem,status:{embeddable:false}}]});}});
+test('search uses server credential, bounded video and song results, cached requests and sanitized errors',async()=>{
+ let requests=0,reservations=0;const service=youtubeService({key:()=> 'fake-test-key',reserve:()=>reservations++,fetcher:async(url,opts)=>{requests++;assert.equal(opts.headers['X-Goog-Api-Key'],'fake-test-key');assert.ok(!url.href.includes('fake-test-key'));if(url.pathname.endsWith('/search')){assert.equal(url.searchParams.has('videoCategoryId'),false);return Response.json({items:[{id:{videoId:song.videoId}}]});}return Response.json({items:[youtubeItem,{...youtubeItem,status:{embeddable:false}}]});}});
  assert.equal((await service.search('Example')).length,1);await service.search('Example');assert.equal(requests,2);assert.equal(reservations,1);
  assert.equal((await service.resolve(song.videoId)).title,song.title);
  await assert.rejects(()=>youtubeService({key:()=>''}).search('abc'),/not ready/);

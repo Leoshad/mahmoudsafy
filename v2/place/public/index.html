@@ -15,12 +15,11 @@
 <div id="continue-round" hidden class="continue-round"><span>Your round is waiting.</span><button id="continue-play" class="primary">Continue in chat</button></div>
 
 <div class="media-choices">
-<button type="button" class="media-choice" data-media-mode="video"><svg viewBox="0 0 40 40" aria-hidden="true"><rect x="2" y="7" width="36" height="26" rx="8" fill="currentColor"/><path d="m17 13 11 7-11 7Z" fill="#19151c"/></svg><span><strong>Watch together</strong><small>Bring a YouTube video</small></span></button>
-<button type="button" class="media-choice music" data-media-mode="music"><svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="20" cy="20" r="17"/><path d="M17 27V12l11-2v14M17 16l11-2"/><ellipse cx="13" cy="28" rx="4" ry="3" fill="currentColor"/><ellipse cx="24" cy="25" rx="4" ry="3" fill="currentColor"/></svg><span><strong>Listen together</strong><small>Find a song on YouTube</small></span></button>
+<button type="button" class="media-choice media-unified" data-media-mode="video"><svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="m19 14 16 10-16 10Z" fill="currentColor"/></svg><span><small class="media-eyebrow">A MOMENT FOR TWO</small><strong>Watch &amp; Listen</strong><small>A song. A video. Something to share.</small></span><span class="media-enter" aria-hidden="true">↗</span></button>
 </div>
 <div id="media-home"><section id="media-panel" hidden aria-label="Shared YouTube player">
-<div class="media-panel-head"><h3 id="media-heading">Watch together</h3><button id="media-close" type="button">Close</button></div>
-<div id="media-entry"><form id="media-search"><label><span id="media-search-label">YouTube video link</span><input id="media-query" type="text" required maxlength="2048" autocomplete="off" placeholder="Paste a YouTube link…"></label><button id="media-find" class="primary" type="submit">Open video</button></form></div>
+<div class="media-panel-head"><h3 id="media-heading">Watch &amp; Listen</h3><button id="media-close" type="button">Close</button></div>
+<div id="media-entry"><form id="media-search"><label><span id="media-search-label">Search YouTube or paste a link</span><input id="media-query" type="text" required maxlength="2048" autocomplete="off" placeholder="Song, video, artist, or YouTube link…"></label><button id="media-find" class="primary" type="submit">Find</button></form></div>
 <p id="media-status" role="status">Choose a video or find a song. Invite your partner when you are ready.</p>
 <div id="media-results"></div>
 <div id="media-player-area" hidden><div id="media-player-anchor"><div id="media-player-box"></div></div><button id="media-resume" type="button" hidden>Resume here · enable sound</button><h3 id="media-title" dir="auto"></h3><div id="media-channel" dir="auto"></div><div id="media-session-state"></div>

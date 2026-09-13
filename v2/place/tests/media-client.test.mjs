@@ -44,3 +44,10 @@ test('client consent: preview only locally, invite without remote player, join, 
  await b.get('#media-leave').onclick();assert.deepEqual(room.media.participants,['Mahmoud']);
  await a.get('#media-end').onclick();assert.equal(room.media,null);
 });
+
+test('unified field searches a name without autoplay, then plays the selected result',async()=>{
+ const room=initial(),clients=[],a=client('Mahmoud',room,clients);
+ a.context.OurMedia.tab('together');a.get('#media-panel').hidden=false;a.get('#media-query').value='Example artist';
+ await a.get('#media-search').onsubmit({preventDefault(){}});assert.equal(a.made(),0);assert.equal(a.get('#media-results').children.length,1);
+ const play=a.get('#media-results').children[0].children.find(x=>x.textContent==='Play');assert.ok(play);await play.onclick();await settle();assert.equal(a.made(),1);assert.equal(a.player().getPlayerState(),1);
+});
