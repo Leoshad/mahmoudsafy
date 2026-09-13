@@ -52,3 +52,39 @@
 #our-place-trial .media-unified .media-eyebrow{font-size:9px;letter-spacing:2px;color:#d1b078;margin:0}
 #our-place-trial .media-unified .media-enter{margin-left:auto;color:#d1b078;font-size:23px}
 @media(max-width:650px){#our-place-trial .media-unified{padding:18px;gap:14px;min-height:115px}#our-place-trial .media-unified strong{font-size:23px}#our-place-trial .media-unified svg{width:44px;height:44px;flex-basis:44px}}
+
+
+/* Persistent player: never detach the iframe when its panel changes tabs. */
+#our-place-trial #media-player-box{position:fixed;z-index:60;margin:0;min-width:200px}
+#our-place-trial #media-player-box.media-floating{box-shadow:0 10px 34px #000a;outline:1px solid #957381}
+#our-place-trial #media-panel.media-in-chat{position:relative;padding:6px;margin-bottom:6px;max-height:none;overflow:visible;border-radius:12px}
+#our-place-trial .media-in-chat .media-panel-head,
+#our-place-trial .media-in-chat #media-status,
+#our-place-trial .media-in-chat #media-channel,
+#our-place-trial .media-in-chat #media-session-state{display:none}
+#our-place-trial .media-in-chat #media-title{font-size:12px;line-height:18px;margin:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+#our-place-trial .media-in-chat #media-title.media-title-open{white-space:normal}
+#our-place-trial .media-in-chat .media-controls{margin:3px 0;gap:4px}
+#our-place-trial .media-in-chat .media-controls button{padding:7px 9px;font-size:11px;min-height:32px}
+#our-place-trial .media-in-chat #media-sync,
+#our-place-trial .media-in-chat #media-next,
+#our-place-trial .media-in-chat #media-external,
+#our-place-trial .media-in-chat #media-end{display:none}
+#our-place-trial .media-in-chat .media-controls{display:inline-flex;vertical-align:middle}
+#our-place-trial .media-in-chat #media-close{display:block}
+#our-place-trial .media-in-chat .media-panel-head:has(#media-close:not([hidden])){display:block;position:absolute;right:6px;bottom:6px;margin:0}
+#our-place-trial .media-in-chat .media-panel-head h3{display:none}
+#our-place-trial .media-in-chat #media-close{font-size:11px;padding:7px 9px;min-height:32px}
+
+#our-place-trial .media-in-chat #media-player-anchor{height:200px}
+#our-place-trial #media-panel.media-in-chat.media-expanded{max-height:none}
+#our-place-trial #media-panel.media-in-chat.media-expanded #media-player-anchor{height:clamp(200px,40dvh,400px)}
+
+#our-place-trial #media-resize{display:none}
+#our-place-trial .media-in-chat #media-player-anchor{height:var(--media-chat-height,200px)}
+#our-place-trial .media-in-chat #media-resize{display:flex;align-items:center;justify-content:center;height:22px;margin:2px -6px -6px;cursor:ns-resize;touch-action:none;user-select:none;border-radius:0 0 12px 12px}
+#our-place-trial #media-resize span{width:46px;height:4px;border-radius:4px;background:#b99a74}
+#our-place-trial #media-resize:focus-visible{outline:2px solid #d1b078}
+#our-place-trial .media-resizing{user-select:none}
+
+#our-place-trial .media-in-chat .media-controls{display:flex;flex-wrap:wrap}
