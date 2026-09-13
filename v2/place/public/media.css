@@ -124,7 +124,10 @@
 #our-place-trial #media-recent-list{max-height:200px;overflow:auto;padding:4px 0}
 #our-place-trial .media-recent-item{display:block;width:100%;text-align:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:9px;font-size:12px;margin:3px 0}
 #our-place-trial .media-recent-clear{font-size:11px;padding:5px 9px;margin-top:4px}
-#our-place-trial .media-in-chat #media-close::after{content:'×';font-size:22px}
 #our-place-trial #media-close{min-width:32px;min-height:32px;padding:3px 9px;font-size:22px}
 
 #our-place-trial .media-in-chat #media-close{font-size:0}
+
+#our-place-trial .media-primary-controls>#media-close{display:grid;place-items:center;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;line-height:1;border-radius:8px}
+#our-place-trial #media-close svg{display:block;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
+#our-place-trial .media-in-chat #media-more>summary{box-sizing:border-box;line-height:1;border-radius:8px}
