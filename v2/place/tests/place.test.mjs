@@ -51,7 +51,7 @@ test('Our Space creation requests a usable item proposal without changing the mo
 
 test('two authenticated HTTP clients: shared chat, private preparation, live stream and cancellation',async t=>{
  process.env.MAHMOUD_EMAIL='mahmoud@example.test';process.env.SAFY_EMAIL='safy@example.test';process.env.OPENAI_API_KEY='test-only';
- const s=new Store(':memory:');let activeAI,release;const ai=async args=>{activeAI=args;args.onText('Beginning');return new Promise(resolve=>{release=()=>resolve({proposals:[],usage:{input_tokens:20,output_tokens:10}});args.signal.addEventListener('abort',()=>{args.onText('MUST NOT PUBLISH');release();},{once:true});});};
+ const s=new Store(':memory:');let activeAI,release,nextProposals=[];const ai=async args=>{activeAI=args;args.onText('Beginning');return new Promise(resolve=>{release=()=>resolve({proposals:nextProposals,usage:{input_tokens:20,output_tokens:10}});args.signal.addEventListener('abort',()=>{args.onText('MUST NOT PUBLISH');release();},{once:true});});};
  const authFetch=async(url,opts)=>{let name;if(url.includes('/token?')){const b=JSON.parse(opts.body);if(b.password!=='test-password')return new Response('{}',{status:400});name=b.email.split('@')[0];}else name=opts.headers.Authorization.split(' ')[1];const user={id:name+'-uid',email:name+'@example.test',email_confirmed_at:'2026-01-01'};return Response.json(url.includes('/token?')?{user,access_token:name,refresh_token:name,expires_in:3600}:user);};
  const server=createApp({store:s,origin:'http://localhost',secret:'test secret with more than thirty two characters',testing:true,authFetch,ai});await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;const cookies={};
  const request=async(name,path,data,headers={})=>{const r=await fetch(base+'/api/'+path,{method:data?'POST':'GET',headers:{Origin:'http://localhost',Cookie:cookies[name]??'','Content-Type':'application/json',...headers},body:data?JSON.stringify(data):undefined});const c=r.headers.get('set-cookie');if(c)cookies[name]=c.split(';')[0];return {status:r.status,body:await r.json()};};
@@ -113,6 +113,12 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  assert.equal((await cmd('safy','item.delete',{id:item.id,revision:item.revision})).status,200);
  assert.ok(!(await request('mahmoud','state')).body.items.some(i=>i.id===item.id));assert.equal(s.messages().length,count);
  });
+ await t.test('completed shared AI tool starts a real activity without proposal acceptance',async()=>{
+ nextProposals=[{type:'start',target:'Safy',title:'Live',questions:quiz}];
+ const job=await cmd('mahmoud','ai.ask',{prompt:'Ask Safy now',once:true});assert.equal(job.status,200);release();await waitJob(job.body.job);
+ const view=(await request('safy','state')).body;assert.equal(view.activity.status,'active');assert.equal(view.activity.target,'Safy');assert.equal(view.activity.current.q,quiz[0].q);
+ assert.ok(!view.proposals.some(p=>p.type==='start'));nextProposals=[];await cmd('mahmoud','quiz.end');
+ });
  await t.test('logout revokes the old cookie server-side',async()=>{const old=cookies.mahmoud;await request('mahmoud','logout',{});cookies.mahmoud=old;assert.equal((await request('mahmoud','state')).status,401);});
  }finally{release?.();server.closeAllConnections();await new Promise(r=>server.close(r));s.close();}
 });
@@ -123,4 +129,26 @@ test('shared pins support old state, both profiles, deduplication and unpin',()=
  change(s,'Mahmoud','message.pin',{id:'one',value:true,text:'Meet at eight',author:'Safy'});
  assert.equal(project(s,'Safy').pins.length,1);
  change(s,'Safy','message.pin',{id:'one',value:false});assert.equal(project(s,'Mahmoud').pins.length,0);
+});
+
+test('live ten-question round preserves draft and archives every answer once',()=>{
+ const s=initial();change(s,'Mahmoud','draft.save',{questions:quiz});
+ const qs=Array.from({length:10},(_,i)=>({q:'Question '+i,options:['A','B'],correct:0}));
+ change(s,'Mahmoud','quiz.launch',{target:'Safy',questions:qs});const id=s.activity.id;
+ assert.deepEqual(s.drafts.Mahmoud,quiz);
+ assert.throws(()=>change(s,'Mahmoud','quiz.launch',{target:'Safy',questions:qs}),/Finish/);
+ for(let i=0;i<10;i++){assert.equal(project(s,'Safy').activity.current.q,'Question '+i);change(s,'Safy','quiz.answer',{activity:id,index:i,option:0});}
+ assert.equal(s.activity.answers.length,10);assert.equal(s.activity.score,10);assert.equal(s.items[0].type,'Result');
+ assert.throws(()=>change(s,'Safy','quiz.answer',{activity:id,index:9,option:0}),/changed/);assert.equal(s.items.length,1);
+});
+test('provider offers direct start in shared chat and keeps private preparation isolated',async()=>{
+ process.env.OPENAI_API_KEY='test-only';
+ for(const privatePrep of [false,true]){
+ const result=await respond({actor:'Mahmoud',prompt:privatePrep?'Prepare a private draft':'Ask Safy ten questions',context:'',privatePrep,onText(){},fetcher:async(_url,opts)=>{
+ const body=JSON.parse(opts.body);assert.match(body.instructions,/Use English by default/);
+ assert.equal(body.tools.some(t=>t.name==='start_quiz'),!privatePrep);
+ return new Response('data: '+JSON.stringify({type:'response.completed',response:{usage:{input_tokens:1,output_tokens:1},output:[{type:'function_call',name:privatePrep?'prepare_quiz':'start_quiz',arguments:JSON.stringify({title:'Round',questions:quiz,target:'Safy'})}]}})+'\n\n');
+ }});
+ assert.equal(result.proposals[0].type,privatePrep?'quiz':'start');
+ }
 });

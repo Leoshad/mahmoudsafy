@@ -30,6 +30,11 @@ export function change(s,who,type,p={}){
     }
     case 'pause': if(p.value)s.echoInvited=false;s.pauses=p.value?[...new Set([...s.pauses,who])]:s.pauses.filter(x=>x!==who);break;
     case 'draft.save': s.drafts[who]=p.questions.length?questions(p.questions):[];break;
+    case 'quiz.launch': {
+      check(!s.activity||s.activity.status!=='active','Finish or end the current activity first.',409);
+      check(names.includes(p.target),'Choose Mahmoud or Safy.');
+      const qs=questions(p.questions);s.activity={id:randomUUID(),owner:who,target:p.target,qs,index:0,answers:[],score:0,pauses:[],status:'active'};break;
+    }
     case 'quiz.start': {
       check(!s.activity||s.activity.status!=='active','Finish or end the current activity first.',409);
       const qs=questions(s.drafts[who]);s.activity={id:randomUUID(),owner:who,target:names.find(n=>n!==who),qs,index:0,answers:[],score:0,pauses:[],status:'active'};break;
