@@ -14,9 +14,9 @@ function tileSound(){
  if(!soundOn||!opened||document.hidden||$('#domino-panel').getClientRects?.().length===0||audioContext?.state!=='running')return;
  try{
   const now=audioContext.currentTime;
-  for(const [delay,hz,volume] of [[0,760,.075],[.018,420,.05]]){
-   const tone=audioContext.createOscillator(),gain=audioContext.createGain();tone.type='triangle';tone.frequency.setValueAtTime(hz,now+delay);tone.frequency.exponentialRampToValueAtTime(hz*.45,now+delay+.045);
-   gain.gain.setValueAtTime(volume,now+delay);gain.gain.exponentialRampToValueAtTime(.001,now+delay+.065);tone.connect(gain);gain.connect(audioContext.destination);tone.start(now+delay);tone.stop(now+delay+.07);tone.onended=()=>{tone.disconnect();gain.disconnect();};
+  for(const [delay,hz,volume] of [[0,240,.028],[.012,155,.016]]){
+   const tone=audioContext.createOscillator(),gain=audioContext.createGain();tone.type='sine';tone.frequency.setValueAtTime(hz,now+delay);tone.frequency.exponentialRampToValueAtTime(hz*.45,now+delay+.045);
+   gain.gain.setValueAtTime(.001,now+delay);gain.gain.exponentialRampToValueAtTime(volume,now+delay+.004);gain.gain.exponentialRampToValueAtTime(.001,now+delay+.065);tone.connect(gain);gain.connect(audioContext.destination);tone.start(now+delay);tone.stop(now+delay+.07);tone.onended=()=>{tone.disconnect();gain.disconnect();};
   }
  }catch{}
 }
@@ -44,41 +44,71 @@ function piece(tile,root,interactive=false){
  for(const value of [tile.a,tile.b]){const half=make('span',undefined,e,'domino-half');half.setAttribute('aria-hidden','true');for(let i=0;i<9;i++)make('i',undefined,half,dots[value].includes(i)?'pip':'');}return e;
 }
 let boardObserver=null,animationSeen='',historySignature='';
+const boards=new Map(),drawSeen=new Map();
 function tableLayout(chain){
- const out=[];let direction=0,rowY=0,horizontal=0;
+ if(!chain.length)return [];
+ const rootIndex=chain.reduce((best,t,i)=>(t.order??Infinity)<(chain[best].order??Infinity)?i:best,0),root=chain[rootIndex];
  const pose=(tile,dir,previous)=>{
   const double=tile.a===tile.b,len=double?1:2,cross=double?2:1,dx=[1,0,-1,0][dir],dy=[0,1,0,-1][dir];let x=0,y=0;
   if(previous){
    if(dir===previous.dir){x=previous.x+dx*(previous.len/2+len/2+.08);y=previous.y+dy*(previous.len/2+len/2+.08);}
-   else{const oldDx=[1,0,-1,0][previous.dir],oldDy=[0,1,0,-1][previous.dir],half=previous.double?0:previous.len/2-.5;
-    x=previous.x+oldDx*half+dx*(previous.cross/2+len/2+.08);y=previous.y+oldDy*half+dy*(previous.cross/2+len/2+.08);}
+   else{const half=previous.double?0:previous.len/2-.5;x=previous.x+[1,0,-1,0][previous.dir]*half+dx*(previous.cross/2+len/2+.08);y=previous.y+[0,1,0,-1][previous.dir]*half+dy*(previous.cross/2+len/2+.08);}
   }
   return {tile,x,y,dir,len,cross,double,w:dir%2?cross:len,h:dir%2?len:cross,angle:dir*90+(double?90:0)};
  };
- for(const tile of chain){
-  let previous=out.at(-1),next=pose(tile,direction,previous);
-  if(previous&&direction%2===0&&(next.x+next.w/2>8||next.x-next.w/2< -8)){horizontal=direction;direction=1;next=pose(tile,direction,previous);}
-  else if(previous&&direction===1&&previous.y-rowY>=3){direction=horizontal===0?2:0;next=pose(tile,direction,previous);rowY=next.y;}
-  out.push(next);
+ const center=pose(root,0),out=[center];
+ function arm(tiles,left){
+  let direction=left?2:0,horizontal=direction,rowY=0,previous={...center,dir:direction};const vertical=left?3:1;
+  for(const original of tiles){
+   const tile=left?{...original,a:original.b,b:original.a}:original;
+   let next=pose(tile,direction,previous);
+   if(direction%2===0&&(next.x+next.w/2>8||next.x-next.w/2< -8)){horizontal=direction;direction=vertical;next=pose(tile,direction,previous);}
+   else if(direction===vertical&&Math.abs(previous.y-rowY)>=3){direction=horizontal===0?2:0;next=pose(tile,direction,previous);rowY=next.y;}
+   out.push(next);previous=next;
+  }
  }
- return out;
+ arm(chain.slice(rootIndex+1),false);arm(chain.slice(0,rootIndex).reverse(),true);
+ const byId=new Map(out.map(p=>[p.tile.id,p]));return chain.map(t=>byId.get(t.id));
 }
 function arrangeBoard(board,chain,lastMove,key){
- const width=board.clientWidth||280;
- if(board.dataset.layout===String(width))return;board.dataset.layout=String(width);board.replaceChildren();
- if(!chain.length){make('span','Your table is ready.',board,'domino-board-empty');return;}
- const poses=tableLayout(chain),minX=Math.min(...poses.map(p=>p.x-p.w/2)),maxX=Math.max(...poses.map(p=>p.x+p.w/2)),minY=Math.min(...poses.map(p=>p.y-p.h/2)),maxY=Math.max(...poses.map(p=>p.y+p.h/2));
- const height=Math.max(230,Math.min(330,width*.9)),unit=Math.min(24,(width-30)/(maxX-minX),(height-34)/(maxY-minY));
- board.style.height=height+'px';board.style.setProperty('--domino-unit',unit+'px');
- const offsetX=(width-(maxX-minX)*unit)/2,offsetY=(height-(maxY-minY)*unit)/2;
- const animate=lastMove?.by==='Computer'&&animationSeen!==key;animationSeen=key;
+ const width=board.clientWidth||280,layoutKey=width+':'+key+':'+chain.length;
+ if(board.dataset.layout===layoutKey)return;board.dataset.layout=layoutKey;
+ const height=Math.max(250,Math.min(330,width));board.style.height=height+'px';
+ if(!chain.length){if(!board._empty)board._empty=make('span','Your table is ready.',board,'domino-board-empty');return;}
+ board._empty?.remove?.();board._empty=null;
+ const poses=tableLayout(chain),extentX=Math.max(1,...poses.map(p=>Math.abs(p.x)+p.w/2)),extentY=Math.max(1,...poses.map(p=>Math.abs(p.y)+p.h/2));
+ const fit=Math.min(24,(width-26)/(2*extentX),(height-38)/(2*extentY));
+ if(!board._unit)board._unit=Math.min(24,(width-26)/17);
+ if(fit<board._unit)board._unit=fit*.94;
+ const unit=board._unit;board.style.setProperty('--domino-unit',unit+'px');
+ board._nodes??=new Map();
  for(const [index,p] of poses.entries()){
-  const x=offsetX+(p.x-minX)*unit,y=offsetY+(p.y-minY)*unit,wrap=make('span',undefined,board,'domino-placement');
-  wrap.style.left=x+'px';wrap.style.top=y+'px';wrap.style.setProperty('--arrival-x',(width/2-x)+'px');wrap.style.setProperty('--arrival-y',(12-y)+'px');
-  const e=piece(p.tile,wrap);e.style.transform='translate(-50%,-50%) rotate('+p.angle+'deg)';
-  const latest=lastMove?.id===p.tile.id&&lastMove?.by==='Computer';e.classList.toggle('computer-last',latest);wrap.classList.toggle('domino-arriving',latest&&animate);
-  if(index===0||index===poses.length-1){const label=make('small',index===0?'A':'B',wrap,'domino-end-label');label.style.top=(p.h*unit/2+3)+'px';}
+  let wrap=board._nodes.get(p.tile.id),fresh=!wrap;
+  if(fresh){wrap=make('span',undefined,board,'domino-placement');wrap._piece=piece(p.tile,wrap);wrap._label=make('small','',wrap,'domino-end-label');board._nodes.set(p.tile.id,wrap);}
+  const x=width/2+p.x*unit,y=height/2+p.y*unit,e=wrap._piece;
+  wrap.style.left=x+'px';wrap.style.top=y+'px';wrap.style.setProperty('--arrival-x',(width/2-x)+'px');wrap.style.setProperty('--arrival-y',((lastMove?.by===who?height-12:12)-y)+'px');
+  e.style.transform='translate(-50%,-50%) rotate('+p.angle+'deg)';
+  e.classList.toggle('computer-last',lastMove?.id===p.tile.id);
+  wrap.classList.toggle('domino-arriving',fresh&&board._ready&&lastMove?.id===p.tile.id);
+  wrap._label.textContent=index===0?'A':index===poses.length-1?'B':'';wrap._label.style.top=(p.h*unit/2+3)+'px';
  }
+ board._ready=true;
+}
+function drawPile(g,root){
+ const area=make('div',undefined,root,'domino-table-area'),boardKey=mode+':'+g.id+':'+g.round;
+ let board=boards.get(boardKey);if(!board){board=make('div',undefined,null,'domino-board');boards.clear();boards.set(boardKey,board);}area.append(board);
+ board.setAttribute('aria-label','Connected domino table with fixed tile positions');
+ const pile=make('div',undefined,area,'domino-stock');pile.setAttribute('aria-label','Draw pile: '+g.stockCount+' tiles');
+ make('small','DRAW',pile);make('strong',String(g.stockCount),pile);
+ const stack=make('div',undefined,pile,'domino-stock-tiles');
+ for(let i=0;i<g.stockCount;i++)make('span',undefined,stack,'domino-stock-back').setAttribute('aria-hidden','true');
+ if(!g.stockCount)make('small','Empty',pile);
+ const previous=drawSeen.get(mode),same=previous?.key===boardKey,drawn=same?Math.max(0,previous.stock-g.stockCount):0;
+ let newIds=same?g.hand.filter(t=>!previous.hand.includes(t.id)).map(t=>t.id):[];
+ const recent=same&&Date.now()-(previous.at??0)<650;if(!drawn&&recent)newIds=previous.newIds;
+ if((drawn||recent&&previous.drawn)&&opened&&!document.hidden){const ghost=make('span',undefined,area,'domino-stock-back domino-drawing '+(newIds.length?'to-hand':'to-opponent'));ghost.setAttribute('aria-hidden','true');ghost.onanimationend=()=>ghost.remove?.();}
+ drawSeen.set(mode,{key:boardKey,stock:g.stockCount,hand:g.hand.map(t=>t.id),at:drawn?Date.now():previous?.at,newIds,drawn:drawn||recent&&previous.drawn});
+ return {board,newIds};
 }
 function renderRecords(){
  const record=games.records?.[mode]??{wins:{},history:[]},sig=JSON.stringify([mode,record]);if(sig===historySignature)return;historySignature=sig;
@@ -128,7 +158,7 @@ function render(){
  const meta=make('div',undefined,root,'domino-table-meta');make('span',g.opponent+' · '+g.opponentCount+' tiles',meta);make('span','Draw pile · '+g.stockCount,meta);
  const backs=make('div',undefined,root,'domino-opponent');backs.setAttribute('aria-label',g.opponent+' has '+g.opponentCount+' hidden tiles');for(let i=0;i<g.opponentCount;i++)make('span',undefined,backs).setAttribute('aria-hidden','true');
  const ends=make('div',undefined,root,'domino-ends');make('span',g.chain.length?'End A · '+g.chain[0].a:'Place any tile to start',ends);if(g.chain.length)make('span','End B · '+g.chain.at(-1).b,ends);
- const board=make('div',undefined,root,'domino-board');board.setAttribute('aria-label','All played tiles in a connected snake, starting at the top left');
+ const {board,newIds}=drawPile(g,root);
  arrangeBoard(board,g.chain,g.lastMove,g.id+':'+g.round+':'+(g.lastMove?.order??0));
  requestAnimationFrame(()=>{if(board.isConnected!==false)arrangeBoard(board,g.chain,g.lastMove,g.id+':'+g.round+':'+(g.lastMove?.order??0));});
  if(typeof ResizeObserver!=='undefined'){boardObserver=new ResizeObserver(()=>arrangeBoard(board,g.chain,g.lastMove,g.id+':'+g.round+':'+(g.lastMove?.order??0)));boardObserver.observe(board);}
@@ -147,7 +177,7 @@ function render(){
  const hand=make('div',undefined,root,'domino-hand');
  for(const tile of g.hand){
   const e=piece(tile,hand,true),moves=g.legal.filter(m=>m.tile===tile.id);
-  e.disabled=busy||!moves.length;e.classList.toggle('playable',!!moves.length);e.classList.toggle('picked',picked===tile.id);
+  e.classList.toggle('domino-drawn',newIds.includes(tile.id));e.disabled=busy||!moves.length;e.classList.toggle('playable',!!moves.length);e.classList.toggle('picked',picked===tile.id);
   e.onclick=()=>{if(moves.length===1)command('play',moves[0]);else{picked=picked===tile.id?null:tile.id;signature='';render();}};
  }
  if(g.status==='active'){
@@ -167,5 +197,5 @@ window.OurDomino={init,sync(s){
  if(who!==s.who){heardMoves.clear();who=s.who;opened=false;mode='solo';picked=null;signature='';
  try{const saved=JSON.parse(localStorage.getItem('our-place:domino:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;}}catch{}}
  version=s.version;hearMoves(s.domino??{});games=s.domino??{};if(picked&&!game()?.legal.some(m=>m.tile===picked))picked=null;render();
-},reset(){heardMoves.clear();boardObserver?.disconnect();historySignature='';animationSeen='';$('#domino-records').replaceChildren();$('#domino-history-list').replaceChildren();who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
+},reset(){boards.clear();drawSeen.clear();heardMoves.clear();boardObserver?.disconnect();historySignature='';animationSeen='';$('#domino-records').replaceChildren();$('#domino-history-list').replaceChildren();who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
 })();

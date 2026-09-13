@@ -73,3 +73,30 @@ test('tile sounds play once per new move, respect mute and preserve preference a
  const b=client('Mahmoud',state,[],storage);assert.equal(b.get('#domino-sound').textContent,'Muted');
  await click(a.get('#domino-sound'));a.context.document.hidden=true;g.lastMove.order=3;state.version++;a.sync();assert.equal(starts,2);
 });
+test('adding tiles at either end preserves every previous pose and avoids overlap',()=>{
+ const a=client('Mahmoud',initial(),[]),layout=a.context.DominoTable.layout;
+ for(let shift=0;shift<28;shift++){
+  const deck=tiles(),chain=[];let previous=[];
+  for(let n=0;n<28;n++){
+   const tile={...deck[(n+shift)%28],order:n+1};if((n+shift)%3===0)chain.unshift(tile);else chain.push(tile);
+   const poses=layout(chain);
+   for(const old of previous){const now=poses.find(p=>p.tile.id===old.tile.id);assert.equal(now.x,old.x);assert.equal(now.y,old.y);assert.equal(now.angle,old.angle);}
+   for(let i=0;i<poses.length;i++)for(let j=i+1;j<poses.length;j++){
+    const p=poses[i],q=poses[j];assert.ok(Math.abs(p.x-q.x)>=(p.w+q.w)/2-.001||Math.abs(p.y-q.y)>=(p.h+q.h)/2-.001);
+   }
+   previous=poses;
+  }
+ }
+});
+test('draw pile shows exact hidden count and received tile; board nodes survive state updates',async()=>{
+ const state=initial(),a=client('Mahmoud',state,[]);await click(a.get('#domino-open'));await click(a.get('#domino-start'));
+ const g=state.domino.solo.Mahmoud;g.chain=[{id:'6-6',a:6,b:6,order:1}];state.version++;a.sync();
+ let nodes=all(a.get('#domino-game'));const board=nodes.find(e=>e.className==='domino-board'),wrap=board.children.find(e=>e.className==='domino-placement');
+ const x=wrap.style.left,y=wrap.style.top,count=g.stock.length;
+ assert.equal(nodes.filter(e=>e.className==='domino-stock-back').length,count);
+ const drawn=g.stock.pop();g.hands.Mahmoud.push(drawn);state.version++;a.sync();
+ nodes=all(a.get('#domino-game'));assert.equal(nodes.find(e=>e.className==='domino-board'),board);
+ assert.equal(wrap.style.left,x);assert.equal(wrap.style.top,y);
+ assert.equal(nodes.filter(e=>e.className==='domino-stock-back').length,count-1);
+ assert.ok(nodes.some(e=>e.classList.contains('domino-drawn')));
+});

@@ -87,3 +87,21 @@
 
 #our-place-trial .domino-player-score{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:5px 3px;min-width:0}
 #our-place-trial .domino-player-score strong{font-size:20px;white-space:nowrap}
+
+/* Quiet table: existing pieces retain their coordinates; fit only when necessary. */
+#our-place-trial .domino-table-area{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 38px;gap:6px;align-items:stretch}
+#our-place-trial .domino-placement{transition:left .55s ease,top .55s ease}
+#our-place-trial .domino-board .domino-piece{transition:width .55s ease,height .55s ease}
+#our-place-trial .domino-board .domino-half{width:calc(var(--domino-unit) - 2px);height:calc(var(--domino-unit) - 4px);padding:1px;transition:width .55s ease,height .55s ease}
+#our-place-trial .domino-stock{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 3px;background:#242d27;border:1px solid #4f5b4f;border-radius:9px;color:#b9c2b5}
+#our-place-trial .domino-stock small{font-size:8px;letter-spacing:.6px}
+#our-place-trial .domino-stock strong{font-size:15px;font-variant-numeric:tabular-nums}
+#our-place-trial .domino-stock-tiles{display:flex;flex-direction:column;gap:3px}
+#our-place-trial .domino-stock-back{display:block;width:23px;height:11px;box-sizing:border-box;border:1px solid #778071;border-radius:3px;background:#535e50;box-shadow:inset 0 0 0 2px #465142}
+#our-place-trial .domino-drawing{position:absolute;right:8px;top:50%;z-index:3;pointer-events:none;animation:domino-draw-down .55s ease-in both}
+#our-place-trial .domino-drawing.to-opponent{animation-name:domino-draw-up}
+#our-place-trial .domino-drawn{animation:domino-hand-receive .65s ease-out both}
+@keyframes domino-draw-down{to{right:50%;top:100%;opacity:0;transform:rotate(90deg)}}
+@keyframes domino-draw-up{to{right:50%;top:0;opacity:0;transform:rotate(90deg)}}
+@keyframes domino-hand-receive{from{opacity:.3;transform:translateY(-12px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){#our-place-trial .domino-placement,#our-place-trial .domino-board .domino-piece,#our-place-trial .domino-board .domino-half{transition:none}#our-place-trial .domino-drawing{display:none}#our-place-trial .domino-drawn{animation:none}}
