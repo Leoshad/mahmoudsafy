@@ -74,7 +74,7 @@ test('navigation and drag resizing preserve player, position and playing or paus
  a.get('#media-close').onclick();assert.equal(a.get('#media-player-box').hidden,true);
 });
 
-test('reload restores local media, position, tab and search history without autoplay; account isolation and close',async()=>{
+test('reload restores local media, position, tab and played history without autoplay; account isolation and close',async()=>{
  const room=initial(),storage=new Map(),a=client('Mahmoud',room,[],storage);
  a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';
  await a.get('#media-search').onsubmit({preventDefault(){}});await settle();
@@ -83,10 +83,9 @@ test('reload restores local media, position, tab and search history without auto
  const b=client('Mahmoud',room,[],storage);await settle();await settle();await settle();
  assert.equal(b.made(),1);assert.equal(b.player().time,91);assert.notEqual(b.player().ps,1);
  assert.equal(b.get('#media-panel').classList.contains('media-in-chat'),true);
- b.get('#media-query').onfocus();assert.equal(b.get('#media-history').hidden,false);
- assert.equal(b.get('#media-history').children[1].textContent,'https://youtu.be/M7lc1UVf-VE');
- const safy=client('Safy',room,[],storage);await settle();assert.equal(safy.made(),0);safy.get('#media-query').onfocus();assert.equal(safy.get('#media-history').hidden,true);
- await b.get('#media-history').children[0].children[1].onclick();assert.equal(b.get('#media-history').hidden,true);
+ assert.equal(b.get('#media-recent-list').children.length,2);
+ const safy=client('Safy',room,[],storage);await settle();assert.equal(safy.made(),0);assert.equal(safy.get('#media-recent-list').children.length,1);
+ assert.equal(Object.hasOwn(JSON.parse(storage.get('our-place:media:v1:Mahmoud')),'searches'),false);
  b.get('#media-close').onclick();b.pagehide();
  const c=client('Mahmoud',room,[],storage);await settle();assert.equal(c.made(),0);assert.equal(c.get('#media-panel').hidden,true);
 });

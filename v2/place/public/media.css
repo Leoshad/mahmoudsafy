@@ -111,10 +111,6 @@
 #our-place-trial .media-in-chat #media-resume{font-size:11px;padding:5px;margin:0}
 
 #our-place-trial #media-entry{position:relative}
-#our-place-trial #media-history{position:absolute;left:0;right:0;top:100%;z-index:90;max-height:230px;overflow:auto;background:#241c26;border:1px solid #806673;border-radius:12px;padding:8px;box-shadow:0 8px 24px #0008}
-#our-place-trial .media-history-head{display:flex;align-items:center;justify-content:space-between;color:#bdaeb7;padding:0 4px 5px}
-#our-place-trial .media-history-head button{font-size:11px;padding:4px 8px}
-#our-place-trial .media-history-item{display:block;width:100%;text-align:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:0;background:transparent;font-size:12px;padding:9px}
 
 /* A single entry: the open panel replaces its launcher, never duplicates it. */
 #our-place-trial #together:has(#media-home #media-panel:not([hidden])) .media-choices{display:none}
