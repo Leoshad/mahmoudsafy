@@ -44,7 +44,6 @@
 #our-place-trial #media-player-anchor{height:clamp(200px,42vw,440px);min-height:200px}
 #our-place-trial .media-in-chat #media-player-anchor{height:200px}
 #our-place-trial #media-panel.media-expanded #media-player-anchor{height:65dvh}
-#our-place-trial #media-panel #media-player-box.media-floating{position:fixed;right:12px;bottom:max(12px,env(safe-area-inset-bottom));width:min(356px,calc(100vw - 24px));height:200px;min-height:200px;z-index:60;box-shadow:0 10px 34px #000a;border:1px solid #957381;border-radius:12px}
 
 #our-place-trial .media-unified{min-height:126px;padding:24px;background:radial-gradient(ellipse at 100% 0,#9872422e,transparent 65%),linear-gradient(125deg,#33212e,#18151d);border-color:#8c6c58;gap:20px}
 #our-place-trial .media-unified svg{width:52px;height:52px;flex-basis:52px;color:#d1b078}
@@ -55,8 +54,7 @@
 
 
 /* Persistent player: never detach the iframe when its panel changes tabs. */
-#our-place-trial #media-player-box{position:fixed;z-index:60;margin:0;min-width:200px}
-#our-place-trial #media-player-box.media-floating{box-shadow:0 10px 34px #000a;outline:1px solid #957381}
+#our-place-trial #media-player-box{position:fixed;z-index:21;margin:0;min-width:200px}
 #our-place-trial #media-panel.media-in-chat{position:relative;padding:6px;margin-bottom:6px;max-height:none;overflow:visible;border-radius:12px}
 #our-place-trial .media-in-chat .media-panel-head,
 #our-place-trial .media-in-chat #media-status,

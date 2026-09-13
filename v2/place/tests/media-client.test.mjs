@@ -10,7 +10,7 @@ function client(who,room,clients,storage=new Map()){
  const windowEvents={};
  const elements=new Map();
  class Element{
-  constructor(tag='div'){this.tag=tag;this.children=[];this.hidden=false;this.value='';this.parentNode=null;this.dataset={};this.style={setProperty(k,v){this[k]=v;}};this.rect={left:20,top:200,bottom:400,width:320,height:200};const classes=new Set();this.classList={add:n=>classes.add(n),remove:n=>classes.delete(n),toggle:(n,v)=>{if(v??!classes.has(n))classes.add(n);else classes.delete(n);},contains:n=>classes.has(n)};}
+  constructor(tag='div'){this.tag=tag;this.children=[];this.hidden=false;this.value='';this.parentNode=null;this.dataset={};this.style={setProperty(k,v){this[k]=v;}};this.rect={left:20,top:200,bottom:400,width:320,right:340,height:200};const classes=new Set();this.classList={add:n=>classes.add(n),remove:n=>classes.delete(n),toggle:(n,v)=>{if(v??!classes.has(n))classes.add(n);else classes.delete(n);},contains:n=>classes.has(n)};}
   append(...nodes){for(const n of nodes){n.parentNode=this;this.children.push(n);}}
   replaceChildren(...nodes){this.children=[];this.append(...nodes);}
   insertBefore(n){this.append(n);}
@@ -35,7 +35,7 @@ test('client consent: preview only locally, invite without remote player, join, 
  const room=initial(),clients=[],a=client('Mahmoud',room,clients),b=client('Safy',room,clients);
  a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';await a.get('#media-search').onsubmit({preventDefault(){}});await settle();
  assert.equal(a.made(),1);assert.equal(b.made(),0);assert.equal(a.player().getPlayerState(),1);
- a.scroll(true);await settle();assert.equal(a.player().getPlayerState(),1);assert.equal(a.get('#media-player-box').classList.contains('media-floating'),true);a.scroll(false);await settle();assert.equal(a.get('#media-player-box').classList.contains('media-floating'),false);
+ a.scroll(true);await settle();assert.equal(a.player().getPlayerState(),1);assert.equal(a.get('#media-player-box').classList.contains('media-floating'),false);assert.equal(a.get('#media-player-box').style.top,'-20px');a.scroll(false);await settle();assert.equal(a.get('#media-player-box').classList.contains('media-floating'),false);
  await a.get('#media-invite').onclick();await settle();assert.equal(b.made(),0);assert.deepEqual(room.media.participants,['Mahmoud']);
  const join=b.get('#media-invitation').children.find(x=>x.textContent==='Join');assert.ok(join);await join.onclick();await settle();assert.equal(b.made(),1);assert.deepEqual(room.media.participants,['Mahmoud','Safy']);
  a.advance();b.advance();await a.get('#media-play').onclick();await settle();await settle();assert.equal(room.media.playing,true);assert.equal(b.player().getPlayerState(),1);
