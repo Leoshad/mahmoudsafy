@@ -119,6 +119,16 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  const view=(await request('safy','state')).body;assert.equal(view.activity.status,'active');assert.equal(view.activity.target,'Safy');assert.equal(view.activity.current.q,quiz[0].q);
  assert.ok(!view.proposals.some(p=>p.type==='start'));nextProposals=[];await cmd('mahmoud','quiz.end');
  });
+ await t.test('background is shared, revision guarded and references only stored photos',async()=>{
+ const photo=randomUUID();s.db.prepare('INSERT INTO photos VALUES(?,?,?,?)').run(photo,'image/png',Buffer.from([137,80,78,71,13,10,26,10]),new Date().toISOString());
+ assert.equal((await cmd('mahmoud','wallpaper.set',{image:randomUUID(),revision:0})).status,404);
+ assert.equal((await cmd('mahmoud','wallpaper.set',{image:photo,revision:0})).status,200);
+ assert.equal((await request('safy','state')).body.wallpaper.image,photo);
+ assert.equal((await cmd('safy','wallpaper.set',{image:null,revision:0})).status,409);
+ assert.equal((await cmd('safy','wallpaper.set',{image:null,revision:1})).status,200);
+ assert.equal((await request('mahmoud','state')).body.wallpaper.image,null);
+ assert.ok(s.db.prepare('SELECT id FROM photos WHERE id=?').get(photo));
+ });
  await t.test('logout revokes the old cookie server-side',async()=>{const old=cookies.mahmoud;await request('mahmoud','logout',{});cookies.mahmoud=old;assert.equal((await request('mahmoud','state')).status,401);});
  }finally{release?.();server.closeAllConnections();await new Promise(r=>server.close(r));s.close();}
 });

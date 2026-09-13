@@ -245,3 +245,9 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial #welcome-splash{transition:opacity .25s}
 #our-place-trial #welcome-splash.leaving{opacity:0;pointer-events:none}
 @media(prefers-reduced-motion:reduce){#our-place-trial #welcome-splash{transition:none}}
+
+#our-place-trial .conversation-window{position:relative;isolation:isolate;display:flex;flex-direction:column;flex:1;min-height:100px;overflow:hidden;border:1px solid #946079;border-radius:15px;background:#110f15;box-shadow:inset 0 0 0 1px #cf9ab114}
+#our-place-trial #chat-wallpaper{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.28);pointer-events:none;z-index:-1}
+#our-place-trial .conversation-window .timeline{padding:12px 9px;min-height:0}
+#our-place-trial #background-preview{display:block;width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin:12px 0;filter:brightness(.65)}
+#our-place-trial .bubble strong{font-weight:650}

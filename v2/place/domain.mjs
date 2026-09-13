@@ -16,7 +16,7 @@ export function publicActivity(a,who){
   // Solutions and future questions never leave the server, even for the author after launch.
   return {...visible,total:qs.length,max:qs.filter(q=>q.correct>=0).length,current:a.status==='active'?{q:qs[a.index].q,options:qs[a.index].options}:null};
 }
-export function project(s,who){return {version:s.version,pauses:s.pauses,draft:s.drafts[who],activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items,echoInvited:!!s.echoInvited,pins:s.pins??[]};}
+export function project(s,who){return {version:s.version,pauses:s.pauses,draft:s.drafts[who],activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items,wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
 export function change(s,who,type,p={}){
   check(names.includes(who),'Not invited.',403);
   s.activities??=s.activity?[s.activity]:[];
@@ -24,6 +24,11 @@ export function change(s,who,type,p={}){
   const addActivity=a=>{s.activities=s.activities.filter(x=>x.status==='active').concat(s.activities.filter(x=>x.status!=='active').slice(-20));s.activities.push(a);s.activity=a;};
 
   switch(type){
+    case 'wallpaper.set': {
+      const current=s.wallpaper??{image:null,revision:0};check(p.revision===current.revision,'The background changed. Reopen settings and try again.',409);
+      check(p.image===null||typeof p.image==='string'&&/^[a-f0-9-]{36}$/.test(p.image),'Invalid background.');
+      s.wallpaper={image:p.image,revision:current.revision+1};break;
+    }
     case 'echo.invite': check(typeof p.value==='boolean','Choose on or off.');if(p.value)check(!s.pauses.length,'Echo is paused. Resume permissions first.',409);s.echoInvited=p.value;break;
     case 'item.delete': {const i=s.items.find(i=>i.id===p.id);check(i&&i.revision===p.revision,'This item changed. Refresh before deleting.',409);s.items=s.items.filter(i=>i.id!==p.id);break;}
     case 'message.pin': {

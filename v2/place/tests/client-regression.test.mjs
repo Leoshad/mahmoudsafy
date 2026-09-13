@@ -41,3 +41,14 @@ test('message timestamps distinguish days and handle missing dates honestly',()=
  assert.notEqual(ctx.dayKey('2025-01-01T12:00:00Z'),ctx.dayKey('2025-01-02T12:00:00Z'));
  assert.equal(ctx.dayLabel(undefined),'Date unavailable');
 });
+
+test('Echo emphasis renders safely without stars while human text stays literal',()=>{
+ const start=source.indexOf('function renderMessageText('),end=source.indexOf('function paintWallpaper()',start);
+ const node=()=>({children:[],textContent:'',append(n){this.children.push(n);},replaceChildren(){this.children=[];}});
+ const document={createElement:tag=>({...node(),tag}),createTextNode:text=>({textContent:text})},ctx=vm.createContext({document});
+ vm.runInContext(source.slice(start,end),ctx);const p=node();
+ ctx.renderMessageText(p,{author:'Echo',text:'Hello **<img onerror=alert(1)>** world'});
+ assert.equal(p.children[1].tag,'strong');assert.equal(p.children[1].textContent,'<img onerror=alert(1)>');
+ assert.equal(p.children.map(n=>n.textContent).join(''),'Hello <img onerror=alert(1)> world');
+ ctx.renderMessageText(p,{author:'Safy',text:'Keep **my stars**'});assert.equal(p.textContent,'Keep **my stars**');
+});

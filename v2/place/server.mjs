@@ -107,6 +107,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
           }
           if(p.type==='message.pin'&&data.value){const m=store.db.prepare('SELECT * FROM messages WHERE id=?').get(data.id);check(m&&m.status==='sent','Only a sent shared message can be pinned.',404);data.text=m.text||'Shared photo';data.author=m.author;}
           if(p.type==='echo.invite'&&data.value===false){for(const job of store.db.prepare("SELECT id FROM jobs WHERE scope='shared' AND status='running'").all()){store.status(job.id,'cancelled');store.db.prepare("UPDATE messages SET status='cancelled' WHERE id=?").run(job.id);running.get(job.id)?.controller.abort();}}
+          if(p.type==='wallpaper.set'&&data.image)photoData(data.image);
           if(p.type==='item.save'&&data.image)photoData(data.image);
           if(p.type==='pause'&&data.value)cancel(who,true);
           if(['quiz.start','quiz.launch','quiz.answer'].includes(p.type))data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);store.save(s);return {ok:true};
