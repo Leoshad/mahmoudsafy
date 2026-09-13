@@ -44,7 +44,7 @@ async function command(type,data={},g=game()){
 const dots=[[],[4],[0,8],[0,4,8],[0,2,6,8],[0,2,4,6,8],[0,2,3,5,6,8]];
 function piece(tile,root,interactive=false){
  const e=make(interactive?'button':'span',undefined,root,'domino-piece');if(interactive)e.type='button';e.setAttribute('aria-label',tile.a+'–'+tile.b);
- for(const value of [tile.a,tile.b]){const half=make('span',undefined,e,'domino-half');half.setAttribute('aria-hidden','true');for(let i=0;i<9;i++)make('i',undefined,half,dots[value].includes(i)?'pip':'');}return e;
+ for(const value of [tile.a,tile.b]){const half=make('span',undefined,e,'domino-half');half.setAttribute('aria-hidden','true');const grid=make('span',undefined,half,'domino-pips');for(let i=0;i<9;i++)make('i',undefined,grid,dots[value].includes(i)?'pip':'');}return e;
 }
 let boardObserver=null,historySignature='',view=null;
 const drawSeen=new Map();
@@ -93,7 +93,7 @@ function arrangeBoard(board,chain,lastMove,key){
   if(fresh){wrap=make('span',undefined,board,'domino-placement');wrap._piece=piece(p.tile,wrap);wrap._label=make('small','',wrap,'domino-end-label');board._nodes.set(p.tile.id,wrap);}
   const x=board._cx+p.x*unit,y=board._cy+p.y*unit,e=wrap._piece;
   wrap.style.left=x+'px';wrap.style.top=y+'px';wrap.style.setProperty('--arrival-x',(width/2-x)+'px');wrap.style.setProperty('--arrival-y',((lastMove?.by===who?height-12:12)-y)+'px');
-  e.style.transform='translate(-50%,-50%) rotate('+p.angle+'deg)';
+  e.style.transform='translate(-50%,-50%) rotate('+p.angle+'deg)';e.style.setProperty('--pip-rotation',(-p.angle)+'deg');
   e.classList.toggle('computer-last',lastMove?.id===p.tile.id);
   wrap.classList.toggle('domino-arriving',fresh&&board._ready&&lastMove?.id===p.tile.id);
   wrap._label.textContent=index===0?'A':index===poses.length-1?'B':'';wrap._label.style.top=(p.h*unit/2+3)+'px';
@@ -185,11 +185,17 @@ function render(){
  board._state=g;
  if(typeof ResizeObserver!=='undefined'&&view.observed!==board){view.observed=board;boardObserver?.disconnect();boardObserver=new ResizeObserver(()=>{const current=board._state;arrangeBoard(board,current.chain,current.lastMove,current.id+':'+current.round+':'+(current.lastMove?.order??0));});boardObserver.observe(board);}
  make('p',g.last?.text||'',slot('last'),'domino-last');
- const actions=slot('actions');
+ const actions=slot('actions');const ended=['finished','complete'].includes(g.status);root.classList.toggle('domino-ended',ended);
  if(g.status==='finished'||g.status==='complete'){
-  if(g.result.reason==='blocked')make('p','Blocked table · '+g.players.map(n=>n+': '+g.result.totals[n]+' pips').join(' / '),actions,'muted');
-  if(g.status==='complete')btn('New match',actions,()=>command('leave'),'primary').disabled=busy;
-  else{btn(g.mode==='solo'?'Next round':'Invite to next round',actions,()=>command('rematch'),'primary').disabled=busy;btn('Finish game',actions,()=>command('leave')).disabled=busy;}
+  const card=make('div',undefined,actions,'domino-result');card.setAttribute('role','status');
+  make('small',g.status==='complete'?'MATCH COMPLETE':'ROUND COMPLETE',card);
+  const winner=g.status==='complete'?g.matchWinner:g.result.winner;
+  make('h3',winner===who?(g.status==='complete'?'You won!':'You won this round!'):winner?winner+' won'+(g.status==='complete'?' the match':' this round'):'Round drawn',card);
+  make('p',g.players.map(n=>n+' '+g.scores[n]).join(' · ')+' / '+g.target,card,'domino-result-score');
+  make('p',g.status==='complete'?'Match saved in your history.':g.result.points+' points this round. Keep playing to '+g.target+'.',card,'domino-result-note');
+  const next=make('div',undefined,card,'domino-result-actions');
+  btn(g.status==='complete'?'New match':g.mode==='solo'?'Next round':'Invite to next round',next,()=>command(g.status==='complete'?'leave':'rematch'),'primary').disabled=busy;
+  btn('Back',next,()=>{opened=false;show();});
  }else{
   const controls=make('div',undefined,actions,'domino-actions');
   if(picked&&g.legal.some(m=>m.tile===picked)){make('span','Choose an end:',controls);for(const move of g.legal.filter(m=>m.tile===picked))btn(move.side==='left'?'End A':'End B',controls,()=>command('play',move),'primary').disabled=busy;}
@@ -205,9 +211,9 @@ function render(){
   e.disabled=busy||!moves.length;e.classList.toggle('playable',!!moves.length);e.classList.toggle('picked',picked===tile.id);
   e.onclick=()=>{if(busy)return;if(moves.length===1)command('play',moves[0]);else{picked=picked===tile.id?null:tile.id;render();}};
  }
- const help=slot('help');
+ const help=slot('help');help.className='domino-zone-help domino-footer';
+ btn(focused()?'Exit full screen':'Full screen',help,()=>{fullView=!fullView;show();signature='';render();},'domino-size-toggle').setAttribute('aria-label',focused()?'Exit full screen; keep game saved':'Fill screen with game');
  if(g.status==='active'){
-  make('p',g.turn===who?(g.legal.length?'Tap a highlighted tile. Choose an end if both match.':g.canDraw?'No match yet. Draw until you can play.':'No tiles to draw. Pass your turn.'):'Your tiles stay private. Wait for your turn.',help,'domino-help');
   const tools=make('details',undefined,help,'domino-game-tools');make('summary','Game options',tools);btn('Leave game',tools,()=>command('leave')).disabled=busy;
  }
 }
@@ -217,7 +223,7 @@ function init(h){
  for(const m of ['solo','shared'])$('#domino-'+m+'-tab').onclick=()=>{mode=m;picked=null;signature='';render();};
  $('#domino-start').onclick=()=>command('create',{mode,difficulty:$('#domino-difficulty').value,target:Number($('#domino-target').value)},null);
  $('#domino-chat').onclick=()=>{opened=false;show();host.goto('chat');};
- const size=btn('↗',$('#domino-collapse').parentElement||$('#domino-panel'),()=>{fullView=!fullView;size.setAttribute('aria-label',fullView?'Exit full table view':'Fill screen with game');show();signature='';render();});size.setAttribute('aria-label','Toggle full table view');
+
 }
 window.OurDomino={init,sync(s){
  if(Number.isFinite(s.version)&&who===s.who&&s.version<version)return;
