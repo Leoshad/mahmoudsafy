@@ -1,0 +1,41 @@
+# Review in the confirmed workspace before creating paid resources.
+# This file does not alter the existing v2/render.yaml or any V1 service.
+services:
+  - type: web
+    name: mahmoud-safy-our-place
+    runtime: node
+    repo: https://github.com/Leoshad/mahmoudsafy
+    branch: v2/first-slice
+    rootDir: v2/place
+    region: frankfurt
+    plan: starter
+    numInstances: 1
+    autoDeployTrigger: "off"
+    buildCommand: npm run check && npm test
+    startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: our-place-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: APP_ORIGIN
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: MAHMOUD_EMAIL
+        sync: false
+      - key: SAFY_EMAIL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AI_LIFETIME_USD
+        value: "3"

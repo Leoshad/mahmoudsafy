@@ -1,0 +1,64 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {Store} from '../store.mjs';
+import {change,initial,project,questions} from '../domain.mjs';
+import {createApp} from '../server.mjs';
+import {events,respond} from '../ai.mjs';
+
+const quiz=[{q:'Secret first question',options:['A','B'],correct:1},{q:'What would you like to try?',options:[],correct:-1}];
+test('server projection hides partner preparation, solutions and future questions',()=>{
+ const s=initial();change(s,'Safy','draft.save',{questions:quiz});assert.deepEqual(project(s,'Mahmoud').draft,[]);change(s,'Safy','quiz.start');const view=project(s,'Mahmoud');assert.equal(view.activity.current.q,quiz[0].q);assert.ok(!JSON.stringify(view).includes('correct'));assert.ok(!JSON.stringify(view).includes(quiz[1].q));
+});
+test('quiz enforces target, question identity, both pauses and distinct completion',()=>{
+ const s=initial();change(s,'Safy','draft.save',{questions:quiz});change(s,'Safy','quiz.start');const p={activity:s.activity.id,index:0,option:1};
+ assert.throws(()=>change(s,'Safy','quiz.answer',p),/partner/);change(s,'Mahmoud','quiz.pause',{value:true});change(s,'Safy','quiz.pause',{value:true});change(s,'Mahmoud','quiz.pause',{value:false});assert.throws(()=>change(s,'Mahmoud','quiz.answer',p),/paused/);change(s,'Safy','quiz.pause',{value:false});change(s,'Mahmoud','quiz.answer',p);assert.equal(s.activity.score,1);assert.throws(()=>change(s,'Mahmoud','quiz.answer',p),/changed/);change(s,'Mahmoud','quiz.answer',{activity:s.activity.id,index:1,answer:'A walk'});assert.equal(s.items[0].status,'completed');assert.equal(s.items[0].done,true);
+ change(s,'Safy','quiz.start');change(s,'Safy','quiz.end');assert.equal(s.items[0].status,'abandoned');assert.equal(s.items[0].done,false);
+});
+test('agreements need independent consent and stale edits cannot overwrite',()=>{
+ const s=initial();change(s,'Mahmoud','item.save',{type:'Agreement',title:'A quiet hour'});const i=s.items[0];change(s,'Mahmoud','item.approve',{id:i.id,revision:1,value:true});assert.deepEqual(i.approvals,['Mahmoud']);assert.throws(()=>change(s,'Safy','item.approve',{id:i.id,revision:1,value:true}),/changed/);change(s,'Safy','item.approve',{id:i.id,revision:2,value:true});assert.equal(i.approvals.length,2);change(s,'Mahmoud','item.save',{id:i.id,revision:3,type:'Agreement',title:'A quiet evening'});assert.equal(i.approvals.length,0);
+ change(s,'Safy','item.save',{type:'Plan',title:'Trip one'});change(s,'Safy','item.save',{type:'Plan',title:'Trip two'});change(s,'Mahmoud','item.done',{id:s.items[0].id,revision:1,value:true});assert.equal(s.items[1].done,false);
+});
+test('malformed quizzes are rejected before publication',()=>{for(const v of [[],[{q:'x',options:['one'],correct:-1}],[{q:'x',options:['a','b'],correct:2}],[{q:'x',options:[],correct:0}]])assert.throws(()=>questions(v));});
+test('durable receipts bind actor and payload, and rollback failed actions',()=>{
+ const s=new Store(':memory:'),id=randomUUID();let times=0;const call=()=>s.once('Mahmoud',id,{x:1},()=>({n:++times}));assert.deepEqual(call(),call());assert.equal(times,1);assert.throws(()=>s.once('Safy',id,{x:1},()=>({})),/already used/);assert.throws(()=>s.once('Mahmoud',id,{x:2},()=>({})),/already used/);const broken=randomUUID();assert.throws(()=>s.once('Mahmoud',broken,{},()=>{s.message({id:broken,author:'Mahmoud',text:'no',aiAllowed:false});throw Error('rollback');}));assert.equal(s.messages().length,0);s.close();
+});
+test('restarts preserve chat, draft and pause; interrupted AI keeps its reservation',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'place-')),path=join(dir,'db');let s=new Store(path);const state=initial();change(state,'Safy','draft.save',{questions:quiz});change(state,'Mahmoud','pause',{value:true});s.save(state);s.message({id:randomUUID(),author:'Safy',text:'Still here',aiAllowed:false});const job=s.tx(()=>s.reserve('Safy','private',{prompt:'x'}));s.close();s=new Store(path);assert.equal(s.state().drafts.Safy.length,2);assert.deepEqual(s.state().pauses,['Mahmoud']);assert.equal(s.messages()[0].text,'Still here');assert.equal(s.job(job).status,'interrupted');assert.equal(s.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,50000);s.close();rmSync(dir,{recursive:true});
+});
+test('one-time and monthly budgets enforce reservations and settle known usage',()=>{
+ const s=new Store(':memory:');let id=s.tx(()=>s.reserve('Safy','shared',{}));s.tx(()=>{s.settle(id,{input_tokens:1000,output_tokens:100});s.status(id,'done');});assert.equal(s.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,400);s.db.prepare("UPDATE budget SET used=2990000 WHERE key='lifetime'").run();assert.throws(()=>s.tx(()=>s.reserve('Safy','shared',{})),/budget/);s.db.prepare("UPDATE budget SET used=0 WHERE key='lifetime'").run();s.db.prepare("UPDATE budget SET used=3990000 WHERE key<>'lifetime'").run();assert.throws(()=>s.tx(()=>s.reserve('Safy','shared',{})),/budget/);s.close();
+});
+test('message pagination does not skip messages with the same timestamp',()=>{const s=new Store(':memory:');for(let i=0;i<65;i++)s.message({id:randomUUID(),author:'Mahmoud',text:String(i),aiAllowed:true});const latest=s.messages(),prior=s.messages(latest[0].sequence);assert.equal(latest.length,60);assert.equal(prior.length,5);assert.equal(new Set([...latest,...prior].map(x=>x.id)).size,65);s.close();});
+test('SSE parser handles fragmented UTF-8 and multiline events',async()=>{
+ const b=Buffer.from('event: response.output_text.delta\ndata: {"delta":"أهلاً"}\n\ndata: {"done":true}\n\n');async function* chunks(){for(let i=0;i<b.length;i+=3)yield b.subarray(i,i+3);}const output=[];for await(const e of events(chunks()))output.push(e);assert.deepEqual(output,[{delta:'أهلاً'},{done:true}]);
+});
+test('provider streams text immediately and validates quiz tool output',async()=>{
+ process.env.OPENAI_API_KEY='test-only';let observed='';const eventList=[{type:'response.output_text.delta',delta:'Hello'},{type:'response.completed',response:{usage:{input_tokens:10,output_tokens:20},output:[{type:'function_call',name:'prepare_quiz',arguments:JSON.stringify({title:'Play',questions:quiz})}]}}];
+ const r=await respond({actor:'Safy',prompt:'Quiz',context:'',onText:t=>observed+=t,fetcher:async(_url,opts)=>{const p=JSON.parse(opts.body);assert.equal(p.stream,true);assert.equal(p.store,false);assert.equal(p.model,'gpt-5.6-luna');return new Response(eventList.map(e=>'data: '+JSON.stringify(e)+'\n\n').join(''));}});assert.equal(observed,'Hello');assert.equal(r.proposals[0].questions.length,2);
+});
+
+test('two authenticated HTTP clients: shared chat, private preparation, live stream and cancellation',async t=>{
+ process.env.MAHMOUD_EMAIL='mahmoud@example.test';process.env.SAFY_EMAIL='safy@example.test';process.env.OPENAI_API_KEY='test-only';
+ const s=new Store(':memory:');let activeAI,release;const ai=async args=>{activeAI=args;args.onText('Beginning');return new Promise(resolve=>{release=()=>resolve({proposals:[],usage:{input_tokens:20,output_tokens:10}});args.signal.addEventListener('abort',()=>{args.onText('MUST NOT PUBLISH');release();},{once:true});});};
+ const authFetch=async(url,opts)=>{let name;if(url.includes('/token?')){const b=JSON.parse(opts.body);if(b.password!=='test-password')return new Response('{}',{status:400});name=b.email.split('@')[0];}else name=opts.headers.Authorization.split(' ')[1];const user={id:name+'-uid',email:name+'@example.test',email_confirmed_at:'2026-01-01'};return Response.json(url.includes('/token?')?{user,access_token:name,refresh_token:name,expires_in:3600}:user);};
+ const server=createApp({store:s,origin:'http://localhost',secret:'test secret with more than thirty two characters',testing:true,authFetch,ai});await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;const cookies={};
+ const request=async(name,path,data,headers={})=>{const r=await fetch(base+'/api/'+path,{method:data?'POST':'GET',headers:{Origin:'http://localhost',Cookie:cookies[name]??'','Content-Type':'application/json',...headers},body:data?JSON.stringify(data):undefined});const c=r.headers.get('set-cookie');if(c)cookies[name]=c.split(';')[0];return {status:r.status,body:await r.json()};};
+ const cmd=(who,type,data={},id=randomUUID())=>request(who,'command',{id,type,data});
+ const waitJob=async id=>{for(let i=0;i<100&&s.job(id).status==='running';i++)await new Promise(r=>setTimeout(r,5));};
+ try{
+ await t.test('reject unauthenticated and forged-origin requests',async()=>{assert.equal((await request('none','state')).status,401);assert.equal((await request('none','login',{email:'mahmoud@example.test',password:'test-password'},{Origin:'http://evil.test'})).status,403);});
+ for(const who of ['mahmoud','safy'])assert.equal((await request(who,'login',{email:who+'@example.test',password:'test-password'})).status,200);
+ await t.test('same room; message receipt deduplicates retries',async()=>{const id=randomUUID();await cmd('mahmoud','message',{text:'Hello Safy'},id);await cmd('mahmoud','message',{text:'Hello Safy'},id);const v=(await request('safy','state')).body;assert.equal(v.who,'Safy');assert.equal(v.messages.length,1);assert.equal(v.messages[0].text,'Hello Safy');});
+ await t.test('private draft is absent from partner API and export',async()=>{await cmd('safy','draft.save',{questions:quiz});assert.deepEqual((await request('mahmoud','state')).body.draft,[]);assert.ok(!JSON.stringify((await request('mahmoud','export')).body).includes('Secret first question'));});
+ await t.test('SSE carries a saved message to a second authenticated connection',async()=>{const controller=new AbortController();const response=await fetch(base+'/api/events',{headers:{Cookie:cookies.safy},signal:controller.signal});const reader=response.body.getReader();await reader.read();await cmd('mahmoud','message',{text:'Stream delivery'});let received='';for(let i=0;i<5&&!received.includes('Stream delivery');i++)received+=new TextDecoder().decode((await reader.read()).value);assert.ok(received.includes('Stream delivery'));controller.abort();});
+ await t.test('slow AI does not hold the human chat transaction; other person can stop it',async()=>{const r=await cmd('mahmoud','ai.ask',{prompt:'Talk to us'});assert.equal(r.status,200);const id=r.body.job;for(let i=0;i<100&&!activeAI;i++)await new Promise(r=>setTimeout(r,5));assert.ok(activeAI);assert.ok(!activeAI.context.includes('Secret first question'));const human=await cmd('safy','message',{text:'While Echo thinks'});assert.equal(human.status,200);assert.equal(s.job(id).status,'running');await cmd('safy','pause',{value:true});await waitJob(id);await new Promise(r=>setImmediate(r));assert.equal(s.job(id).status,'cancelled');assert.ok(!s.messages().find(m=>m.id===id).text.includes('MUST NOT PUBLISH'));});
+ await t.test('Just Us messages are excluded; Ask once does not resume AI',async()=>{await cmd('safy','message',{text:'Private pause text'});assert.equal((await cmd('mahmoud','ai.ask',{prompt:'No explicit once'})).status,409);activeAI=null;const r=await cmd('mahmoud','ai.ask',{prompt:'One answer',once:true});for(let i=0;i<100&&!activeAI;i++)await new Promise(r=>setTimeout(r,5));assert.equal(activeAI.context,'');release();await waitJob(r.body.job);assert.deepEqual(s.state().pauses,['Safy']);await cmd('safy','pause',{value:false});});
+ await t.test('private proposals require owner and never expose solutions',async()=>{const id=randomUUID();s.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,'Safy','private','done',JSON.stringify({proposals:[{type:'quiz',title:'New quiz',questions:quiz}]}),new Date().toISOString());assert.ok(!(await request('mahmoud','state')).body.proposals.some(p=>p.job===id));assert.equal((await cmd('mahmoud','proposal.accept',{job:id})).status,403);assert.ok(!JSON.stringify((await request('safy','state')).body.proposals).includes('correct'));assert.equal((await cmd('safy','proposal.accept',{job:id})).status,200);});
+ await t.test('media requires authentication, sniffs bytes and rejects HTML',async()=>{assert.equal((await request('safy','photos',{data:Buffer.from('<script>alert(1)</script>').toString('base64')})).status,400);const png=Buffer.from([137,80,78,71,13,10,26,10,0,0]);const p=await request('safy','photos',{data:png.toString('base64')});assert.equal(p.status,201);const r=await fetch(base+'/api/photos/'+p.body.id);assert.equal(r.status,401);});
+ await t.test('logout revokes the old cookie server-side',async()=>{const old=cookies.mahmoud;await request('mahmoud','logout',{});cookies.mahmoud=old;assert.equal((await request('mahmoud','state')).status,401);});
+ }finally{release?.();server.closeAllConnections();await new Promise(r=>server.close(r));s.close();}
+});

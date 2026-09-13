@@ -1,0 +1,47 @@
+import {DatabaseSync} from 'node:sqlite';
+import {createHash,randomUUID} from 'node:crypto';
+import {initial,check,project} from './domain.mjs';
+export const hash=s=>createHash('sha256').update(s).digest('hex');
+export class Store {
+  constructor(path){
+    this.db=new DatabaseSync(path);this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;
+      CREATE TABLE IF NOT EXISTS state(id INTEGER PRIMARY KEY CHECK(id=1), body TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY,author TEXT NOT NULL,text TEXT NOT NULL,image TEXT,reply TEXT,aiAllowed INTEGER NOT NULL,status TEXT NOT NULL,createdAt TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS receipts(id TEXT PRIMARY KEY,actor TEXT NOT NULL,digest TEXT NOT NULL,result TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,actor TEXT NOT NULL,scope TEXT NOT NULL,status TEXT NOT NULL,body TEXT NOT NULL,createdAt TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS budget(key TEXT PRIMARY KEY,used INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE IF NOT EXISTS photos(id TEXT PRIMARY KEY,mime TEXT NOT NULL,bytes BLOB NOT NULL,createdAt TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS identities(name TEXT PRIMARY KEY,uid TEXT UNIQUE NOT NULL);
+      CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY,expires INTEGER NOT NULL);
+    `);
+    this.db.prepare('INSERT OR IGNORE INTO state VALUES(1,?)').run(JSON.stringify(initial()));
+    // Unknown request cost stays charged after crashes/cancellation. Never blindly retry a billed request.
+    this.db.exec("UPDATE jobs SET status='interrupted' WHERE status='running'; UPDATE messages SET status='interrupted' WHERE status='streaming'");
+  }
+  tx(fn){this.db.exec('BEGIN IMMEDIATE');try{const r=fn();this.db.exec('COMMIT');return r;}catch(e){this.db.exec('ROLLBACK');throw e;}}
+  state(){return JSON.parse(this.db.prepare('SELECT body FROM state WHERE id=1').get().body);}
+  save(s){this.db.prepare('UPDATE state SET body=? WHERE id=1').run(JSON.stringify(s));}
+  identity(name,uid){const old=this.db.prepare('SELECT uid FROM identities WHERE name=?').get(name);check(!old||old.uid===uid,'This invitation is already bound to another account.',403);this.db.prepare('INSERT OR IGNORE INTO identities VALUES(?,?)').run(name,uid);}
+  once(actor,id,payload,fn){check(typeof id==='string'&&/^[a-f0-9-]{36}$/.test(id),'Missing action ID.');const digest=hash(JSON.stringify(payload));return this.tx(()=>{const old=this.db.prepare('SELECT * FROM receipts WHERE id=?').get(id);if(old){check(old.actor===actor&&old.digest===digest,'Action ID already used.',409);return JSON.parse(old.result);}const result=fn()??{ok:true};this.db.prepare('INSERT INTO receipts VALUES(?,?,?,?)').run(id,actor,digest,JSON.stringify(result));return result;});}
+  message(m){this.db.prepare('INSERT INTO messages VALUES(?,?,?,?,?,?,?,?)').run(m.id,m.author,m.text,m.image??null,m.reply??null,m.aiAllowed?1:0,m.status??'sent',new Date().toISOString());}
+  messages(before){return this.db.prepare('SELECT * FROM (SELECT rowid AS sequence,* FROM messages WHERE rowid < ? ORDER BY rowid DESC LIMIT 60) ORDER BY sequence').all(Number(before)||Number.MAX_SAFE_INTEGER);}
+  snapshot(who){return {...project(this.state(),who),messages:this.messages(),jobs:this.db.prepare("SELECT id,actor,scope,status FROM jobs WHERE status='running' AND (scope='shared' OR actor=?)").all(who)};}
+  reserve(actor,scope,body){
+    const keys=[new Date().toISOString().slice(0,7),'lifetime'];const caps=[4_000_000,Number(process.env.AI_LIFETIME_USD??'3')*1_000_000];
+    check(Number.isFinite(caps[1])&&caps[1]>=0&&caps[1]<=100_000_000,'Invalid AI budget configuration.',503);
+    // $0.05 per request conservatively covers bounded Luna input/output, including a downscaled image.
+    const charge=50_000;for(let j=0;j<keys.length;j++){this.db.prepare('INSERT OR IGNORE INTO budget(key) VALUES(?)').run(keys[j]);const b=this.db.prepare('SELECT used FROM budget WHERE key=?').get(keys[j]);check(b.used+charge<=caps[j],'Echo has reached the budget limit. Your chat still works.',429);}
+    check(!this.db.prepare("SELECT 1 FROM jobs WHERE status='running' AND (scope='shared' OR actor=?)").get(actor),'Echo is already working. You can keep chatting.',409);
+    for(const key of keys)this.db.prepare('UPDATE budget SET used=used+? WHERE key=?').run(charge,key);
+    const id=randomUUID();this.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,actor,scope,'running',JSON.stringify({...body,budgetKeys:keys}),new Date().toISOString());return id;
+  }
+  settle(id,usage){
+    if(!usage||!Number.isInteger(usage.input_tokens)||!Number.isInteger(usage.output_tokens)||usage.input_tokens<0||usage.output_tokens<0)return;
+    const b=JSON.parse(this.job(id).body);if(!b.budgetKeys)return;
+    const cost=Math.max(100,Math.ceil((usage.input_tokens*.2+usage.output_tokens*1.2)*1.25));
+    for(const k of b.budgetKeys)this.db.prepare('UPDATE budget SET used=MAX(0,used+?) WHERE key=?').run(cost-50000,k);
+  }
+  job(id){return this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id);}
+  status(id,status){this.db.prepare('UPDATE jobs SET status=? WHERE id=?').run(status,id);}
+  close(){this.db.close();}
+}

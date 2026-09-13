@@ -1,3 +1,13 @@
+# Current approved direction — 2026-09-13
+
+The user approved the Our Place chat / Our Space / private quiz preview and asked to implement it, emphasizing fast messages and fast streamed AI. The approved title is Mahmoud ♥ Safy; English UI with Arabic or English content, dark charcoal / muted premium pink / gold. This explicitly replaces the earlier world direction below.
+
+New implementation lives under `v2/place/`; see its README for supported behavior, 20 local test results, budget ledger, deployment setup and remaining live gates. Its dedicated Blueprint is `v2/place/render.yaml`; do not accidentally deploy the older entrypoint. No deployment or paid service was created during implementation. Render requires the user's explicit confirmation of `Mahmoud's workspace` before service inventory. Supabase V2 is ACTIVE_HEALTHY and SQL reads work; zero auth users were found. Its existing private tables are preserved. OpenAI is not live-tested or configured; the key stays with the user until secure server entry. Browser/mobile visual verification remains outstanding.
+
+The required historical acceptance reference was recovered and read from the saved `Mahmoud-Safy-Acceptance.md`; its old unapproved UI/world requirements are superseded where the newer conversation explicitly changes them. Source saving remains authorized only to `Leoshad/mahmoudsafy`, `v2/first-slice`, under `v2/`. Do not modify main or V1.
+
+## Historical checkpoints (retained)
+
 # Current V2 status
 
 The user explicitly authorized saving V2 source to `Leoshad/mahmoudsafy`, branch `v2/first-slice`, under `v2/`. This resolves the earlier destination-authorization rejection for this scope only. Never update main or V1 as part of this work.
@@ -19,3 +29,4 @@ Read this status before older acceptance notes. Older product scope and prototyp
 A separate `world/` trial now implements the new free-input direction, persistent SQLite state, two-person trial access, validated world actions, Just Us cancellation and a lifetime $3 conservative AI reservation guard. Use `npm run world:start`; the existing start/render configuration still serves the older V2 and is not the world deployment target. See `world/README.md` for exact boundaries. AI is not configured or live-tested. The browser could not access the local preview (ERR_BLOCKED_BY_CLIENT), so visual/mobile review remains outstanding. This is implementation progress, not a completed deployed app or design approval. No V1 or Supabase resources changed. No charges incurred.
 
 The previous attempt to save the world payload was blocked by automatic approval review. The user has now explicitly approved the exact action again: save the new V2 source to `Leoshad/mahmoudsafy`, branch `v2/first-slice`, under `v2/` only, without deployment or V1/main changes. This checkpoint uses that authorization; it does not authorize publication or purchases.
+
