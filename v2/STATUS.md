@@ -30,3 +30,9 @@ A separate `world/` trial now implements the new free-input direction, persisten
 
 The previous attempt to save the world payload was blocked by automatic approval review. The user has now explicitly approved the exact action again: save the new V2 source to `Leoshad/mahmoudsafy`, branch `v2/first-slice`, under `v2/` only, without deployment or V1/main changes. This checkpoint uses that authorization; it does not authorize publication or purchases.
 
+
+## 2026-09-14 Our Place background notifications
+
+The current user session concerns the existing live Our Place app at `https://mahmoud-safy-our-place.onrender.com`, not the historical world preview. The user explicitly requested implementation of background-only notifications for Mahmoud and Safy. Existing service/workspace and source branch remain the delivery target: Render `srv-daj8d0fqj5pc73ckf5o0`, `Leoshad/mahmoudsafy` branch `v2/first-slice`, app root `v2/place`. Historical world-preview no-deployment notes do not describe this current approved app task. No V1/main or new paid service changes.
+
+Notification implementation uses opt-in Web Push with persisted encrypted subscriptions/VAPID keys, visible-account suppression across tabs/devices, short-lived collapsed alerts, quiet likes, and direct activity links. See `place/README.md` for event coverage and actual limitations. Existing private-preparation removal and drawing fixes are preserved; legacy preparation records remain stored and inaccessible, not deleted. Real phone push delivery and vibration need permission enabled on each phone and have not been physically tested here. iOS sound/vibration remain OS controlled; no custom sound/strength guarantee.

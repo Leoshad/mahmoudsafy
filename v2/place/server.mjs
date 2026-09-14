@@ -1,3 +1,4 @@
+import {PushNotifications} from './push.mjs';
 import {drawState,drawView,drawChange,drawApply,drawFailure,drawDue,drawTick} from './draw.mjs';
 import {drawingWords} from './draw-ai.mjs';
 import {courtView,courtCase,courtChange,courtRequest,courtApply,courtFailure} from './court.mjs';
@@ -26,9 +27,10 @@ const security={
   'Content-Security-Policy':"default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self'; img-src 'self' blob: https://i.ytimg.com; connect-src 'self' https://www.youtube.com; frame-src https://www.youtube.com 'self';  frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
   'Permissions-Policy':'camera=(), microphone=(), geolocation=()'
 };
-export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtAI=judge,drawAI=drawingWords,testing=false,mediaFetch=fetch}={}){
+export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtAI=judge,drawAI=drawingWords,testing=false,mediaFetch=fetch,pushSend}={}){
   check(typeof secret==='string'&&secret.length>=32,'SESSION_SECRET must have at least 32 characters.',503);
   check(origin&&(!origin.includes('oiwxwogdfjgrapigiqrw')),'A separate V2 APP_ORIGIN is required.',503);
+  const notifications=new PushNotifications(store,{secret,origin,...(pushSend?{send:pushSend}:{})});
   const key=Buffer.from(hash(secret),'hex'),cookieName=testing?'ms_place':'__Host-ms_place';
   const streams=new Map(),running=new Map(),cache=new Map(),rates=new Map();
   const youtube=youtubeService({fetcher:mediaFetch,reserve:()=>{const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),key='youtube-search:'+day;store.tx(()=>{store.db.prepare('INSERT OR IGNORE INTO budget(key) VALUES(?)').run(key);check(store.db.prepare('SELECT used FROM budget WHERE key=?').get(key).used<80,'Today’s song-search allowance is used. Try again tomorrow.',429);store.db.prepare('UPDATE budget SET used=used+1 WHERE key=?').run(key);});}});
@@ -49,7 +51,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   function snapshot(who){const s=store.snapshot(who);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.items=s.items.map(i=>({...i,comments:(i.comments??[]).map(c=>running.has(c.id)?{...c,text:running.get(c.id).text}:c)}));s.who=who;s.draw=drawView(store.state(),who);s.court=courtView(store.state(),who);s.personal=personalSnapshot(store.state(),who);s.crown=crownSnapshot(store.state(),who);s.ocho=ochoSnapshot(store.state(),who);s.domino=dominoSnapshot(store.state(),who);s.media=store.state().media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
     s.proposals=store.db.prepare("SELECT id,actor,scope,body FROM jobs WHERE status='done' ORDER BY createdAt DESC LIMIT 20").all().flatMap(j=>{const b=JSON.parse(j.body);return j.scope==='shared'&&j.actor===who&&!b.accepted?(b.proposals??[]).flatMap((p,index)=>[...(b.acceptedIndices??[]),...(b.dismissedIndices??[])].includes(index)||p.type!=='item'?[]:[{job:j.id,index,type:p.type,title:p.title,count:p.questions?.length,itemType:p.itemType}]):[];});return s;}
   function emit(event,data,who){for(const [res,meta] of streams){if(!who||meta.who===who)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);}}
-  function refresh(){for(const [res,meta]of streams)res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}
+  function refresh(actor){try{notifications.scan(actor);}catch{console.error('Notification update failed.');}for(const [res,meta]of streams)res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}
   function cancel(who,all=false){for(const [id,job]of running)if(all&&job.scope==='shared'||job.actor===who){store.status(id,'cancelled');job.controller.abort();}}
   function saveWallReply(post,id,value,status){const s=store.state(),item=s.items.find(i=>i.id===post),c=item?.comments?.find(c=>c.id===id);if(!c)return;c.text=value;c.status=status;if(status!=='streaming')item.revision++;store.save(s);}
   async function run(id){
@@ -118,9 +120,18 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       limit('login:'+req.socket.remoteAddress,10,600000);const p=await body(req,8000);const email=text(p.email,254).toLowerCase();check(names.some(n=>process.env[n.toUpperCase()+'_EMAIL']?.trim().toLowerCase()===email),'Could not sign in. Check your invitation.',401);
       const t=await sb('token?grant_type=password',{email,password:text(p.password,1024)});const who=member(t.user),sid=randomUUID(),until=Date.now()+604800000;store.db.prepare('INSERT INTO sessions VALUES(?,?)').run(sid,until);cookie(res,seal({sid,token:t.access_token,refresh:t.refresh_token,exp:Date.now()+t.expires_in*1000,until}));return send(res,200,{who});
     }
-    if(path==='/api/logout'&&req.method==='POST'){const who=await auth(req,res);store.db.prepare('DELETE FROM sessions WHERE id=?').run(req.sessionId);cookie(res,'',0);for(const [r,m]of streams)if(m.who===who)r.end();return send(res,200,{ok:true});}
+    if(path==='/api/logout'&&req.method==='POST'){const who=await auth(req,res);notifications.logout(req.sessionId);store.db.prepare('DELETE FROM sessions WHERE id=?').run(req.sessionId);cookie(res,'',0);for(const [r,m]of streams)if(m.who===who)r.end();return send(res,200,{ok:true});}
     if(path.startsWith('/api/')){
       const who=await auth(req,res);
+      if(path==='/api/notifications'&&req.method==='GET')return send(res,200,{who,publicKey:notifications.vapid.publicKey,visible:notifications.visible(who)});
+      if(path.startsWith('/api/notifications/')&&req.method==='POST'){
+        const data=await body(req,8000);
+        if(path.endsWith('/presence'))notifications.presence(who,req.sessionId,data);
+        else if(path.endsWith('/subscribe')){limit('push:'+who,30);notifications.subscribe(who,req.sessionId,data);}
+        else if(path.endsWith('/unsubscribe'))notifications.unsubscribe(who,data.endpoint);
+        else throw new Fault('Not found.',404);
+        return send(res,200,{ok:true});
+      }
       if(path==='/api/journey/play'&&req.method==='GET'){
  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' about:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
  res.setHeader('Content-Type','text/html; charset=utf-8');return res.end(readFileSync(join(here,'public','journey.html'),'utf8').replace('__JOURNEY_PROGRESS__',JSON.stringify(journeyView(store.state(),who))));
@@ -204,16 +215,17 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
           }
           if(['quiz.launch'].includes(p.type))data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);store.save(s);return {ok:true};
         });
-        send(res,200,result);refresh();if(result.job)setImmediate(()=>run(result.job));return;
+        send(res,200,result);refresh(who);if(result.job)setImmediate(()=>run(result.job));return;
       }
       if(path==='/api/export'&&req.method==='GET'){res.setHeader('Content-Disposition','attachment; filename="our-place-backup.json"');return send(res,200,{...snapshot(who),messages:store.db.prepare('SELECT * FROM messages ORDER BY rowid').all(),note:'Shared chat. Download photos separately. Keep this file private.'});}
       throw new Fault('Not found.',404);
     }
-    check(req.method==='GET','Method not allowed.',405);const files={'/draw.js':['draw.js','text/javascript'],'/draw.css':['draw.css','text/css'],'/court-export.js':['court-export.js','text/javascript'],'/court-print.css':['court-print.css','text/css'],'/court.js':['court.js','text/javascript'],'/court.css':['court.css','text/css'],'/personal.js':['personal.js','text/javascript'],'/personal.css':['personal.css','text/css'],'/crown.js':['crown.js','text/javascript'],'/crown.css':['crown.css','text/css'],'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
+    check(req.method==='GET','Method not allowed.',405);const files={'/sw.js':['sw.js','text/javascript'],'/notifications.js':['notifications.js','text/javascript'],'/draw.js':['draw.js','text/javascript'],'/draw.css':['draw.css','text/css'],'/court-export.js':['court-export.js','text/javascript'],'/court-print.css':['court-print.css','text/css'],'/court.js':['court.js','text/javascript'],'/court.css':['court.css','text/css'],'/personal.js':['personal.js','text/javascript'],'/personal.css':['personal.css','text/css'],'/crown.js':['crown.js','text/javascript'],'/crown.css':['crown.css','text/css'],'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
   const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   const dominoTimer=setInterval(()=>{try{if(!drawDue(store.state())&&!dominoDue(store.state())&&!ochoDue(store.state()))return;const changed=store.tx(()=>{const s=store.state();const a=drawTick(s),d=dominoTick(s),o=ochoTick(s);if(!d&&!o&&!a)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
-  server.on('close',()=>{clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
+  const pushTimer=setInterval(()=>notifications.drain().catch(()=>console.error('Notification delivery failed.')),1000);pushTimer.unref();
+  server.on('close',()=>{clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});

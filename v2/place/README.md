@@ -57,7 +57,7 @@ Each invited account can edit its own photo, optional bio and birthday. Uploaded
 
 Our Space now opens Our Dates. Birthdays are derived from profiles, so editing a birthday updates its single occasion. Other occasions can be shared or private, one-off or annual, associated with either person or both. Only the creator edits/deletes an occasion; each person controls their own reminder offsets and private note. Annual February 29 occasions use February 28 outside leap years. Cairo, Riyadh and UTC are supported; reminders without an occasion time use 09:00 in that zone.
 
-Reminders are calculated server-side, displayed through the existing chat bell, and refreshed by the existing SSE reconnection. Due reminders are retained for 30 days for return visits and dismissed separately for each account. Reminders scheduled before their creation/enabling are not sent retroactively. This release does not implement closed-app push or email notifications. Personal data stays outside automatic Echo context. SQLite state and a new additive photo-owner table use the existing persistent disk.
+Reminders are calculated server-side, displayed through the existing chat bell, and refreshed by the existing SSE reconnection. Due reminders are retained for 30 days for return visits and dismissed separately for each account. Reminders scheduled before their creation/enabling are not sent retroactively. Closed-app push is available for the shared attention events described below; date reminders remain in-app. Email notifications are not implemented. Personal data stays outside automatic Echo context. SQLite state and a new additive photo-owner table use the existing persistent disk.
 
 Validation: 139 Node tests pass, including two-account HTTP/SSE/export privacy, photo ownership, duplicate actions, revisions, reminder timing, annual rollover, leap years, dismissal isolation, and client profile/date form flows. Existing chat and game suites remain passing. The managed browser could not access the local preview (ERR_BLOCKED_BY_CLIENT), so these automated checks do not constitute phone/browser visual approval.
 
@@ -109,3 +109,16 @@ the API and cannot be accepted. Chat, launched rounds, Our Space and games remai
 Echo's live start_quiz tool still creates activities directly in shared chat.
 Old preparation navigation falls back safely to chat. Prior preparation descriptions
 in this document are historical and superseded by this change.
+
+
+### Background notifications
+
+Each person enables Notifications from the chat Menu on each device. Permission is requested only from the Enable button. On iPhone, use the Home Screen web app. Sound/vibration are controlled by the OS; no custom sound or vibration strength is promised. Likes request silent delivery.
+
+Standard encrypted Web Push covers shared chat/Echo replies, quiz summaries, game invitations/acceptance/turns/results, Court questions/reviews, media invitations, and wall posts/comments/likes. Payloads contain generic event metadata, never message text, answers, secret drawing words or cards. Notifications open the associated conversation, post or activity. Multiple messages collapse into one notification; successful devices are not retried.
+
+Visible presence is per account across sessions/tabs, refreshed every 15 seconds with a 45-second lease. Foreground presence cancels queued alerts; the worker checks local windows and current server/account visibility before showing an alert. Notifications expire after two minutes to avoid stale invitations or turn alerts. Push delivery and visibility changes remain subject to browser/OS scheduling and network availability.
+
+VAPID keys are generated once and stored encrypted using SESSION_SECRET in the existing SQLite disk, as are push subscriptions. Never rotate SESSION_SECRET without migrating encrypted application data. Logout removes that session’s registrations; expired sessions cannot receive pushes. No private response caching is introduced by the worker. The existing Render check step installs pinned dependencies with npm ci if absent.
+
+Validation: automated delivery-provider mocks, two-account foreground suppression, deduplication, logout, encrypted storage, worker navigation and authenticated HTTP routes. Real notification delivery/vibration still requires enabling permission and testing on the two phones.
