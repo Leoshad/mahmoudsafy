@@ -89,10 +89,6 @@ $('#latest').onclick=$('#jump-latest').onclick=()=>{$('#timeline').scrollTop=$('
 $('#timeline').onscroll=()=>{updateLatest();updateActivityReminder();};
 
 async function openSource(id){const m=await api('messages/'+encodeURIComponent(id));if(!m)throw Error('The original message is unavailable.');older=[...new Map([...older,m].map(x=>[x.id,x])).values()].sort((a,b)=>a.sequence-b.sequence);goto('chat');paintFeed();const row=[...$('#feed').children].find(n=>n.dataset.message===id);row?.scrollIntoView({block:'center'});row?.classList.add('source-highlight');}
-function prepareMoment(prompt){goto('prep');$('#prep-prompt').value=prompt;$('#generate').requestSubmit($('#generate-button'));}
-$('#date-night').onclick=()=>prepareMoment('Prepare a warm date-night question round for two partners in a long-distance relationship. Three questions, a playful opening and a thoughtful close. No assumptions about their past.');
-$('#play-choices').onclick=()=>prepareMoment('Prepare a playful would-you-rather round for a long-distance couple with three unexpected two-option questions, no right answers.');
-$('#private-surprise').onclick=()=>prepareMoment('Prepare a private surprise quiz for my partner. Three playful questions to answer now or later, no personality scores.');
 $('#back-together').onclick=()=>goto('together');$('#open-own-prep').onclick=()=>goto('prep');$('#continue-play').onclick=()=>goto('chat');
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state)sync().catch(error);});
 window.OurDomino?.init({command,sync,goto});
