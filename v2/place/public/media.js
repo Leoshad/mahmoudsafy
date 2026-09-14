@@ -9,7 +9,7 @@ let restored=false,restoring=false,recentPlays=[],recentSignature='',lastSavedAt
 const storageKey=()=>who?'our-place:media:v1:'+who:null;
 function persist(){
  if(!who||!restored||restoring)return;
- try{localStorage.setItem(storageKey(),JSON.stringify({version:1,tab:['chat','together','space'].includes(appTab)?appTab:appTab==='prep'?'together':'space',track:selected,session:activeId,position:selected?Math.max(0,Math.min(selected.duration,ready?player.getCurrentTime()||0:localStart)):0,volume:ready?player.getVolume?.()??savedVolume:savedVolume,height:chatHeight,query:$('#media-query').value.slice(0,2048),plays:recentPlays,panel:!pane().hidden}));lastSavedAt=Date.now();}catch{}
+ try{localStorage.setItem(storageKey(),JSON.stringify({version:1,tab:['chat','together','space'].includes(appTab)?appTab:'space',track:selected,session:activeId,position:selected?Math.max(0,Math.min(selected.duration,ready?player.getCurrentTime()||0:localStart)):0,volume:ready?player.getVolume?.()??savedVolume:savedVolume,height:chatHeight,query:$('#media-query').value.slice(0,2048),plays:recentPlays,panel:!pane().hidden}));lastSavedAt=Date.now();}catch{}
 }
 function validSavedTrack(t){return t&&/^[A-Za-z0-9_-]{11}$/.test(t.videoId)&&typeof t.title==='string'&&t.title.length<=300&&typeof t.channel==='string'&&t.channel.length<=150&&Number.isFinite(t.duration)&&t.duration>0&&t.duration<=86400;}
 function restore(){

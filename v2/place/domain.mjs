@@ -9,14 +9,14 @@ export function questions(raw){
   check(Array.isArray(raw)&&raw.length>0&&raw.length<=10,'Use 1–10 questions.');
   return raw.map(v=>{const q=text(v.q,500),options=v.options??[];check(Array.isArray(options)&&(options.length===0||(options.length>=2&&options.length<=4)),'Use 2–4 options or a free response.');const opts=options.map(o=>text(o,200));const correct=v.correct??-1;check(Number.isInteger(correct)&&correct>=-1&&correct<opts.length,'Choose an existing correct option.');return {q,options:opts,correct};});
 }
-export function initial(){return {version:0,pauses:[],drafts:{Mahmoud:[],Safy:[]},activity:null,items:[]};}
+export function initial(){return {version:0,pauses:[],activity:null,items:[]};}
 export function publicActivity(a,who){
   if(!a)return null;
   const {qs,...visible}=a;
   // Solutions and future questions never leave the server, even for the author after launch.
   return {...visible,total:qs.length,max:qs.filter(q=>q.correct>=0).length,current:a.status==='active'?{q:qs[a.index].q,options:qs[a.index].options}:null};
 }
-export function project(s,who){return {version:s.version,pauses:s.pauses,draft:s.drafts[who],activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items,wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
+export function project(s,who){return {version:s.version,pauses:s.pauses,activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items,wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
 export function change(s,who,type,p={}){
   check(names.includes(who),'Not invited.',403);
   s.activities??=s.activity?[s.activity]:[];
@@ -38,15 +38,10 @@ export function change(s,who,type,p={}){
       if(!p.value)s.pins=s.pins.filter(x=>x.id!==p.id);break;
     }
     case 'pause': if(p.value)s.echoInvited=false;s.pauses=p.value?[...new Set([...s.pauses,who])]:s.pauses.filter(x=>x!==who);break;
-    case 'draft.save': s.drafts[who]=p.questions.length?questions(p.questions):[];break;
     case 'quiz.launch': {
       check(s.activities.filter(a=>a.status==='active').length<10,'Finish an activity before starting more than 10.',409);
       check(names.includes(p.target),'Choose Mahmoud or Safy.');
       const qs=questions(p.questions);addActivity({id:randomUUID(),owner:who,host:p.host==='Echo'?'Echo':who,target:p.target,qs,index:0,answers:[],score:0,pauses:[],status:'active',afterSequence:p.afterSequence??0,title:p.title||'Quiz'});break;
-    }
-    case 'quiz.start': {
-      check(s.activities.filter(a=>a.status==='active').length<10,'Finish an activity before starting more than 10.',409);
-      const qs=questions(s.drafts[who]);addActivity({id:randomUUID(),owner:who,target:names.find(n=>n!==who),qs,index:0,answers:[],score:0,pauses:[],status:'active',afterSequence:p.afterSequence??0,title:'Private quiz'});break;
     }
     case 'quiz.pause': {const a=selected();check(a?.status==='active','No active quiz.',409);a.pauses=p.value?[...new Set([...a.pauses,who])]:a.pauses.filter(n=>n!==who);break;}
     case 'quiz.answer': {

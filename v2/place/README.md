@@ -99,3 +99,13 @@ Fast answers coalesce to the latest progress/final summary; budget exhaustion do
 not roll back answers. Interruption is recoverable through an explicit wrap-up request.
 Existing wall posts are preserved. Browser/real-phone and live AI validation remain
 separate from the passing local domain, client-DOM and authenticated HTTP tests.
+
+## 2026-09-14 — private preparation removed
+
+Private quiz preparation is retired at the user's request. Its page, menu links,
+editor, styles, model tool and draft/start commands are removed. Old clients cannot
+request private preparation or accept quiz drafts. Startup removes stored drafts
+and obsolete proposal content; chat, launched rounds, Our Space and games remain.
+Echo's live start_quiz tool still creates activities directly in shared chat.
+Old preparation navigation falls back safely to chat. Prior preparation descriptions
+in this document are historical and superseded by this change.
