@@ -1,3 +1,6 @@
+import {courtView,courtCase,courtChange,courtRequest,courtApply,courtFailure} from './court.mjs';
+import {judge} from './court-ai.mjs';
+import {courtDocument,COURT_PRINT_SCRIPT} from './court-document.mjs';
 import {personalSnapshot,personalChange} from './personal.mjs';
 import {crownSnapshot} from './crown.mjs';
 import {journeyView,journeySave} from './journey.mjs';
@@ -5,7 +8,7 @@ import http from 'node:http';
 import {readFileSync,mkdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {join,dirname} from 'node:path';
-import {createCipheriv,createDecipheriv,randomBytes,randomUUID} from 'node:crypto';
+import {createHash,createCipheriv,createDecipheriv,randomBytes,randomUUID} from 'node:crypto';
 import {Store,hash} from './store.mjs';
 import {check,Fault,change,text,names} from './domain.mjs';
 import {respond,MODEL} from './ai.mjs';
@@ -21,7 +24,7 @@ const security={
   'Content-Security-Policy':"default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self'; img-src 'self' blob: https://i.ytimg.com; connect-src 'self' https://www.youtube.com; frame-src https://www.youtube.com 'self';  frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
   'Permissions-Policy':'camera=(), microphone=(), geolocation=()'
 };
-export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testing=false,mediaFetch=fetch}={}){
+export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtAI=judge,testing=false,mediaFetch=fetch}={}){
   check(typeof secret==='string'&&secret.length>=32,'SESSION_SECRET must have at least 32 characters.',503);
   check(origin&&(!origin.includes('oiwxwogdfjgrapigiqrw')),'A separate V2 APP_ORIGIN is required.',503);
   const key=Buffer.from(hash(secret),'hex'),cookieName=testing?'ms_place':'__Host-ms_place';
@@ -41,14 +44,14 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
   }
   const send=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};
   async function body(req,max=8*1024*1024){let size=0,chunks=[];for await(const c of req){size+=c.length;check(size<=max,'This attachment is too large.',413);chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString());}catch{throw new Fault('Invalid request.');}}
-  function snapshot(who){const s=store.snapshot(who);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.items=s.items.map(i=>({...i,comments:(i.comments??[]).map(c=>running.has(c.id)?{...c,text:running.get(c.id).text}:c)}));s.who=who;s.personal=personalSnapshot(store.state(),who);s.crown=crownSnapshot(store.state(),who);s.ocho=ochoSnapshot(store.state(),who);s.domino=dominoSnapshot(store.state(),who);s.media=store.state().media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
+  function snapshot(who){const s=store.snapshot(who);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.items=s.items.map(i=>({...i,comments:(i.comments??[]).map(c=>running.has(c.id)?{...c,text:running.get(c.id).text}:c)}));s.who=who;s.court=courtView(store.state(),who);s.personal=personalSnapshot(store.state(),who);s.crown=crownSnapshot(store.state(),who);s.ocho=ochoSnapshot(store.state(),who);s.domino=dominoSnapshot(store.state(),who);s.media=store.state().media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
     s.proposals=store.db.prepare("SELECT id,actor,scope,body FROM jobs WHERE status='done' ORDER BY createdAt DESC LIMIT 20").all().flatMap(j=>{const b=JSON.parse(j.body);return j.actor===who&&!b.accepted?(b.proposals??[]).flatMap((p,index)=>[...(b.acceptedIndices??[]),...(b.dismissedIndices??[])].includes(index)?[]:[{job:j.id,index,type:p.type,title:p.title,count:p.questions?.length,itemType:p.itemType}]):[];});return s;}
   function emit(event,data,who){for(const [res,meta] of streams){if(!who||meta.who===who)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);}}
   function refresh(){for(const [res,meta]of streams)res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}
   function cancel(who,all=false){for(const [id,job]of running)if(all&&job.scope==='shared'||job.actor===who){store.status(id,'cancelled');job.controller.abort();}}
   function saveWallReply(post,id,value,status){const s=store.state(),item=s.items.find(i=>i.id===post),c=item?.comments?.find(c=>c.id===id);if(!c)return;c.text=value;c.status=status;if(status!=='streaming')item.revision++;store.save(s);}
   async function run(id){
-    const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body),controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),45000);running.set(id,{controller,actor:j.actor,scope:j.scope,wallItem:b.wallItem,text:''});let output='',lastSave=0;const started=Date.now();let first=null;
+    const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body);if(b.purpose==='court')return runCourt(id);const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),45000);running.set(id,{controller,actor:j.actor,scope:j.scope,wallItem:b.wallItem,text:''});let output='',lastSave=0;const started=Date.now();let first=null;
     try{
       const {proposals,usage}=await ai({actor:j.actor,prompt:b.prompt,context:b.context,image:b.image,privatePrep:j.scope==='private',purpose:b.purpose,signal:controller.signal,onText:delta=>{
         if(store.job(id).status!=='running'||controller.signal.aborted)return;if(first===null)first=Date.now()-started;output+=delta;running.get(id).text=output;
@@ -70,6 +73,13 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
       refresh();
     }
   }
+  async function runCourt(id){
+    const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body),controller=new AbortController();running.set(id,{controller,actor:j.actor,scope:'shared',text:''});const timer=setTimeout(()=>controller.abort(),60000);
+    try{const c=courtCase(store.state(),b.caseId);if(c.pending!==id)return;const images=c.records.filter(r=>r.kind==='evidence'&&(r.image||r.source?.image)).map(r=>({record:r.id,data:photoData(r.image||r.source.image)}));const answer=await courtAI({context:b.context,images,signal:controller.signal});if(controller.signal.aborted||store.job(id).status!=='running')return;
+      store.tx(()=>{const s=store.state();if(!courtApply(s,b.caseId,id,answer.result))return;store.save(s);store.settle(id,answer.usage);store.db.prepare("UPDATE jobs SET status='done',body='{}' WHERE id=?").run(id);});
+    }catch{if(store.job(id)?.status==='running')store.status(id,controller.signal.aborted?'interrupted':'failed');}
+    finally{clearTimeout(timer);running.delete(id);store.tx(()=>{const s=store.state();courtFailure(s,b.caseId,id);store.save(s);if(store.job(id)?.status==='running')store.status(id,'interrupted');store.db.prepare("UPDATE jobs SET body='{}' WHERE id=?").run(id);});refresh();}
+  }
   function context(s){const msgs=store.db.prepare('SELECT author,text FROM (SELECT rowid AS seq,author,text FROM messages WHERE aiAllowed=1 AND status=\'sent\' ORDER BY rowid DESC LIMIT 50) ORDER BY seq').all();return JSON.stringify({messages:msgs,space:s.items.filter(i=>i.aiAllowed).slice(0,30).map(({type,title,done,approvals,steps})=>({type,title,done,approvals,steps})),activity:s.activity?{owner:s.activity.owner,target:s.activity.target,status:s.activity.status,index:s.activity.index,answers:s.activity.answers}:null}).slice(0,24000);}
   function photoData(id){if(!id)return null;const p=store.db.prepare('SELECT mime,bytes FROM photos WHERE id=?').get(id);check(p,'Photo not found.',404);return `data:${p.mime};base64,${Buffer.from(p.bytes).toString('base64')}`;}
   async function route(req,res){Object.entries(security).forEach(([k,v])=>res.setHeader(k,v));const url=new URL(req.url,origin),path=url.pathname;
@@ -89,6 +99,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
  if(path==='/api/media/clock' &&req.method==='GET')return send(res,200,{now:Date.now()});
       if(path==='/api/media/search'&&req.method==='GET'){limit('youtube:'+who,12);return send(res,200,{items:await youtube.search(url.searchParams.get('q'))});}
       if(path==='/api/media/resolve'&&req.method==='GET'){limit('youtube:'+who,12);return send(res,200,{track:await youtube.resolve(url.searchParams.get('url'))});}
+      if(path.startsWith('/api/court/')&&req.method==='GET'){const id=path.slice('/api/court/'.length);const c=courtView(store.state(),who).cases.find(c=>c.id===id);check(c,'Case not found.',404);res.setHeader('Content-Security-Policy',`default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'sha256-${createHash('sha256').update(COURT_PRINT_SCRIPT).digest('base64')}'; base-uri 'none'; frame-ancestors 'self'`);if(url.searchParams.get('download')==='1')res.setHeader('Content-Disposition',`attachment; filename="court-case-${c.number}.html"`);res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});const images={};for(const r of [...c.records,...c.history.flatMap(h=>h.records)]){const image=r.image||r.source?.image;if(image&&!images[image])images[image]=photoData(image);}return res.end(courtDocument(c,who,images));}
       if(path==='/api/state'&&req.method==='GET')return send(res,200,snapshot(who));
       if(path.startsWith('/api/messages/')&&req.method==='GET'){const m=store.db.prepare('SELECT rowid AS sequence,* FROM messages WHERE id=?').get(path.split('/').pop());check(m,'The original message is unavailable.',404);return send(res,200,m);}
       if(path==='/api/history'&&req.method==='GET')return send(res,200,store.messages(url.searchParams.get('before')));
@@ -107,6 +118,11 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
         if(['media.create','media.enqueue'].includes(p.type)){limit('youtube:'+who,12);verifiedTrack=await youtube.resolve(p.data?.track?.videoId);}
         const result=store.once(who,p.id,p,()=>{
           const s=store.state();const data={...(p.data??{})};
+          if(p.type?.startsWith('court.')){
+            if(p.type==='court.ask'){check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);check(!s.pauses.length||data.once===true,'Echo is paused. Choose Ask Echo once.',409);const c=courtCase(s,data.id);check(c.revision===data.revision,'This case changed. Review it and try again.',409);const context=courtRequest(c);const id=store.reserve(who,'shared',{purpose:'court',caseId:c.id,context});c.pending=id;c.error=null;c.revision++;s.version++;store.save(s);return {job:id};}
+            delete data.verifiedSource;if(p.type==='court.evidence'){if(data.messageId){const m=store.db.prepare("SELECT id,author,text,image,createdAt FROM messages WHERE id=? AND status='sent'").get(data.messageId);check(m,'Shared message not found.',404);data.verifiedSource={...m};}if(data.image)photoData(data.image);}
+            const pending=s.court?.cases.find(c=>c.id===data.id)?.pending;const result=courtChange(s,who,p.type,data);store.save(s);if(pending&&!courtCase(s,data.id).pending){store.status(pending,'cancelled');running.get(pending)?.controller.abort();}return result;
+          }
           if(p.type?.startsWith('personal.')){if(p.type==='personal.profile'&&data.photo)check(store.db.prepare('SELECT 1 FROM photo_owners WHERE id=? AND owner=?').get(data.photo,who),'Choose a photo you uploaded.',403);const result=personalChange(s,who,p.type,data);store.save(s);return result;}
           if(p.type==='journey.save'){const result=journeySave(s,who,data);store.save(s);return result;}
           if(p.type?.startsWith('ocho.')){ochoChange(s,who,p.type,data);store.save(s);return {ok:true};}
@@ -154,7 +170,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
       if(path==='/api/export'&&req.method==='GET'){res.setHeader('Content-Disposition','attachment; filename="our-place-backup.json"');return send(res,200,{...snapshot(who),messages:store.db.prepare('SELECT * FROM messages ORDER BY rowid').all(),note:'Shared chat and your own drafts. Download photos separately. Keep this file private.'});}
       throw new Fault('Not found.',404);
     }
-    check(req.method==='GET','Method not allowed.',405);const files={'/personal.js':['personal.js','text/javascript'],'/personal.css':['personal.css','text/css'],'/crown.js':['crown.js','text/javascript'],'/crown.css':['crown.css','text/css'],'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
+    check(req.method==='GET','Method not allowed.',405);const files={'/court.js':['court.js','text/javascript'],'/court.css':['court.css','text/css'],'/personal.js':['personal.js','text/javascript'],'/personal.css':['personal.css','text/css'],'/crown.js':['crown.js','text/javascript'],'/crown.css':['crown.css','text/css'],'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
   const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   const dominoTimer=setInterval(()=>{try{if(!dominoDue(store.state())&&!ochoDue(store.state()))return;const changed=store.tx(()=>{const s=store.state();const d=dominoTick(s),o=ochoTick(s);if(!d&&!o)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
