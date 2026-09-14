@@ -14,7 +14,7 @@ self.addEventListener('push',event=>event.waitUntil((async()=>{
  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
  if(windows.some(w=>w.visibilityState==='visible'))return;
  // Also check account and other foreground devices immediately before displaying.
- try{const r=await fetch('/api/notifications',{cache:'no-store'});if(r.status===401)return;if(r.ok){const status=await r.json();if(status.who!==data.owner||status.visible)return;}}catch{}
+ try{const r=await fetch('/api/notifications',{cache:'no-store',signal:AbortSignal.timeout(4000)});if(r.status===401)return;if(r.ok){const status=await r.json();if(status.who!==data.owner||status.visible)return;}}catch{}
  const options={body:String(data.body||'You have an update.').slice(0,180),icon:'/icon-192.png',tag:String(data.tag||'our-place').slice(0,64),renotify:false,data:{url:destination(data.target)}};
  if(data.quiet)options.silent=true;else options.vibrate=[180];
  await self.registration.showNotification('Our Place',options);

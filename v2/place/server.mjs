@@ -126,6 +126,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(path==='/api/notifications'&&req.method==='GET')return send(res,200,{who,publicKey:notifications.vapid.publicKey,visible:notifications.visible(who)});
       if(path.startsWith('/api/notifications/')&&req.method==='POST'){
         const data=await body(req,8000);
+        if(path.endsWith('/status'))return send(res,200,{registered:notifications.registered(who,req.sessionId,data.endpoint)});
         if(path.endsWith('/presence'))notifications.presence(who,req.sessionId,data);
         else if(path.endsWith('/subscribe')){limit('push:'+who,30);notifications.subscribe(who,req.sessionId,data);}
         else if(path.endsWith('/unsubscribe'))notifications.unsubscribe(who,data.endpoint);
