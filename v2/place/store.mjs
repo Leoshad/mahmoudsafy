@@ -1,3 +1,4 @@
+import {updateCrown} from './crown.mjs';
 import {DatabaseSync} from 'node:sqlite';
 import {createHash,randomUUID} from 'node:crypto';
 import {initial,check,project} from './domain.mjs';
@@ -17,11 +18,11 @@ export class Store {
     this.db.prepare('INSERT OR IGNORE INTO state VALUES(1,?)').run(JSON.stringify(initial()));
     // Unknown request cost stays charged after crashes/cancellation. Never blindly retry a billed request.
     this.db.exec("UPDATE jobs SET status='interrupted' WHERE status='running'; UPDATE messages SET status='interrupted' WHERE status='streaming'");
-    const recovered=this.state();let changed=false;for(const item of recovered.items)for(const c of item.comments??[])if(c.by==='Echo'&&c.status==='streaming'){c.status='interrupted';c.text=c.text||'Echo was interrupted. You can ask again.';changed=true;}if(changed)this.save(recovered);
+    const recovered=this.state();let changed=!recovered.crownTrial;for(const item of recovered.items)for(const c of item.comments??[])if(c.by==='Echo'&&c.status==='streaming'){c.status='interrupted';c.text=c.text||'Echo was interrupted. You can ask again.';changed=true;}if(changed)this.save(recovered);
   }
   tx(fn){this.db.exec('BEGIN IMMEDIATE');try{const r=fn();this.db.exec('COMMIT');return r;}catch(e){this.db.exec('ROLLBACK');throw e;}}
   state(){return JSON.parse(this.db.prepare('SELECT body FROM state WHERE id=1').get().body);}
-  save(s){this.db.prepare('UPDATE state SET body=? WHERE id=1').run(JSON.stringify(s));}
+  save(s){updateCrown(s);this.db.prepare('UPDATE state SET body=? WHERE id=1').run(JSON.stringify(s));}
   identity(name,uid){const old=this.db.prepare('SELECT uid FROM identities WHERE name=?').get(name);check(!old||old.uid===uid,'This invitation is already bound to another account.',403);this.db.prepare('INSERT OR IGNORE INTO identities VALUES(?,?)').run(name,uid);}
   once(actor,id,payload,fn){check(typeof id==='string'&&/^[a-f0-9-]{36}$/.test(id),'Missing action ID.');const digest=hash(JSON.stringify(payload));return this.tx(()=>{const old=this.db.prepare('SELECT * FROM receipts WHERE id=?').get(id);if(old){check(old.actor===actor&&old.digest===digest,'Action ID already used.',409);return JSON.parse(old.result);}const result=fn()??{ok:true};this.db.prepare('INSERT INTO receipts VALUES(?,?,?,?)').run(id,actor,digest,JSON.stringify(result));return result;});}
   message(m){this.db.prepare('INSERT INTO messages VALUES(?,?,?,?,?,?,?,?)').run(m.id,m.author,m.text,m.image??null,m.reply??null,m.aiAllowed?1:0,m.status??'sent',new Date().toISOString());}
