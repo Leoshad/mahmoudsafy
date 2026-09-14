@@ -1,3 +1,4 @@
+import {journeyView,journeySave} from './journey.mjs';
 import http from 'node:http';
 import {readFileSync,mkdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
@@ -15,7 +16,7 @@ const here=dirname(fileURLToPath(import.meta.url));
 const V2='https://hvjcugehjwqtrvzgbwnq.supabase.co';
 const security={
   'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin',
-  'Content-Security-Policy':"default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self'; img-src 'self' blob: https://i.ytimg.com; connect-src 'self' https://www.youtube.com; frame-src https://www.youtube.com;  frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  'Content-Security-Policy':"default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self'; img-src 'self' blob: https://i.ytimg.com; connect-src 'self' https://www.youtube.com; frame-src https://www.youtube.com 'self';  frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
   'Permissions-Policy':'camera=(), microphone=(), geolocation=()'
 };
 export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testing=false,mediaFetch=fetch}={}){
@@ -79,7 +80,11 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
     if(path==='/api/logout'&&req.method==='POST'){const who=await auth(req,res);store.db.prepare('DELETE FROM sessions WHERE id=?').run(req.sessionId);cookie(res,'',0);for(const [r,m]of streams)if(m.who===who)r.end();return send(res,200,{ok:true});}
     if(path.startsWith('/api/')){
       const who=await auth(req,res);
-      if(path==='/api/media/clock'&&req.method==='GET')return send(res,200,{now:Date.now()});
+      if(path==='/api/journey/play'&&req.method==='GET'){
+ res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' about:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
+ res.setHeader('Content-Type','text/html; charset=utf-8');return res.end(readFileSync(join(here,'public','journey.html'),'utf8').replace('__JOURNEY_PROGRESS__',JSON.stringify(journeyView(store.state(),who))));
+ }
+ if(path==='/api/media/clock' &&req.method==='GET')return send(res,200,{now:Date.now()});
       if(path==='/api/media/search'&&req.method==='GET'){limit('youtube:'+who,12);return send(res,200,{items:await youtube.search(url.searchParams.get('q'))});}
       if(path==='/api/media/resolve'&&req.method==='GET'){limit('youtube:'+who,12);return send(res,200,{track:await youtube.resolve(url.searchParams.get('url'))});}
       if(path==='/api/state'&&req.method==='GET')return send(res,200,snapshot(who));
@@ -100,6 +105,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
         if(['media.create','media.enqueue'].includes(p.type)){limit('youtube:'+who,12);verifiedTrack=await youtube.resolve(p.data?.track?.videoId);}
         const result=store.once(who,p.id,p,()=>{
           const s=store.state();const data={...(p.data??{})};
+          if(p.type==='journey.save'){const result=journeySave(s,who,data);store.save(s);return result;}
           if(p.type?.startsWith('ocho.')){ochoChange(s,who,p.type,data);store.save(s);return {ok:true};}
           if(p.type?.startsWith('domino.')){dominoChange(s,who,p.type,data);store.save(s);return {ok:true};}
           if(p.type?.startsWith('media.')){if(verifiedTrack)data.track=verifiedTrack;mediaChange(s,who,p.type,data);store.save(s);return {ok:true};}
@@ -145,7 +151,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
       if(path==='/api/export'&&req.method==='GET'){res.setHeader('Content-Disposition','attachment; filename="our-place-backup.json"');return send(res,200,{...snapshot(who),messages:store.db.prepare('SELECT * FROM messages ORDER BY rowid').all(),note:'Shared chat and your own drafts. Download photos separately. Keep this file private.'});}
       throw new Fault('Not found.',404);
     }
-    check(req.method==='GET','Method not allowed.',405);const files={'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
+    check(req.method==='GET','Method not allowed.',405);const files={'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
   const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   const dominoTimer=setInterval(()=>{try{if(!dominoDue(store.state())&&!ochoDue(store.state()))return;const changed=store.tx(()=>{const s=store.state();const d=dominoTick(s),o=ochoTick(s);if(!d&&!o)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();

@@ -60,6 +60,17 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  try{
  await t.test('reject unauthenticated and forged-origin requests',async()=>{assert.equal((await request('none','state')).status,401);assert.equal((await request('none','login',{email:'mahmoud@example.test',password:'test-password'},{Origin:'http://evil.test'})).status,403);});
  for(const who of ['mahmoud','safy'])assert.equal((await request(who,'login',{email:who+'@example.test',password:'test-password'})).status,200);
+ await t.test('journey progress is private, durable, revision checked and authenticated',async()=>{
+ const d={revision:0,unlocked:5,current:4,complete:false,who:'Safy'};
+ assert.equal((await cmd('mahmoud','journey.save',d)).status,200);
+ assert.equal(s.state().journeys.Mahmoud.unlocked,5);assert.equal(s.state().journeys.Safy,undefined);
+ assert.equal((await cmd('mahmoud','journey.save',d)).status,409);
+ assert.equal((await cmd('safy','journey.save',{revision:0,unlocked:11,current:null,complete:false})).status,400);
+ assert.ok(!JSON.stringify((await request('safy','state')).body).includes('journeys'));
+ const unauth=await fetch(base+'/api/journey/play');assert.equal(unauth.status,401);
+ const page=await fetch(base+'/api/journey/play',{headers:{Cookie:cookies.mahmoud}});assert.equal(page.status,200);const html=await page.text();assert.ok(html.includes('"unlocked":5,"current":4'));assert.ok(!html.includes('__JOURNEY_PROGRESS__'));assert.ok(page.headers.get('content-security-policy').includes("frame-ancestors 'self'"));
+ const other=await fetch(base+'/api/journey/play',{headers:{Cookie:cookies.safy}});assert.ok((await other.text()).includes('"unlocked":1,"current":null'));
+ });
  await t.test('same room; message receipt deduplicates retries',async()=>{const id=randomUUID();await cmd('mahmoud','message',{text:'Hello Safy'},id);await cmd('mahmoud','message',{text:'Hello Safy'},id);const v=(await request('safy','state')).body;assert.equal(v.who,'Safy');assert.equal(v.messages.length,1);assert.equal(v.messages[0].text,'Hello Safy');});
  await t.test('private draft is absent from partner API and export',async()=>{await cmd('safy','draft.save',{questions:quiz});assert.deepEqual((await request('mahmoud','state')).body.draft,[]);assert.ok(!JSON.stringify((await request('mahmoud','export')).body).includes('Secret first question'));});
  await t.test('SSE carries a saved message to a second authenticated connection',async()=>{const controller=new AbortController();const response=await fetch(base+'/api/events',{headers:{Cookie:cookies.safy},signal:controller.signal});const reader=response.body.getReader();await reader.read();await cmd('mahmoud','message',{text:'Stream delivery'});let received='';for(let i=0;i<5&&!received.includes('Stream delivery');i++)received+=new TextDecoder().decode((await reader.read()).value);assert.ok(received.includes('Stream delivery'));controller.abort();});
