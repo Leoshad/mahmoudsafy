@@ -85,3 +85,17 @@ Draw Together provides a persistent shared canvas and an optional six-round Draw
 Drawing points are normalized, bounded and persisted in idempotent segments; only the active artist may draw in guessing mode. The shared mode permits both players. Canvas generations reject stale writes after clearing or round changes, and undo removes only the caller's latest stroke. Failed segments remain locally retryable with their original action IDs; unsynced strokes can be discarded explicitly. PNG download and saving to Our Space use the existing photo storage. The current canvas is persisted; save any drawing you want to retain before clearing or advancing to another round. Match results retain scores, not all past canvases.
 
 Drawing tests cover two authenticated HTTP sessions, private words in snapshots and exports, ownership, idempotency, timers and independent pauses, full matches, ties, excluded results, prospective settings, and UI canvas/guess input preservation. AI generation uses the existing budget and model; tests inject a deck and do not spend live AI credit. Actual phone drawing feel and fullscreen layout still require device review.
+
+## 2026-09-14 — quiz conversation and sharing fixes
+
+Live Echo rounds now identify Echo as host while retaining the requester separately.
+Ask-me targeting and unscored silly questions are explicit in Echo's instructions.
+Completion and End retain answers in chat and remove the active reminder without
+creating wall posts. Only the answering person can explicitly Share to wall;
+repeated sharing is idempotent. Unscored rounds show Just for fun instead of zero points.
+Echo reacts to answered questions through bounded, tool-free activity requests using
+the existing model and budget ledger. Reactions cannot publish or start activities.
+Fast answers coalesce to the latest progress/final summary; budget exhaustion does
+not roll back answers. Interruption is recoverable through an explicit wrap-up request.
+Existing wall posts are preserved. Browser/real-phone and live AI validation remain
+separate from the passing local domain, client-DOM and authenticated HTTP tests.

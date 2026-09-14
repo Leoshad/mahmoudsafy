@@ -29,7 +29,7 @@ export function change(s,who,type,p={}){
       check(p.image===null||typeof p.image==='string'&&/^[a-f0-9-]{36}$/.test(p.image),'Invalid background.');
       s.wallpaper={image:p.image,revision:current.revision+1};break;
     }
-    case 'echo.invite': check(typeof p.value==='boolean','Choose on or off.');if(p.value)check(!s.pauses.length,'Echo is paused. Resume permissions first.',409);s.echoInvited=p.value;break;
+    case 'echo.invite': check(typeof p.value==='boolean','Choose on or off.');if(p.value)check(!s.pauses.length,'Echo is paused. Resume permissions first.',409);s.echoInvited=p.value;for(const a of s.activities)a.reactionsPaused=!p.value;break;
     case 'item.delete': {const i=s.items.find(i=>i.id===p.id);check(i&&i.revision===p.revision,'This item changed. Refresh before deleting.',409);s.items=s.items.filter(i=>i.id!==p.id);break;}
     case 'message.pin': {
       check(typeof p.id==='string'&&typeof p.value==='boolean','Invalid pin.');
@@ -42,7 +42,7 @@ export function change(s,who,type,p={}){
     case 'quiz.launch': {
       check(s.activities.filter(a=>a.status==='active').length<10,'Finish an activity before starting more than 10.',409);
       check(names.includes(p.target),'Choose Mahmoud or Safy.');
-      const qs=questions(p.questions);addActivity({id:randomUUID(),owner:who,target:p.target,qs,index:0,answers:[],score:0,pauses:[],status:'active',afterSequence:p.afterSequence??0,title:p.title||'Quiz'});break;
+      const qs=questions(p.questions);addActivity({id:randomUUID(),owner:who,host:p.host==='Echo'?'Echo':who,target:p.target,qs,index:0,answers:[],score:0,pauses:[],status:'active',afterSequence:p.afterSequence??0,title:p.title||'Quiz'});break;
     }
     case 'quiz.start': {
       check(s.activities.filter(a=>a.status==='active').length<10,'Finish an activity before starting more than 10.',409);
@@ -55,9 +55,10 @@ export function change(s,who,type,p={}){
       const q=a.qs[a.index];let answer;
       if(q.options.length){check(Number.isInteger(p.option)&&p.option>=0&&p.option<q.options.length,'Choose an option.');answer=q.options[p.option];if(q.correct===p.option)a.score++;}
       else answer=text(p.answer,1000);
-      a.answers.push({q:q.q,answer,by:who});a.index++;a.afterSequence=p.afterSequence??a.afterSequence;if(a.index===a.qs.length){a.status='completed';archive(s,a,who);}break;
+      a.answers.push({q:q.q,answer,by:who});a.index++;a.afterSequence=p.afterSequence??a.afterSequence;if(a.index===a.qs.length){a.status='completed';}break;
     }
-    case 'quiz.end': {const a=selected();check(a?.status==='active','No active quiz.',409);a.status='abandoned';archive(s,a,who);break;}
+    case 'quiz.end': {const a=selected();check(a?.status==='active','No active quiz.',409);a.status='abandoned';break;}
+    case 'quiz.share': {const a=selected();check(a&&a.status!=='active','Finish or end the round before sharing.',409);check(who===a.target,'Only the answering person can share this round.',403);if(!a.sharedPost){check(s.items.length<500,'Your space is full.',409);archive(s,a,who);}break;}
     case 'item.save': {
       check(categories.includes(p.type),'Choose a category.');
       const item=p.id?s.items.find(i=>i.id===p.id):null;
@@ -89,6 +90,8 @@ export function change(s,who,type,p={}){
   }
   if(s.activity)s.activity=s.activities.find(a=>a.id===s.activity.id)??s.activity;s.version++;return s;
 }
-function archive(s,a,who){s.items.unshift({id:randomUUID(),type:'Result',title:`Quiz by ${a.owner} for ${a.target} · ${a.status}\n${a.answers.map(v=>v.q+' → '+v.answer).join('\n')}\n${a.score} points`,by:who,source:a.id,status:a.status,done:a.status==='completed',approvals:[],revision:1,aiAllowed:false,createdAt:new Date().toISOString()});}
-
-
+function archive(s,a,who){
+ const max=a.qs.filter(q=>q.correct>=0).length,id=randomUUID();
+ const summary=a.feedback?.findLast(f=>f.final&&f.status==='sent')?.text;
+ s.items.unshift({id,type:'Result',title:[`${a.title||'Round'} · ${a.host||a.owner} → ${a.target}`,a.status==='completed'?'Completed':'Ended early',...a.answers.map(v=>v.q+' → '+v.answer),...(max?[`${a.score} / ${max} points`]:[]),...(summary?['Echo: '+summary]:[])].join('\n'),by:who,source:a.id,status:a.status,done:a.status==='completed',approvals:[],revision:1,aiAllowed:false,createdAt:new Date().toISOString()});a.sharedPost=id;
+}

@@ -53,7 +53,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   function cancel(who,all=false){for(const [id,job]of running)if(all&&job.scope==='shared'||job.actor===who){store.status(id,'cancelled');job.controller.abort();}}
   function saveWallReply(post,id,value,status){const s=store.state(),item=s.items.find(i=>i.id===post),c=item?.comments?.find(c=>c.id===id);if(!c)return;c.text=value;c.status=status;if(status!=='streaming')item.revision++;store.save(s);}
   async function run(id){
-    const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body);if(b.purpose==='draw')return runDraw(id);if(b.purpose==='court')return runCourt(id);const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),45000);running.set(id,{controller,actor:j.actor,scope:j.scope,wallItem:b.wallItem,text:''});let output='',lastSave=0;const started=Date.now();let first=null;
+    const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body);if(b.purpose==='activity')return runActivity(id);if(b.purpose==='draw')return runDraw(id);if(b.purpose==='court')return runCourt(id);const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),45000);running.set(id,{controller,actor:j.actor,scope:j.scope,wallItem:b.wallItem,text:''});let output='',lastSave=0;const started=Date.now();let first=null;
     try{
       const {proposals,usage}=await ai({actor:j.actor,prompt:b.prompt,context:b.context,image:b.image,privatePrep:j.scope==='private',purpose:b.purpose,signal:controller.signal,onText:delta=>{
         if(store.job(id).status!=='running'||controller.signal.aborted)return;if(first===null)first=Date.now()-started;output+=delta;running.get(id).text=output;
@@ -61,7 +61,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         else if(j.scope==='shared'){emit('delta',{id,text:delta});if(Date.now()-lastSave>300){store.db.prepare('UPDATE messages SET text=? WHERE id=?').run(output,id);lastSave=Date.now();}}
       }});
       if(store.job(id).status!=='running'||controller.signal.aborted)return;
-      store.tx(()=>{const liveQuiz=!b.wallItem&&proposals.find(p=>p.type==='start');if(liveQuiz){check(j.scope==='shared','Live activities belong in shared chat.');const current=store.state();change(current,j.actor,'quiz.launch',{...liveQuiz,afterSequence:store.messages().at(-1)?.sequence??0});store.save(current);proposals.splice(proposals.indexOf(liveQuiz),1);output=output||'Let’s begin — one question at a time.';}store.settle(id,usage);store.db.prepare('UPDATE jobs SET body=?,status=? WHERE id=?').run(JSON.stringify({proposals,accepted:false,latency:{firstTokenMs:first,totalMs:Date.now()-started}}),'done',id);
+      store.tx(()=>{const liveQuiz=!b.wallItem&&proposals.find(p=>p.type==='start');if(liveQuiz){check(j.scope==='shared','Live activities belong in shared chat.');const current=store.state();change(current,j.actor,'quiz.launch',{...liveQuiz,host:'Echo',afterSequence:store.messages().at(-1)?.sequence??0});store.save(current);proposals.splice(proposals.indexOf(liveQuiz),1);output=output||'Let’s begin — one question at a time.';}store.settle(id,usage);store.db.prepare('UPDATE jobs SET body=?,status=? WHERE id=?').run(JSON.stringify({proposals,accepted:false,latency:{firstTokenMs:first,totalMs:Date.now()-started}}),'done',id);
         if(b.wallItem)saveWallReply(b.wallItem,id,output||'I could not produce a reply.','sent');
         else if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||(proposals.length?'I prepared something for you to review.':'I could not produce a reply.'),'sent',id);
       });
@@ -74,6 +74,27 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(store.job(id).status!=='done')store.db.prepare("UPDATE jobs SET body='{}' WHERE id=?").run(id);
       refresh();
     }
+  }
+  function activityFeedback(s,a,who,explicit=false){
+    if((!explicit&&(a.reactionsPaused||(a.host!=='Echo'&&!s.echoInvited)))||!a.answers.length||s.pauses.length||a.pauses.length||!process.env.OPENAI_API_KEY)return null;
+    a.feedback??=[];const final=a.status!=='active',index=a.index;
+    const existing=a.feedback.find(f=>f.index===index&&f.final===final);
+    if(existing&&['running','sent'].includes(existing.status))return null;
+    let id;try{id=store.reserve(who,'shared',{purpose:'activity',activity:a.id,index,final,context:JSON.stringify({title:a.title,target:a.target,answers:a.answers,status:a.status,final,score:a.score,max:a.qs.filter(q=>q.correct>=0).length})});}
+    catch(e){if(![409,429,503].includes(e.status))throw e;return null;}
+    const f={id,index,final,status:'running',text:''};if(existing)Object.assign(existing,f);else a.feedback.push(f);return id;
+  }
+  async function runActivity(id){
+    const j=store.job(id),b=JSON.parse(j.body),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
+    running.set(id,{controller,actor:j.actor,scope:'shared',text:''});let output='';
+    try{const result=await ai({actor:j.actor,prompt:'React to this round.',purpose:'activity',context:b.context,signal:controller.signal,onText:t=>{if(!controller.signal.aborted&&store.job(id)?.status==='running')output+=t;}});
+      if(controller.signal.aborted||store.job(id)?.status!=='running')return;
+      store.tx(()=>{const s=store.state(),a=s.activities?.find(a=>a.id===b.activity),f=a?.feedback?.find(f=>f.id===id);if(f){f.text=output.trim();f.status=f.text?'sent':'failed';s.version++;store.save(s);}store.settle(id,result.usage);store.status(id,'done');});
+    }catch{if(store.job(id)?.status==='running')store.status(id,'failed');}
+    finally{clearTimeout(timer);running.delete(id);store.tx(()=>{const s=store.state(),f=s.activities?.find(a=>a.id===b.activity)?.feedback?.find(f=>f.id===id);if(f?.status==='running'){f.status='interrupted';s.version++;store.save(s);}if(store.job(id)?.status==='running')store.status(id,'interrupted');store.db.prepare("UPDATE jobs SET body='{}' WHERE id=?").run(id);});
+      // If answers arrived while Echo was busy, react to the newest progress once.
+      let next=null;if(store.job(id)?.status==='done')store.tx(()=>{const s=store.state(),a=s.activities?.find(a=>a.id===b.activity);if(a&&(a.index>b.index||(a.status!=='active')!==b.final)){next=activityFeedback(s,a,a.target);store.save(s);}});
+      refresh();if(next)setImmediate(()=>run(next));}
   }
   async function runDraw(id){
     const j=store.job(id),b=JSON.parse(j.body),controller=new AbortController();const timer=setTimeout(()=>controller.abort(),60000);running.set(id,{controller,actor:j.actor,scope:'shared',text:''});
@@ -175,6 +196,13 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
           if(p.type==='item.save'){if(data.image)photoData(data.image);if(data.images){check(Array.isArray(data.images)&&data.images.length<=6,'Choose up to 6 photos.');for(const image of data.images)photoData(image);}}
           if(p.type==='item.delete'){const item=s.items.find(i=>i.id===data.id);check(item&&item.revision===data.revision,'This post changed. Try deleting again.',409);for(const job of store.db.prepare("SELECT id,body FROM jobs WHERE status='running'").all())if(JSON.parse(job.body).wallItem===data.id){store.status(job.id,'cancelled');running.get(job.id)?.controller.abort();}}
           if(p.type==='pause'&&data.value)cancel(who,true);
+          if(p.type==='quiz.react'){const a=s.activities?.find(a=>a.id===data.activity);check(a&&a.target===who,'This round belongs to your partner.',403);check(!s.pauses.length&&!a.pauses.length,'Resume Echo permissions before asking for a reaction.',409);const job=activityFeedback(s,a,who,true);check(job||a.feedback?.some(f=>f.index===a.index&&f.final===(a.status!=='active')&&['running','sent'].includes(f.status)),'Echo is unavailable right now. Your answers are saved.',409);store.save(s);return {ok:true,job};}
+          if(['quiz.answer','quiz.end'].includes(p.type)){
+            data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);
+            const a=s.activities.find(a=>a.id===(data.activity??s.activity?.id));
+            if(p.type==='quiz.end')for(const f of a.feedback??[])if(f.status==='running'){store.status(f.id,'cancelled');running.get(f.id)?.controller.abort();f.status='interrupted';}
+            const job=activityFeedback(s,a,who);store.save(s);return {ok:true,job};
+          }
           if(['quiz.start','quiz.launch','quiz.answer'].includes(p.type))data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);store.save(s);return {ok:true};
         });
         send(res,200,result);refresh();if(result.job)setImmediate(()=>run(result.job));return;

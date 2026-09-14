@@ -15,8 +15,8 @@ test('server projection hides partner preparation, solutions and future question
 });
 test('quiz enforces target, question identity, both pauses and distinct completion',()=>{
  const s=initial();change(s,'Safy','draft.save',{questions:quiz});change(s,'Safy','quiz.start');const p={activity:s.activity.id,index:0,option:1};
- assert.throws(()=>change(s,'Safy','quiz.answer',p),/partner/);change(s,'Mahmoud','quiz.pause',{value:true});change(s,'Safy','quiz.pause',{value:true});change(s,'Mahmoud','quiz.pause',{value:false});assert.throws(()=>change(s,'Mahmoud','quiz.answer',p),/paused/);change(s,'Safy','quiz.pause',{value:false});change(s,'Mahmoud','quiz.answer',p);assert.equal(s.activity.score,1);assert.throws(()=>change(s,'Mahmoud','quiz.answer',p),/changed/);change(s,'Mahmoud','quiz.answer',{activity:s.activity.id,index:1,answer:'A walk'});assert.equal(s.items[0].status,'completed');assert.equal(s.items[0].done,true);
- change(s,'Safy','quiz.start');change(s,'Safy','quiz.end');assert.equal(s.items[0].status,'abandoned');assert.equal(s.items[0].done,false);
+ assert.throws(()=>change(s,'Safy','quiz.answer',p),/partner/);change(s,'Mahmoud','quiz.pause',{value:true});change(s,'Safy','quiz.pause',{value:true});change(s,'Mahmoud','quiz.pause',{value:false});assert.throws(()=>change(s,'Mahmoud','quiz.answer',p),/paused/);change(s,'Safy','quiz.pause',{value:false});change(s,'Mahmoud','quiz.answer',p);assert.equal(s.activity.score,1);assert.throws(()=>change(s,'Mahmoud','quiz.answer',p),/changed/);change(s,'Mahmoud','quiz.answer',{activity:s.activity.id,index:1,answer:'A walk'});assert.equal(s.items.length,0);change(s,'Mahmoud','quiz.share');assert.equal(s.items[0].status,'completed');assert.equal(s.items[0].done,true);
+ change(s,'Safy','quiz.start');change(s,'Safy','quiz.end');assert.equal(s.items.length,1);change(s,'Mahmoud','quiz.share');assert.equal(s.items[0].status,'abandoned');assert.equal(s.items[0].done,false);
 });
 test('agreements need independent consent and stale edits cannot overwrite',()=>{
  const s=initial();change(s,'Mahmoud','item.save',{type:'Agreement',title:'A quiet hour'});const i=s.items[0];change(s,'Mahmoud','item.approve',{id:i.id,revision:1,value:true});assert.deepEqual(i.approvals,['Mahmoud']);assert.throws(()=>change(s,'Safy','item.approve',{id:i.id,revision:1,value:true}),/changed/);change(s,'Safy','item.approve',{id:i.id,revision:2,value:true});assert.equal(i.approvals.length,2);change(s,'Mahmoud','item.save',{id:i.id,revision:3,type:'Agreement',title:'A quiet evening'});assert.equal(i.approvals.length,0);
@@ -187,6 +187,29 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
   const result=await cmd('mahmoud','item.save',{type:'Photo',title:'Missing photo',images:[randomUUID()]});
   assert.equal(result.status,404);assert.equal((await request('mahmoud','state')).body.items.length,before);
  });
+ await t.test('quiz reactions follow actual answers, catch up after fast completion, and never publish',async()=>{
+ const state=s.state();change(state,'Mahmoud','quiz.launch',{host:'Echo',target:'Mahmoud',title:'Clouds',questions:quiz});s.save(state);const activity=state.activity.id,before=s.state().items.length;
+ const receipt=randomUUID(),payload={activity,index:0,option:1};let answer=await cmd('mahmoud','quiz.answer',payload,receipt);
+ assert.equal(answer.status,200);assert.ok(answer.body.job);const reaction=answer.body.job;
+ assert.equal((await cmd('mahmoud','quiz.answer',payload,receipt)).body.job,reaction);
+ assert.equal(activeAI.purpose,'activity');assert.ok(activeAI.context.includes('Secret first question'));assert.ok(!activeAI.context.includes('What would you like to try?'));
+ assert.equal((await cmd('mahmoud','quiz.answer',{activity,index:1,answer:'A walk'})).status,200);
+ assert.equal(s.state().items.length,before);release();await waitJob(reaction);
+ for(let i=0;i<100&&!JSON.parse(activeAI.context).final;i++)await new Promise(r=>setTimeout(r,5));
+ assert.equal(JSON.parse(activeAI.context).final,true);assert.match(activeAI.context,/A walk/);
+ const finalJob=s.state().activities.find(a=>a.id===activity).feedback.find(f=>f.final).id;release();await waitJob(finalJob);
+ const a=s.state().activities.find(a=>a.id===activity);assert.equal(a.feedback.find(f=>f.final).status,'sent');assert.equal(s.state().items.length,before);
+ assert.equal((await cmd('safy','quiz.share',{activity})).status,403);
+ assert.equal((await cmd('mahmoud','quiz.share',{activity})).status,200);assert.equal((await cmd('mahmoud','quiz.share',{activity})).status,200);assert.equal(s.state().items.length,before+1);
+ });
+ await t.test('budget exhaustion cannot discard an answer or publish an ended activity',async()=>{
+ const state=s.state();change(state,'Mahmoud','quiz.launch',{host:'Echo',target:'Mahmoud',questions:quiz});s.save(state);const activity=state.activity.id,before=state.items.length;
+ const old=s.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used;s.db.prepare("UPDATE budget SET used=3000000 WHERE key='lifetime'").run();
+ assert.equal((await cmd('mahmoud','quiz.answer',{activity,index:0,option:0})).status,200);
+ assert.equal(s.state().activity.answers.length,1);assert.equal((await cmd('mahmoud','quiz.end',{activity})).status,200);
+ assert.equal(s.state().activity.status,'abandoned');assert.equal(s.state().items.length,before);
+ s.db.prepare("UPDATE budget SET used=? WHERE key='lifetime'").run(old);
+ });
  await t.test('logout revokes the old cookie server-side',async()=>{const old=cookies.mahmoud;await request('mahmoud','logout',{});cookies.mahmoud=old;assert.equal((await request('mahmoud','state')).status,401);});
  }finally{release?.();server.closeAllConnections();await new Promise(r=>server.close(r));s.close();}
 });
@@ -206,7 +229,7 @@ test('live ten-question round preserves draft and archives every answer once',()
  assert.deepEqual(s.drafts.Mahmoud,quiz);
 
  for(let i=0;i<10;i++){assert.equal(project(s,'Safy').activity.current.q,'Question '+i);change(s,'Safy','quiz.answer',{activity:id,index:i,option:0});}
- assert.equal(s.activity.answers.length,10);assert.equal(s.activity.score,10);assert.equal(s.items[0].type,'Result');
+ assert.equal(s.activity.answers.length,10);assert.equal(s.activity.score,10);assert.equal(s.items.length,0);change(s,'Safy','quiz.share',{activity:id});assert.equal(s.items[0].type,'Result');
  assert.throws(()=>change(s,'Safy','quiz.answer',{activity:id,index:9,option:0}),/changed/);assert.equal(s.items.length,1);
 });
 test('provider offers direct start in shared chat and keeps private preparation isolated',async()=>{
@@ -230,7 +253,25 @@ test('multiple activities survive serialization with separate progress, controls
  assert.equal(s.activities.find(a=>a.id===second).index,0);
  change(s,'Mahmoud','quiz.pause',{activity:first,value:true});
  assert.equal(s.activities.find(a=>a.id===second).pauses.length,0);
- change(s,'Mahmoud','quiz.end',{activity:second});assert.equal(s.items[0].source,second);
+ change(s,'Mahmoud','quiz.end',{activity:second});assert.equal(s.items.length,0);change(s,'Mahmoud','quiz.share',{activity:second});assert.equal(s.items[0].source,second);
  assert.equal(s.activities.find(a=>a.id===first).status,'active');
  const view=project(s,'Safy');assert.ok(view.activities.every(a=>!('qs' in a)));assert.ok(!JSON.stringify(view.activities).includes('correct'));
+});
+
+test('Echo hosts self-directed rounds; completion is private to chat until target shares once',()=>{
+ const s=initial();change(s,'Mahmoud','quiz.launch',{host:'Echo',target:'Mahmoud',title:'Silly questions',questions:[{q:'What would a cloud keep?',options:['Socks','Spoons'],correct:-1}]});
+ const id=s.activity.id;assert.equal(project(s,'Mahmoud').activity.host,'Echo');
+ assert.throws(()=>change(s,'Mahmoud','quiz.share',{activity:id}),/Finish/);
+ change(s,'Mahmoud','quiz.answer',{activity:id,index:0,option:0});
+ assert.equal(s.items.length,0);assert.equal(project(s,'Safy').activity.max,0);
+ assert.throws(()=>change(s,'Safy','quiz.share',{activity:id}),/answering/);
+ s.activity.feedback=[{final:true,status:'sent',text:'A cloud sock drawer!'}];
+ change(s,'Mahmoud','quiz.share',{activity:id});change(s,'Mahmoud','quiz.share',{activity:id});
+ assert.equal(s.items.length,1);assert.match(s.items[0].title,/Echo → Mahmoud/);assert.match(s.items[0].title,/cloud sock drawer/);assert.doesNotMatch(s.items[0].title,/points/);
+});
+test('activity reactions have no action tools and bounded output',async()=>{
+ process.env.OPENAI_API_KEY='test-only';await respond({actor:'Mahmoud',prompt:'React',context:'{}',purpose:'activity',onText(){},fetcher:async(_,opts)=>{
+ const b=JSON.parse(opts.body);assert.deepEqual(b.tools,[]);assert.equal(b.tool_choice,'none');assert.equal(b.max_output_tokens,350);assert.match(b.instructions,/no right answer/);
+ return new Response('data: '+JSON.stringify({type:'response.completed',response:{output:[],usage:{input_tokens:1,output_tokens:1}}})+'\n\n');
+ }});
 });

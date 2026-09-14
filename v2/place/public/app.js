@@ -118,7 +118,44 @@ function updateActivityReminder(){const active=activities().filter(a=>a.status==
 }
 function resumeActivity(id){closeFollowups();const node=activityNodes.get(id);if(node){const root=$('#timeline');root.scrollTop+=node.getBoundingClientRect().top-root.getBoundingClientRect().top;}updateActivityReminder();}
 $('#resume-activities').onclick=()=>{const active=activities().filter(a=>a.status==='active');if(active.length===1)return resumeActivity(active[0].id);const list=$('#activity-list');list.replaceChildren();list.hidden=!list.hidden;for(const a of active)btn((a.title||'Quiz')+' · '+a.target+' · '+(a.index+1)+'/'+a.total,list,()=>resumeActivity(a.id));};
-function renderActivity(a,parent){const signature=JSON.stringify([a,state.pauses,state.who]);if(parent.dataset.signature===signature)return;parent.dataset.signature=signature;const key=a?.id+':'+a?.index;const answer=parent.dataset.question===key?(parent.querySelector('.free-answer')?.value??''):'',focused=document.activeElement===parent.querySelector('.free-answer');parent.dataset.question=key;parent.replaceChildren();if(!a)return;const card=el('section',null,parent,'activity');el('div',a.owner+' → '+a.target,card,'label');if(a.status!=='active'){el('h3',a.status==='completed'?'Your round, remembered':'Round ended early',card);el('p',a.answers.length+' / '+a.total+' answered'+(a.max?' · '+a.score+' / '+a.max+' points':' · No personality rating'),card);btn('See the result',card,()=>{filter='Result';goto('space');});return;}const paused=a.pauses.length||state.pauses.length;el('h3',paused?'Paused — your place is kept':'A question for '+a.target,card);if(paused)el('p','Paused by '+[...new Set([...a.pauses,...state.pauses])].join(' & ')+'. Each person must release their own pause.',card,'muted');el('div','Question '+(a.index+1)+' of '+a.total,card,'muted');el('h3',a.current.q,card).dir='auto';const disabled=!!paused||state.who!==a.target;if(state.who!==a.target)el('p','Waiting for '+a.target+' to answer.',card,'muted');const submit=async data=>{await command('quiz.answer',{activity:a.id,index:a.index,...data});await sync();};if(a.current.options.length){const opts=el('div',null,card,'options');a.current.options.forEach((o,i)=>{const b=btn(o,opts,()=>submit({option:i}));b.dir='auto';b.disabled=disabled;});}else{const form=el('form',null,card,'row'),input=el('input',null,form,'grow');input.classList.add('free-answer');input.dir='auto';input.placeholder='Your answer…';input.setAttribute('aria-label','Your answer');input.required=true;input.maxLength=1000;input.value=answer;input.disabled=disabled;const b=el('button','Answer',form);b.disabled=disabled;form.onsubmit=e=>{e.preventDefault();submit({answer:input.value}).catch(error);};if(focused)input.focus({preventScroll:true});}const controls=el('div',null,card,'row toolbar');btn(a.pauses.includes(state.who)?'Resume my activity permission':'Pause activity',controls,()=>command('quiz.pause',{activity:a.id,value:!a.pauses.includes(state.who)}).then(sync));btn('End activity',controls,()=>{controls.replaceChildren();el('span','End early and save answers so far?',controls);btn('Keep playing',controls,()=>{parent.dataset.signature='';renderActivity(a,parent);});btn('End and save',controls,()=>command('quiz.end',{activity:a.id}).then(sync));});}
+function renderActivity(a,parent){
+ const signature=JSON.stringify([a,state.pauses,state.who]);if(parent.dataset.signature===signature)return;
+ parent.dataset.signature=signature;const key=a?.id+':'+a?.index;
+ const previousInput=parent.querySelector('.free-answer'),answer=parent.dataset.question===key?(previousInput?.value??''):'';
+ const focused=previousInput&&document.activeElement===previousInput;parent.dataset.question=key;parent.replaceChildren();if(!a)return;
+ const card=el('section',null,parent,'activity');el('div',(a.host||a.owner)+' → '+a.target,card,'label');
+ const feedback=(a.feedback||[]).filter(f=>f.status==='sent').at(-1),pending=(a.feedback||[]).some(f=>f.status==='running');
+ if(feedback){const reaction=el('div',null,card,'activity-reaction');el('div','✦ Echo',reaction,'label');el('p',feedback.text,reaction).dir='auto';}
+ if(pending)el('p','Echo is reacting…',card,'muted');
+ if(a.status!=='active'){
+  el('h3',a.status==='completed'?'Round complete':'Round ended early',card);
+  el('p',a.answers.length+' / '+a.total+' answered'+(a.max?' · '+a.score+' / '+a.max+' points':' · Just for fun'),card);
+  const history=el('details',null,card);el('summary','Your answers',history);
+  for(const v of a.answers)el('p',v.q+' → '+v.answer,history).dir='auto';
+  if(state.who===a.target){
+   if(!pending&&a.answers.length&&!(a.feedback||[]).some(f=>f.final&&f.status==='sent'))btn('Ask Echo to wrap up',card,()=>command('quiz.react',{activity:a.id}).then(sync));
+   if(a.sharedPost)el('p','Shared to wall',card,'muted');
+   else btn('Share to wall',card,()=>command('quiz.share',{activity:a.id}).then(sync));
+  }
+  return;
+ }
+ const paused=a.pauses.length||state.pauses.length;
+ el('h3',paused?'Paused — your place is kept':'A question for '+a.target,card);
+ if(paused)el('p','Paused by '+[...new Set([...a.pauses,...state.pauses])].join(' & ')+'. Each person must release their own pause.',card,'muted');
+ el('div','Question '+(a.index+1)+' of '+a.total+(a.max?' · '+a.score+' / '+a.max+' points':' · Just for fun'),card,'muted');
+ el('h3',a.current.q,card).dir='auto';const disabled=!!paused||state.who!==a.target;
+ if(state.who!==a.target)el('p','Waiting for '+a.target+' to answer.',card,'muted');
+ const submit=async data=>{await command('quiz.answer',{activity:a.id,index:a.index,...data});await sync();};
+ if(a.current.options.length){
+  const opts=el('div',null,card,'options');a.current.options.forEach((o,i)=>{const b=btn(o,opts,()=>submit({option:i}));b.dir='auto';b.disabled=disabled;});
+ }else{
+  const form=el('form',null,card,'row'),input=el('input',null,form,'grow');input.classList.add('free-answer');input.dir='auto';input.placeholder='Your answer…';input.setAttribute('aria-label','Your answer');input.required=true;input.maxLength=1000;input.value=answer;input.disabled=disabled;
+  const b=el('button','Answer',form);b.disabled=disabled;form.onsubmit=e=>{e.preventDefault();submit({answer:input.value}).catch(error);};if(focused)input.focus({preventScroll:true});
+ }
+ const controls=el('div',null,card,'row toolbar');
+ btn(a.pauses.includes(state.who)?'Resume my activity permission':'Pause activity',controls,()=>command('quiz.pause',{activity:a.id,value:!a.pauses.includes(state.who)}).then(sync));
+ btn('End',controls,()=>command('quiz.end',{activity:a.id}).then(sync));
+}
 function paintDraft(){const p=$('#draft');p.replaceChildren();state.draft.forEach((q,i)=>{const r=el('div',null,p,'draftrow');el('h3',(i+1)+'. '+q.q,r).dir='auto';el('p',q.options.length?q.options.join(' / '):'Free response',r).dir='auto';el('p',q.correct>=0?'Correct option: '+(q.correct+1)+' · 1 point':'Conversation question · no right answer',r,'muted');btn('Edit',r,()=>{questionEdit=i;$('.manual-prep').open=true;$('#save-question').textContent='Save changes';$('#question').value=q.q;$('#options').value=q.options.join('\n');$('#correct').value=q.correct;$('#cancel-edit').hidden=false;$('#question').focus();});btn('Remove',r,async()=>{await command('draft.save',{questions:state.draft.filter((_,j)=>i!==j)});await sync();});});}
 $('#cancel-edit').onclick=()=>{questionEdit=-1;$('#save-question').textContent='Add question';$('#question-form').reset();$('#cancel-edit').hidden=true;};
 $('#question-form').onsubmit=async e=>{e.preventDefault();try{const qs=structuredClone(state.draft),q={q:$('#question').value,options:$('#options').value.split('\n').map(x=>x.trim()).filter(Boolean),correct:Number($('#correct').value)};if(questionEdit>=0)qs[questionEdit]=q;else qs.push(q);await command('draft.save',{questions:qs});$('#cancel-edit').click();await sync();}catch(e){error(e);}};
