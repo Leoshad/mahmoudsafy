@@ -79,30 +79,49 @@ function tableLayout(chain){
  arm(chain.slice(rootIndex+1),false);arm(chain.slice(0,rootIndex).reverse(),true);
  const byId=new Map(out.map(p=>[p.tile.id,p]));return chain.map(t=>byId.get(t.id));
 }
+function placementChoices(g){
+ if(!picked||busy||g?.status!=='active'||g.paused||g.turn!==who)return [];
+ const tile=g.hand.find(t=>t.id===picked);if(!tile)return [];
+ const chain=g.chain.map((t,i)=>({...t,order:t.order??i+1})),order=Math.max(0,...chain.map(t=>t.order))+1;
+ return g.legal.filter(m=>m.tile===picked).map(move=>{
+  let {a,b}=tile;
+  if(chain.length&&((move.side==='left'&&b!==chain[0].a)||(move.side==='right'&&a!==chain.at(-1).b)))[a,b]=[b,a];
+  const next={...tile,a,b,order},future=move.side==='left'?[next,...chain]:[...chain,next];
+  return {...tableLayout(future).find(p=>p.tile.id===tile.id),move};
+ });
+}
 function arrangeBoard(board,chain,lastMove,key){
- const width=board.clientWidth||280,height=focused()?(board.clientHeight||300):Math.max(300,Math.min(400,width*1.15)),layoutKey=width+':'+height+':'+key+':'+chain.length+':'+game()?.status+':'+!!game()?.paused;
+ const width=board.clientWidth||280,height=focused()?(board.clientHeight||300):Math.max(300,Math.min(400,width*1.15)),layoutKey=width+':'+height+':'+key+':'+chain.length+':'+game()?.status+':'+!!game()?.paused+':'+picked+':'+busy;
  if(board.dataset.layout===layoutKey)return;board.dataset.layout=layoutKey;
  if(!focused())board.style.height=height+'px';
  if(!chain.length){if(!board._empty)board._empty=make('span','Your table is ready.',board,'domino-board-empty');return;}
  board._empty?.remove?.();board._empty=null;
- const poses=tableLayout(chain),minX=Math.min(...poses.map(p=>p.x-p.w/2)),maxX=Math.max(...poses.map(p=>p.x+p.w/2)),minY=Math.min(...poses.map(p=>p.y-p.h/2)),maxY=Math.max(...poses.map(p=>p.y+p.h/2));
- const fit=Math.min(25,(width-24)/(maxX-minX),(height-32)/(maxY-minY));
+ const poses=tableLayout(chain),choices=placementChoices(game()),bounds=[...poses,...choices],minX=Math.min(...bounds.map(p=>p.x-p.w/2)),maxX=Math.max(...bounds.map(p=>p.x+p.w/2)),minY=Math.min(...bounds.map(p=>p.y-p.h/2)),maxY=Math.max(...bounds.map(p=>p.y+p.h/2));
+ const fit=Math.min(25,(width-52)/(maxX-minX),(height-52)/(maxY-minY));
  board._unit??=25;
  if(fit<board._unit)board._unit=fit*.98;
  const unit=board._unit;board.style.setProperty('--domino-unit',unit+'px');
  // Move the camera only enough to keep the new endpoint inside the table.
- board._cx=Math.max(12-minX*unit,Math.min(board._cx??width/2,width-12-maxX*unit));
- board._cy=Math.max(16-minY*unit,Math.min(board._cy??height/2,height-16-maxY*unit));
+ board._cx=Math.max(26-minX*unit,Math.min(board._cx??width/2,width-26-maxX*unit));
+ board._cy=Math.max(26-minY*unit,Math.min(board._cy??height/2,height-26-maxY*unit));
  board._nodes??=new Map();
  for(const [index,p] of poses.entries()){
   let wrap=board._nodes.get(p.tile.id),fresh=!wrap;
-  if(fresh){wrap=make('span',undefined,board,'domino-placement');wrap._piece=piece(p.tile,wrap);wrap._label=make('small','',wrap,'domino-end-label');board._nodes.set(p.tile.id,wrap);}
+  if(fresh){wrap=make('span',undefined,board,'domino-placement');wrap._piece=piece(p.tile,wrap);board._nodes.set(p.tile.id,wrap);}
   const x=board._cx+p.x*unit,y=board._cy+p.y*unit,e=wrap._piece;
   wrap.style.left=x+'px';wrap.style.top=y+'px';wrap.style.setProperty('--arrival-x',(width/2-x)+'px');wrap.style.setProperty('--arrival-y',((lastMove?.by===who?height-12:12)-y)+'px');
   e.style.transform='translate(-50%,-50%) rotate('+p.angle+'deg)';e.style.setProperty('--pip-rotation','90deg');
   e.classList.toggle('computer-last',game()?.status==='active'&&!game()?.paused&&lastMove?.id===p.tile.id);
   wrap.classList.toggle('domino-arriving',fresh&&board._ready&&lastMove?.id===p.tile.id);
-  wrap._label.textContent=index===0?'A':index===poses.length-1?'B':'';wrap._label.style.top=(p.h*unit/2+3)+'px';
+ }
+ for(const old of board._choices??[])old.remove?.();board._choices=[];
+ for(const p of choices){
+  const target=btn('',board,()=>command('play',p.move),'domino-place-target');
+  target.setAttribute('aria-label','Place '+p.tile.a+'–'+p.tile.b+' at the '+(p.move.side==='left'?'first':'other')+' open end');
+  target.style.left=(board._cx+p.x*unit)+'px';target.style.top=(board._cy+p.y*unit)+'px';
+  target.style.width=Math.max(44,p.w*unit+8)+'px';target.style.height=Math.max(44,p.h*unit+8)+'px';
+  const ghost=piece(p.tile,target);ghost.style.transform='translate(-50%,-50%) rotate('+p.angle+'deg)';ghost.style.setProperty('--pip-rotation','90deg');ghost.setAttribute('aria-hidden','true');
+  board._choices.push(target);
  }
  board._ready=true;
 }
@@ -184,7 +203,7 @@ function render(){
  const statusRow=make('div',undefined,slot('status'),'domino-status-row');make('p',status,statusRow,'domino-turn').setAttribute('role','status');view.clock=make('span',undefined,statusRow,'domino-clock');updateClock();
  const meta=make('div',undefined,slot('meta'),'domino-table-meta');make('span',g.opponent+' · '+g.opponentCount+' tiles',meta);
  const backs=make('div',undefined,meta,'domino-opponent');backs.setAttribute('aria-label',g.opponent+' has '+g.opponentCount+' hidden tiles');for(let i=0;i<g.opponentCount;i++)make('span',undefined,backs).setAttribute('aria-hidden','true');
- const ends=make('div',undefined,slot('ends'),'domino-ends');make('span',g.chain.length?'A · '+g.chain[0].a:'Place any tile to start',ends);if(g.chain.length)make('span','B · '+g.chain.at(-1).b,ends);
+ slot('ends');
  const {board,newIds}=drawPile(g,view.table);
  arrangeBoard(board,g.chain,g.lastMove,g.id+':'+g.round+':'+(g.lastMove?.order??0));
  requestAnimationFrame(()=>{if(board.isConnected!==false)arrangeBoard(board,g.chain,g.lastMove,g.id+':'+g.round+':'+(g.lastMove?.order??0));});
@@ -204,7 +223,7 @@ function render(){
   btn('Back',next,()=>closeGame());
  }else{
   const controls=make('div',undefined,actions,'domino-actions');
-  if(picked&&g.legal.some(m=>m.tile===picked)){make('span','Choose an end:',controls);for(const move of g.legal.filter(m=>m.tile===picked))btn(move.side==='left'?'End A':'End B',controls,()=>command('play',move),'primary').disabled=busy;}
+  if(picked&&g.legal.some(m=>m.tile===picked))make('span','Tap where you want to place it.',controls,'domino-placement-hint');
   if(g.paused){if(g.pausedBy?.includes(who))btn('Resume game',controls,()=>command('resume'),'primary').disabled=busy;else make('span','Waiting for '+g.pausedBy.join(' & ')+' to resume.',controls);}
   if(g.canDraw)btn('Draw a tile',controls,()=>command('draw'),'primary').disabled=busy;
   if(g.canPass)btn('Pass turn',controls,()=>command('pass'),'primary').disabled=busy;

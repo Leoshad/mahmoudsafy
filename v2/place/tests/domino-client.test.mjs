@@ -152,3 +152,17 @@ test('minimized and closed preferences survive refresh and closing pauses play',
  let nodes=all(c.get('#domino-game'));assert.ok(nodes.filter(e=>e.className==='domino-piece'&&e.tag==='button').every(e=>e.disabled&&!e.classList.contains('playable')));
  await click(nodes.find(e=>e.textContent==='Resume game'));assert.equal(state.domino.solo.Mahmoud.paused,false);
 });
+test('two-ended tile uses board previews, supports cancel and plays the chosen end',async()=>{
+ for(const side of ['left','right']){
+  const state=initial();dominoChange(state,'Mahmoud','domino.create',{mode:'shared'});const g=state.domino.shared;dominoChange(state,'Safy','domino.accept',{game:g.id,revision:g.revision});
+  g.chain=[{id:'0-6',a:0,b:6,order:1},{id:'1-6',a:6,b:1,order:2}];g.moveNumber=2;g.hands.Mahmoud=[{id:'0-1',a:0,b:1},{id:'2-3',a:2,b:3}];g.turn='Mahmoud';
+  const a=client('Mahmoud',state,[]);await click(a.get('#domino-open'));await click(a.get('#domino-shared-tab'));
+  const nodes=()=>all(a.get('#domino-game')),hand=nodes().find(e=>e.className==='domino-hand');
+  await click(hand.children[0]);let targets=nodes().filter(e=>e.className==='domino-place-target');assert.equal(targets.length,2);assert.equal(a.commands(),0);
+  for(const target of targets){assert.ok(parseFloat(target.style.width)>=44);assert.ok(parseFloat(target.style.height)>=44);assert.ok(parseFloat(target.style.left)>0);assert.ok(parseFloat(target.style.top)>0);}
+  assert.ok(!nodes().some(e=>['End A','End B','Choose an end:','A','B'].includes(e.textContent)));
+  await click(hand.children[0]);assert.equal(nodes().filter(e=>e.className==='domino-place-target').length,0);
+  await click(hand.children[0]);targets=nodes().filter(e=>e.className==='domino-place-target');await click(targets[side==='left'?0:1]);
+  assert.equal(a.commands(),1);assert.equal((side==='left'?g.chain[0]:g.chain.at(-1)).id,'0-1');assert.equal(g.chain[0].b,g.chain[1].a);assert.equal(nodes().filter(e=>e.className==='domino-place-target').length,0);
+ }
+});
