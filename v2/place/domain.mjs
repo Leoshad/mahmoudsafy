@@ -59,12 +59,26 @@ export function change(s,who,type,p={}){
     }
     case 'quiz.end': {const a=selected();check(a?.status==='active','No active quiz.',409);a.status='abandoned';archive(s,a,who);break;}
     case 'item.save': {
-      check(categories.includes(p.type),'Choose a category.');const title=text(p.title,5000);
+      check(categories.includes(p.type),'Choose a category.');
       const item=p.id?s.items.find(i=>i.id===p.id):null;
-      if(p.id)check(item&&item.revision===p.revision,'This item changed. Reopen it before saving.',409);
-      check(!p.image||typeof p.image==='string'&&/^[a-f0-9-]{36}$/.test(p.image),'Invalid photo.');
-      if(item){item.title=title;item.type=p.type;item.approvals=[];item.revision++;item.aiAllowed=!!p.aiAllowed;}
-      else {check(s.items.length<500,'Your space is full. Export a backup before adding more.',409);s.items.unshift({id:randomUUID(),type:p.type,title,by:who,image:p.image??null,source:p.source??null,done:false,approvals:[],revision:1,aiAllowed:!!p.aiAllowed,createdAt:new Date().toISOString()});}break;
+      if(p.id)check(item&&item.revision===p.revision,'This post changed. Reopen it before saving.',409);
+      const images=p.images??(p.image?[p.image]:item?.images??(item?.image?[item.image]:[]));
+      check(Array.isArray(images)&&images.length<=6&&images.every(v=>typeof v==='string'&&/^[a-f0-9-]{36}$/.test(v)),'Choose up to 6 photos.');
+      const title=p.title?.trim()?text(p.title,5000):images.length?'':text(p.title,5000);
+      const raw=p.steps??item?.steps??[];
+      check(Array.isArray(raw)&&raw.length<=30,'Use up to 30 steps.');
+      const steps=raw.map(v=>({id:typeof v.id==='string'&&item?.steps?.some(x=>x.id===v.id)?v.id:randomUUID(),text:text(v.text,300),done:!!v.done}));
+      if(item){Object.assign(item,{title,type:p.type,images,image:images[0]??null,steps,approvals:[],aiAllowed:!!p.aiAllowed,updatedAt:new Date().toISOString()});if(p.type==='Plan'&&steps.length)item.done=steps.every(s=>s.done);item.revision++;}
+      else {check(s.items.length<500,'Your space is full. Export a backup before adding more.',409);s.items.unshift({id:randomUUID(),type:p.type,title,by:who,images,image:images[0]??null,steps,source:p.source??null,done:false,approvals:[],revision:1,aiAllowed:!!p.aiAllowed,createdAt:new Date().toISOString()});}break;
+    }
+    case 'item.like': case 'item.pin': case 'item.comment': case 'item.comment.delete': case 'item.step': {
+      const i=s.items.find(i=>i.id===p.id);check(i,'This post is no longer available.',404);
+      if(type==='item.like'){check(typeof p.value==='boolean','Choose like or unlike.');i.likes=(i.likes??[]).filter(n=>n!==who);if(p.value)i.likes.push(who);}
+      if(type==='item.pin'){check(typeof p.value==='boolean','Choose pin or unpin.');check(!p.value||i.pinned||s.items.filter(x=>x.pinned).length<5,'Keep up to 5 pinned posts.');i.pinned=p.value;}
+      if(type==='item.comment'){const value=text(p.text,1500);i.comments??=[];check(i.comments.length<200,'This post has reached 200 comments.');i.comments.push({id:randomUUID(),by:who,text:value,createdAt:new Date().toISOString()});}
+      if(type==='item.comment.delete'){const c=i.comments?.find(c=>c.id===p.comment);check(c&&c.by===who,'You can only remove your own comment.',403);i.comments=i.comments.filter(c=>c.id!==p.comment);}
+      if(type==='item.step'){check(i.type==='Plan'&&i.revision===p.revision,'This plan changed. Try again.',409);const step=i.steps?.find(x=>x.id===p.step);check(step&&typeof p.value==='boolean','Choose a plan step.');step.done=p.value;i.done=i.steps.every(x=>x.done);}
+      i.revision++;break;
     }
     case 'item.approve': case 'item.done': {
       const i=s.items.find(i=>i.id===p.id);check(i&&i.revision===p.revision,'This item changed. Please refresh.',409);
@@ -76,4 +90,5 @@ export function change(s,who,type,p={}){
   if(s.activity)s.activity=s.activities.find(a=>a.id===s.activity.id)??s.activity;s.version++;return s;
 }
 function archive(s,a,who){s.items.unshift({id:randomUUID(),type:'Result',title:`Quiz by ${a.owner} for ${a.target} · ${a.status}\n${a.answers.map(v=>v.q+' → '+v.answer).join('\n')}\n${a.score} points`,by:who,source:a.id,status:a.status,done:a.status==='completed',approvals:[],revision:1,aiAllowed:false,createdAt:new Date().toISOString()});}
+
 

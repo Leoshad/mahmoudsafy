@@ -129,6 +129,12 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  assert.equal((await request('mahmoud','state')).body.wallpaper.image,null);
  assert.ok(s.db.prepare('SELECT id FROM photos WHERE id=?').get(photo));
  });
+ await t.test('wall assets load and gallery references are checked before saving',async()=>{
+  for(const path of ['/wall.js','/wall.css'])assert.equal((await fetch(base+path)).status,200);
+  const before=(await request('mahmoud','state')).body.items.length;
+  const result=await cmd('mahmoud','item.save',{type:'Photo',title:'Missing photo',images:[randomUUID()]});
+  assert.equal(result.status,404);assert.equal((await request('mahmoud','state')).body.items.length,before);
+ });
  await t.test('logout revokes the old cookie server-side',async()=>{const old=cookies.mahmoud;await request('mahmoud','logout',{});cookies.mahmoud=old;assert.equal((await request('mahmoud','state')).status,401);});
  }finally{release?.();server.closeAllConnections();await new Promise(r=>server.close(r));s.close();}
 });

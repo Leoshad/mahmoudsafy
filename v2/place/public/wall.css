@@ -1,0 +1,53 @@
+#our-place-trial #space{max-width:680px}
+#our-place-trial .wall-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 10px}
+#our-place-trial .wall-heading h2{margin:3px 0;font-size:29px}
+#our-place-trial .wall-heading .label{font-size:10px;letter-spacing:2px;color:var(--gold)}
+#our-place-trial .wall-heading button{font-size:13px;min-height:44px;white-space:nowrap}
+#our-place-trial .wall-tools{margin:10px 0;border-bottom:1px solid #3e303b;padding-bottom:8px}
+#our-place-trial .wall-tools>summary,#our-place-trial .wall-echo>summary,#our-place-trial .wall-comments>summary{cursor:pointer;min-height:44px;padding:10px 2px;font-size:13px;color:#d5bdcb}
+#our-place-trial .wall-tools input[type=search]{width:100%;margin:8px 0}
+#our-place-trial .wall-feed{display:grid;gap:18px;margin-top:20px}
+#our-place-trial .wall-post{min-width:0;padding:18px;background:linear-gradient(145deg,#251d27,#19151e);border:1px solid #57404e;border-radius:19px;overflow-wrap:anywhere}
+#our-place-trial .wall-post-head{display:flex;align-items:center;gap:10px}
+#our-place-trial .wall-avatar{display:grid;place-items:center;flex:0 0 39px;height:39px;border-radius:50%;background:#4c3445;color:#f6d5e6;font-family:Georgia,serif;font-size:21px}
+#our-place-trial .wall-meta{flex:1;min-width:0;font-size:14px}
+#our-place-trial .wall-meta .muted{font-size:11px;margin-top:2px}
+#our-place-trial .wall-menu{position:relative;align-self:flex-start}
+#our-place-trial .wall-menu>summary{list-style:none;cursor:pointer;min-width:44px;min-height:44px;text-align:center;font-size:23px;line-height:40px}
+#our-place-trial .wall-menu-list{position:absolute;z-index:6;right:0;top:44px;width:165px;padding:6px;background:#302330;border:1px solid #775267;border-radius:12px;box-shadow:0 10px 30px #0008;display:grid;gap:4px}
+#our-place-trial .wall-menu-list button{border:0;text-align:left;background:transparent;min-height:44px}
+#our-place-trial .wall-kind{display:block;color:#c7adbd;font-size:11px;margin:12px 0 9px}
+#our-place-trial .wall-text{white-space:pre-wrap;font-size:16px;line-height:1.65;margin:8px 0 16px}
+#our-place-trial .wall-gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:12px -8px;border-radius:12px;overflow:hidden}
+#our-place-trial .wall-gallery.single{grid-template-columns:1fr}
+#our-place-trial .wall-gallery button{padding:0;border:0;border-radius:0;background:#100d13;min-width:0;overflow:hidden}
+#our-place-trial .wall-gallery img{display:block;width:100%;aspect-ratio:1;object-fit:cover}
+#our-place-trial .wall-gallery.single img{aspect-ratio:4/3;max-height:480px;object-fit:contain}
+#our-place-trial .wall-post-actions{display:flex;gap:6px;flex-wrap:wrap;border-top:1px solid #493442;margin-top:16px;padding-top:8px}
+#our-place-trial .wall-post-actions button{border:0;background:transparent;font-size:13px;min-height:44px;padding:8px 10px}
+#our-place-trial .wall-post-actions .wall-liked{color:#efb1cd;background:#513345}
+#our-place-trial .wall-comments,#our-place-trial .wall-echo{border-top:1px solid #392c36;margin-top:4px}
+#our-place-trial .wall-comment{background:#302530;border-radius:12px;padding:11px 13px;margin:7px 0;font-size:13px}
+#our-place-trial .wall-comment p{white-space:pre-wrap;margin:6px 0}
+#our-place-trial .wall-comment-remove{font-size:11px;min-height:36px;border:0;background:transparent;padding:5px 0}
+#our-place-trial .wall-reply{display:flex;align-items:flex-end;gap:7px;margin:10px 0}
+#our-place-trial .wall-reply textarea,#our-place-trial .wall-reply input{flex:1;min-width:0;font-size:16px;max-height:140px}
+#our-place-trial .wall-reply button{min-height:44px;font-size:13px}
+#our-place-trial .wall-plan,#our-place-trial .wall-agreement{background:#28251f;border:1px solid #5c5038;border-radius:12px;padding:13px;margin:13px 0}
+#our-place-trial .wall-step{display:flex;align-items:flex-start;gap:10px;padding:9px 0;min-height:44px;font-size:14px}
+#our-place-trial .wall-step input{accent-color:var(--gold);width:20px;height:20px;flex:0 0 20px;margin:1px 0}
+#our-place-trial .wall-step:has(input:checked) span{text-decoration:line-through;color:#b2a99b}
+#our-place-trial .wall-pin-label{font-size:10px;color:var(--gold);letter-spacing:1px;margin-bottom:10px}
+#our-place-trial .wall-empty{text-align:center;padding:32px 18px}
+#our-place-trial .wall-empty-icon{font-size:45px;color:var(--rose)}
+#our-place-trial .wall-compose{border:1px solid #57404e;background:#201923;border-radius:18px;padding:18px;margin-top:18px}
+#our-place-trial .wall-compose textarea{max-height:40dvh}
+#our-place-trial .wall-previews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+#our-place-trial .wall-previews>div{position:relative}
+#our-place-trial .wall-previews img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}
+#our-place-trial .wall-previews button{position:absolute;right:3px;top:3px;min-height:36px;min-width:36px;padding:2px;background:#18121ee8}
+#our-place-trial .wall-viewer{padding:12px;background:#17121a;border:1px solid #7c586d;border-radius:16px;max-width:95vw;max-height:92dvh}
+#our-place-trial .wall-viewer::backdrop{background:#000c}
+#our-place-trial .wall-viewer img{display:block;max-width:85vw;max-height:75dvh;object-fit:contain;margin-top:10px}
+#our-place-trial .wall-confirm{padding:12px;border:1px solid #bc819f;border-radius:10px}
+@media(max-width:450px){#our-place-trial .wall-post{padding:14px;border-radius:16px}#our-place-trial .wall-heading h2{font-size:25px}#our-place-trial .wall-heading .label{letter-spacing:1px;font-size:9px}}
