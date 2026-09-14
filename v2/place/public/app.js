@@ -57,7 +57,20 @@ document.addEventListener('pointerdown',e=>{if(state&&followupsOpen&&!e.target.c
 function renderMessageText(parent,message){
  const value=message.text||(message.status==='streaming'?'Echo is thinking…':'');
  if(message.author!=='Echo'){parent.textContent=value;return;}
- parent.replaceChildren();const parts=value.split('**');parts.forEach((part,i)=>{if(i%2){const strong=document.createElement('strong');strong.textContent=part;parent.append(strong);}else parent.append(document.createTextNode(part));});
+ function links(root,text){
+  const pattern=/\[([^\]\n]+)\]\(([^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)|(https?:\/\/[^\s<>"\u0000-\u001f]+)/gi;let cursor=0,match;
+  while((match=pattern.exec(text))){
+   let address=match[2]||match[3],label=match[1],tail='';
+   if(!label){while(/[.,!?;:،؛؟\]}]$/.test(address)||(address.endsWith(')')&&(address.match(/\)/g)||[]).length>(address.match(/\(/g)||[]).length)){tail=address.slice(-1)+tail;address=address.slice(0,-1);}label=address;}
+   let valid=false;try{const url=new URL(address);valid=['https:','http:'].includes(url.protocol)&&!url.username&&!url.password;}catch{}
+   root.append(document.createTextNode(text.slice(cursor,match.index)));
+   if(valid){const a=document.createElement('a');a.textContent=label;a.href=address;a.target='_blank';a.rel='noopener noreferrer';a.className='message-link';root.append(a);if(tail)root.append(document.createTextNode(tail));}
+   else root.append(document.createTextNode(match[0]));
+   cursor=pattern.lastIndex;
+  }
+  if(cursor===0)root.textContent=text;else if(cursor<text.length)root.append(document.createTextNode(text.slice(cursor)));
+ }
+ parent.replaceChildren();const parts=value.split('**');parts.forEach((part,i)=>{if(i%2){const strong=document.createElement('strong');links(strong,part);parent.append(strong);}else{const span=document.createElement('span');links(span,part);parent.append(span);}});
 }
 function paintWallpaper(){const image=state.wallpaper?.image,img=$('#chat-wallpaper');img.hidden=!image;if(image){const url='/api/photos/'+image;if(img.getAttribute('src')!==url)img.src=url;}else img.removeAttribute('src');}
 let backgroundChoice=null,backgroundData=null,backgroundURL=null,backgroundRevision=0,backgroundBusy=false;
