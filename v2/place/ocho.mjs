@@ -35,18 +35,22 @@ function play(s,g,who,id,color,now){
  if(c.kind==='deadred'){for(const n of g.players)if(!g.hands[n].some(c=>c.color==='red')){const count=draw(g,n,2);g.last+=' '+n+' drew '+count+'.';}}
  if(c.kind==='booblue'){const min=Math.min(...g.players.map(n=>g.hands[n].length));const targets=g.players.filter(n=>g.hands[n].length===min);for(const n of targets){const count=draw(g,n,2);g.last+=' '+n+' drew '+count+'.';}}
  finish(s,g,now);
+ resolveForcedDraw(s,g,now);
 }
 function take(s,g,who,now){
- check(!g.drawn,'Play the drawn card or pass.',409);check(g.pending||!ochoLegal(g,who).length,'Play a matching card first.',409);
+ check(!g.drawn,'Play the drawn card.',409);check(g.pending||!ochoLegal(g,who).length,'Play a matching card first.',409);
  const penalty=g.pending,n=draw(g,who,penalty||1);g.last=who+' drew '+n+' card'+(n===1?'':'s')+'.';g.pending=0;g.lastDrawBy=null;
  if(!penalty&&n){g.drawn=g.hands[who].at(-1).id;if(ochoLegal(g,who).length){clock(g,now);return;}g.drawn=null;}
  g.turn=other(g,who);g.passes=n?0:g.passes+1;
  if(g.passes>=2){g.status='complete';g.winner=null;g.turn=null;g.last='No moves remain. This game is a draw.';record(s,g,now);}clock(g,now);
 }
+// Resolve unavoidable penalties in the same server mutation as the attack.
+function forcedDraw(g){return g?.status==='active'&&!g.pausedBy.length&&g.pending>0&&!ochoLegal(g,g.turn).length;}
+function resolveForcedDraw(s,g,now){if(!forcedDraw(g))return false;const attack=g.last;take(s,g,g.turn,now);g.last=attack+' '+g.last;return true;}
 // Computer sees its own cards and public state, never the opponent's hand or stock order.
 function automatic(s,g,now){const who=g.turn,legal=ochoLegal(g,who),hand=g.hands[who];if(legal.length){const c=hand.find(c=>c.id===legal[0]);const color=COLORS.reduce((a,b)=>hand.filter(c=>c.color===a).length>=hand.filter(c=>c.color===b).length?a:b);play(s,g,who,c.id,color,now);}else take(s,g,who,now);}
-export function ochoDue(s,now=Date.now()){return [s.ocho?.shared,...Object.values(s.ocho?.solo??{})].some(g=>g?.status==='active'&&!g.pausedBy.length&&(g.botDue&&g.botDue<=now||g.deadline&&g.deadline<=now));}
-export function ochoTick(s,now=Date.now()){let changed=false;for(const g of [s.ocho?.shared,...Object.values(s.ocho?.solo??{})]){if(!g||g.status!=='active'||g.pausedBy.length)continue;if(!(g.botDue&&g.botDue<=now||g.deadline&&g.deadline<=now))continue;automatic(s,g,now);g.revision++;changed=true;}if(changed)s.version++;return changed;}
+export function ochoDue(s,now=Date.now()){return [s.ocho?.shared,...Object.values(s.ocho?.solo??{})].some(g=>g?.status==='active'&&!g.pausedBy.length&&(forcedDraw(g)||g.botDue&&g.botDue<=now||g.deadline&&g.deadline<=now));}
+export function ochoTick(s,now=Date.now()){let changed=false;for(const g of [s.ocho?.shared,...Object.values(s.ocho?.solo??{})]){if(!g||g.status!=='active'||g.pausedBy.length)continue;if(!resolveForcedDraw(s,g,now)){if(!(g.botDue&&g.botDue<=now||g.deadline&&g.deadline<=now))continue;automatic(s,g,now);}g.revision++;changed=true;}if(changed)s.version++;return changed;}
 export function ochoChange(s,who,type,p={},now=Date.now()){
  check(names.includes(who),'Not invited.',403);s.ocho??={solo:{},shared:null,records:{shared:{wins:{Mahmoud:0,Safy:0},history:[]},solo:{}}};
  if(type==='ocho.create'){
@@ -59,15 +63,14 @@ export function ochoChange(s,who,type,p={},now=Date.now()){
   if(type==='ocho.accept'||type==='ocho.decline'){check(g.status==='waiting'&&g.owner!==who&&g.expires>now,'This invitation expired or changed.',409);if(type==='ocho.accept')deal(g,now);else g.status='declined';}
   else if(type==='ocho.leave'){check(['waiting','active'].includes(g.status),'This game has ended.',409);g.status='ended';g.turn=null;g.last=who+' left the game.';record(s,g,now);clock(g,now);}
   else if(type==='ocho.pause'){check(g.status==='active','Only active games can pause.',409);if(!g.pausedBy.length)g.remaining=g.deadline?Math.max(0,g.deadline-now):null;g.pausedBy=[...new Set([...g.pausedBy,who])];clock(g,now);}
-  else if(type==='ocho.resume'){check(g.status==='active'&&g.pausedBy.includes(who),'No pause to resume.',409);g.pausedBy=g.pausedBy.filter(n=>n!==who);clock(g,now);if(!g.pausedBy.length&&g.turnSeconds)g.deadline=now+(g.remaining??g.turnSeconds*1000);}
+  else if(type==='ocho.resume'){check(g.status==='active'&&g.pausedBy.includes(who),'No pause to resume.',409);g.pausedBy=g.pausedBy.filter(n=>n!==who);clock(g,now);if(!g.pausedBy.length&&g.turnSeconds)g.deadline=now+(g.remaining??g.turnSeconds*1000);resolveForcedDraw(s,g,now);}
   else{
    check(g.status==='active'&&!g.pausedBy.length&&g.turn===who,'Wait for your turn or resume the game.',409);check(!g.deadline||now<g.deadline,'Your time ran out.',409);
    if(type==='ocho.play')play(s,g,who,p.card,p.color,now);
    else if(type==='ocho.draw')take(s,g,who,now);
-   else if(type==='ocho.pass'){check(g.drawn,'Draw before passing.',409);g.drawn=null;g.turn=other(g,who);g.last=who+' passed.';clock(g,now);}
    else check(false,'Unknown Ocho action.');
   }g.revision++;
  }s.version++;
 }
-function view(g,who,now){if(!g||!g.players.includes(who))return null;const opponent=other(g,who),hand=g.hands[who]??[],status=g.status==='waiting'&&g.expires<=now?'expired':g.status;const legal=ochoLegal(g,who);return {id:g.id,revision:g.revision,mode:g.mode,owner:g.owner,players:g.players,status,turn:g.turn,turnSeconds:g.turnSeconds,deadline:g.deadline,pausedBy:g.pausedBy,hand,opponent,opponentCount:g.hands[opponent]?.length??0,top:g.pile.at(-1)??null,discards:g.pile.slice(-3).map((c,i,a)=>({...c,order:g.move-a.length+1+i})),drawEvents:g.drawEvents??[],color:g.color,pending:g.pending,stockCount:g.stock.length,last:g.last,lastCard:g.lastCard??null,winner:g.winner??null,legal,canDraw:status==='active'&&!g.pausedBy.length&&g.turn===who&&!g.drawn&&(!!g.pending||!legal.length),canPass:status==='active'&&!g.pausedBy.length&&g.turn===who&&!!g.drawn,peek:(g.hands[opponent]??[]).find(c=>c.id===g.peeks[who])??null};}
+function view(g,who,now){if(!g||!g.players.includes(who))return null;const opponent=other(g,who),hand=g.hands[who]??[],status=g.status==='waiting'&&g.expires<=now?'expired':g.status;const legal=ochoLegal(g,who);return {id:g.id,revision:g.revision,mode:g.mode,owner:g.owner,players:g.players,status,turn:g.turn,turnSeconds:g.turnSeconds,deadline:g.deadline,pausedBy:g.pausedBy,hand,opponent,opponentCount:g.hands[opponent]?.length??0,top:g.pile.at(-1)??null,discards:g.pile.slice(-3).map((c,i,a)=>({...c,order:g.move-a.length+1+i})),drawEvents:g.drawEvents??[],color:g.color,pending:g.pending,stockCount:g.stock.length,last:g.last,lastCard:g.lastCard??null,winner:g.winner??null,legal,canDraw:status==='active'&&!g.pausedBy.length&&g.turn===who&&!g.drawn&&(!!g.pending||!legal.length),peek:(g.hands[opponent]??[]).find(c=>c.id===g.peeks[who])??null};}
 export function ochoSnapshot(s,who,now=Date.now()){return {solo:view(s.ocho?.solo?.[who],who,now),shared:view(s.ocho?.shared,who,now),records:{solo:s.ocho?.records.solo[who]??{wins:{[who]:0,Computer:0},history:[]},shared:s.ocho?.records.shared??{wins:{Mahmoud:0,Safy:0},history:[]}}};}
