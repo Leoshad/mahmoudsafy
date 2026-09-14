@@ -209,6 +209,13 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  assert.equal(s.state().activity.status,'abandoned');assert.equal(s.state().items.length,before);
  s.db.prepare("UPDATE budget SET used=? WHERE key='lifetime'").run(old);
  });
+ await t.test('read receipts authenticate the reader and persist only the partner’s message',async()=>{
+ const id=randomUUID();await cmd('mahmoud','message',{text:'Read receipt check'},id);
+ assert.equal((await request('none','read',{ids:[id]})).status,401);
+ assert.deepEqual((await request('mahmoud','read',{ids:[id]})).body.ids,[]);
+ assert.deepEqual((await request('safy','read',{ids:[id]})).body.ids,[id]);
+ assert.ok((await request('mahmoud','state')).body.messages.find(m=>m.id===id).readAt);
+ });
  await t.test('logout revokes the old cookie server-side',async()=>{const old=cookies.mahmoud;await request('mahmoud','logout',{});cookies.mahmoud=old;assert.equal((await request('mahmoud','state')).status,401);});
  }finally{release?.();server.closeAllConnections();await new Promise(r=>server.close(r));s.close();}
 });

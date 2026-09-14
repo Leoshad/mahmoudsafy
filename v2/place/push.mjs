@@ -26,7 +26,7 @@ export class PushNotifications{
  seal(v){const iv=randomBytes(12),c=createCipheriv('aes-256-gcm',this.key,iv);return Buffer.concat([iv,c.update(JSON.stringify(v)),c.final(),c.getAuthTag()]).toString('base64');}
  open(v){const b=Buffer.from(v,'base64'),d=createDecipheriv('aes-256-gcm',this.key,b.subarray(0,12));d.setAuthTag(b.subarray(-16));return JSON.parse(Buffer.concat([d.update(b.subarray(12,-16)),d.final()]).toString());}
  mark(key){return this.db.prepare('INSERT OR IGNORE INTO push_seen VALUES(?,?)').run(key,this.now()).changes>0;}
- visible(who){return !!this.db.prepare('SELECT 1 FROM push_presence p JOIN sessions s ON p.session=s.id WHERE p.owner=? AND p.visible=1 AND p.updated>? AND s.expires>?').get(who,this.now()-45000,this.now());}
+ visible(who){return !!this.db.prepare('SELECT 1 FROM push_presence p JOIN sessions s ON p.session=s.id WHERE p.owner=? AND p.visible=1 AND p.updated>? AND s.expires>?').get(who,this.now()-8000,this.now());}
  presence(who,sid,data){
   check(typeof data.client==='string'&&/^[\w-]{16,80}$/.test(data.client)&&typeof data.visible==='boolean','Invalid visibility update.');
   const sequence=data.sequence??0;check(Number.isSafeInteger(sequence)&&sequence>=0,'Invalid visibility sequence.');
@@ -39,8 +39,8 @@ export class PushNotifications{
  unsubscribe(who,endpoint){check(typeof endpoint==='string','Invalid subscription.');this.db.prepare('DELETE FROM push_subscriptions WHERE id=? AND owner=?').run(digest(endpoint),who);}
  logout(sid){this.db.prepare('DELETE FROM push_subscriptions WHERE session=?').run(sid);this.db.prepare('DELETE FROM push_presence WHERE session=?').run(sid);}
  enqueue(e){if(!this.mark(e.key))return;const topic=digest(e.to+':'+(e.kind==='message'?'messages':JSON.stringify(e.target))).slice(0,24),id=e.to+':'+topic;
- const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,quiet:!!e.quiet,tag:topic,expires:this.now()+120000};
- this.db.prepare(`INSERT INTO push_queue(id,owner,topic,body,due,expires) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=CASE WHEN json_extract(excluded.body,'$.quiet')=1 AND json_extract(push_queue.body,'$.quiet')=0 THEN push_queue.body ELSE excluded.body END,expires=excluded.expires`).run(id,e.to,topic,JSON.stringify(body),this.now()+1500,body.expires);
+ const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,quiet:!!e.quiet,tag:topic,createdAt:this.now(),expires:this.now()+120000};
+ this.db.prepare(`INSERT INTO push_queue(id,owner,topic,body,due,expires) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=CASE WHEN json_extract(excluded.body,'$.quiet')=1 AND json_extract(push_queue.body,'$.quiet')=0 THEN push_queue.body ELSE excluded.body END,expires=excluded.expires`).run(id,e.to,topic,JSON.stringify(body),this.now()+300,body.expires);
  }
  scan(actor){const current=this.store.state();for(const e of attentionEvents(this.previous,current,actor))this.enqueue(e);this.previous=current;
   for(const m of this.store.messages())if(m.status==='sent'&&this.mark('message:'+m.id)){
@@ -51,13 +51,13 @@ export class PushNotifications{
  async drain(){if(this.busy||this.stopped)return;this.busy=true;try{
   this.db.prepare('DELETE FROM push_queue WHERE expires<?').run(this.now());
   const jobs=this.db.prepare('SELECT * FROM push_queue WHERE due<=? ORDER BY due LIMIT 10').all(this.now());
-  for(const job of jobs){if(this.stopped)return;if(this.visible(job.owner)){this.db.prepare('UPDATE push_queue SET due=? WHERE id=? AND body=?').run(this.now()+1500,job.id,job.body);continue;}
+  for(const job of jobs){if(this.stopped)return;if(this.visible(job.owner)){this.db.prepare('UPDATE push_queue SET due=? WHERE id=? AND body=?').run(this.now()+300,job.id,job.body);continue;}
    const subs=this.db.prepare('SELECT p.* FROM push_subscriptions p JOIN sessions s ON p.session=s.id WHERE p.owner=? AND s.expires>?').all(job.owner,this.now());let retry=false,foreground=false;
-   for(const sub of subs){if(this.stopped)return;if(this.visible(job.owner)){foreground=true;break;}try{const delivery='delivery:'+digest(sub.id+job.body);if(this.db.prepare('SELECT 1 FROM push_seen WHERE id=?').get(delivery))continue;await this.send(this.open(sub.body),job.body,{vapidDetails:{subject:this.origin,publicKey:this.vapid.publicKey,privateKey:this.vapid.privateKey},TTL:120,urgency:JSON.parse(job.body).quiet?'normal':'high',topic:job.topic,timeout:8000});if(this.stopped)return;this.mark(delivery);}
+   for(const sub of subs){if(this.stopped)return;if(this.visible(job.owner)){foreground=true;break;}try{const delivery='delivery:'+digest(sub.id+job.body);if(this.db.prepare('SELECT 1 FROM push_seen WHERE id=?').get(delivery))continue;const started=this.now();await this.send(this.open(sub.body),job.body,{vapidDetails:{subject:this.origin,publicKey:this.vapid.publicKey,privateKey:this.vapid.privateKey},TTL:120,urgency:JSON.parse(job.body).quiet?'normal':'high',topic:job.topic,timeout:8000});if(this.stopped)return;this.mark(delivery);console.info('Push accepted: queue_ms='+Math.max(0,started-(JSON.parse(job.body).createdAt??started))+' provider_ms='+(this.now()-started));}
     catch(e){if(this.stopped)return;console.error('Push provider delivery failed; status='+String(Number(e.statusCode)||0));if([404,410].includes(e.statusCode))this.db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(sub.id);else retry=true;}
    }
-   if(foreground){this.db.prepare('UPDATE push_queue SET due=? WHERE id=? AND body=?').run(this.now()+1500,job.id,job.body);continue;}
-   if(retry&&job.attempts<2)this.db.prepare('UPDATE push_queue SET attempts=attempts+1,due=? WHERE id=? AND body=?').run(this.now()+15000,job.id,job.body);else this.db.prepare('DELETE FROM push_queue WHERE id=? AND body=?').run(job.id,job.body);
+   if(foreground){this.db.prepare('UPDATE push_queue SET due=? WHERE id=? AND body=?').run(this.now()+300,job.id,job.body);continue;}
+   if(retry&&job.attempts<2)this.db.prepare('UPDATE push_queue SET attempts=attempts+1,due=? WHERE id=? AND body=?').run(this.now()+3000,job.id,job.body);else this.db.prepare('DELETE FROM push_queue WHERE id=? AND body=?').run(job.id,job.body);
   }
   this.db.prepare('DELETE FROM push_presence WHERE updated<?').run(this.now()-86400000);
   this.db.prepare("DELETE FROM push_seen WHERE created<? AND id NOT LIKE 'message:%'").run(this.now()-7*86400000);

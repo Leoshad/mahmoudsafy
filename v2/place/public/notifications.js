@@ -33,7 +33,7 @@ function receive(url){try{const u=new URL(url,location.origin);if(u.origin!==loc
 function deliver(){if(who&&pending){const value=pending;pending=null;window.dispatchEvent(new CustomEvent('our-place-notification',{detail:value}));}}
 if(supported)navigator.serviceWorker.addEventListener('message',e=>{if(e.data?.type==='notification-open')receive(e.data.url);});
 document.addEventListener('visibilitychange',presence);window.addEventListener('pageshow',presence);window.addEventListener('pagehide',()=>{if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});});
-setInterval(()=>{if(who&&!document.hidden)presence();},15000);
+setInterval(()=>{if(who&&!document.hidden)presence();},2000);
 window.OurNotifications={sync(state){if(who!==state.who){who=state.who;epoch++;bound=null;presence();bind().catch(()=>{});}deliver();},reset(){if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});who=null;bound=null;epoch++;dialog.close();clearShown().catch(()=>{});}};
 receive(location.href);if(new URL(location.href).searchParams.has('notice'))history.replaceState(history.state,'','/');
 })();

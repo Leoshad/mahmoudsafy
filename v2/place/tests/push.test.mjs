@@ -58,8 +58,12 @@ test('fresh foreground acknowledgement cancels pending replies and avoids a late
 });
 test('a killed background process cannot permanently suppress a new reply',async t=>{
  const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());push.presence('Safy','Safy',{client:randomUUID(),visible:true,sequence:1});
- push.enqueue(event());advance(2000);await push.drain();assert.equal(sent.length,0);advance(46000);await push.drain();assert.equal(sent.length,1);
+ push.enqueue(event());advance(2000);await push.drain();assert.equal(sent.length,0);advance(6500);await push.drain();assert.equal(sent.length,1);
 });
 test('subscription status checks the current account and login session, not just browser permission',t=>{
  const {push}=fixture(t),sub=subscription();assert.equal(push.registered('Safy','Safy',sub.endpoint),false);push.subscribe('Safy','Safy',sub);assert.equal(push.registered('Safy','Safy',sub.endpoint),true);assert.equal(push.registered('Safy','old-session',sub.endpoint),false);assert.equal(push.registered('Mahmoud','Mahmoud',sub.endpoint),false);push.logout('Safy');assert.equal(push.registered('Safy','Safy',sub.endpoint),false);
+});
+
+test('a hidden recipient needs no long debounce before urgent provider delivery',async t=>{
+ const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());push.enqueue(event());advance(350);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].options.urgency,'high');
 });
