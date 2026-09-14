@@ -103,8 +103,9 @@ $('#timeline').onscroll=()=>{updateLatest();updateActivityReminder();};
 async function openSource(id){const m=await api('messages/'+encodeURIComponent(id));if(!m)throw Error('The original message is unavailable.');older=[...new Map([...older,m].map(x=>[x.id,x])).values()].sort((a,b)=>a.sequence-b.sequence);goto('chat');paintFeed();const row=[...$('#feed').children].find(n=>n.dataset.message===id);row?.scrollIntoView({block:'center'});row?.classList.add('source-highlight');}
 $('#back-together').onclick=()=>goto('together');$('#open-own-prep').onclick=()=>goto('prep');$('#continue-play').onclick=()=>goto('chat');
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&state)sync().catch(error);});
-window.OurOcho?.init({command,sync,goto});window.OurDomino?.init({command,sync,goto});
-window.OurMedia?.init({api,command,sync,goto,info});window.OurPersonal?.init({api,command,sync,goto,info});
+const revealPanel=selector=>PlaceScroll.reveal($('.shell'),$(selector));
+window.OurOcho?.init({command,sync,goto,revealPanel});window.OurDomino?.init({command,sync,goto,revealPanel});
+window.OurMedia?.init({api,command,sync,goto,info,revealPanel});window.OurPersonal?.init({api,command,sync,goto,info});
 sync().then(connect).catch(e=>{if(state)error(e);}).finally(()=>{setTimeout(()=>{const splash=$('#welcome-splash');splash.classList.add('leaving');setTimeout(()=>splash.hidden=true,250);},Math.max(0,2000-(performance.now()-openingStarted)));});
 })();
 

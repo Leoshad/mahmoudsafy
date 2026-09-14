@@ -173,7 +173,7 @@ function scoreboard(g,root){
 function invite(){
  const g=games.shared,root=$('#domino-invitation');root.replaceChildren();root.hidden=!(g?.status==='waiting'&&g.owner!==who);
  if(root.hidden)return;make('span',g.owner+' invited you to Dominoes · first to '+g.target+' · '+(g.turnSeconds?g.turnSeconds+'s per turn':'no timer')+'.',root);
- btn('Join',root,async()=>{mode='shared';opened=true;host.goto('together');await command('accept',{},g);show();},'primary').disabled=busy;
+ btn('Join',root,async()=>{mode='shared';opened=true;fullView=false;host.goto('together');await command('accept',{},g);show();host.revealPanel?.('#domino-panel');},'primary').disabled=busy;
  btn('Not now',root,()=>command('decline',{},g)).disabled=busy;
 }
 function render(){
@@ -244,7 +244,7 @@ function render(){
  }
 }
 function init(h){
- host=h;if(typeof setInterval!=='undefined')setInterval(updateClock,250);soundButton();$('#domino-panel').addEventListener?.('pointerdown',unlockSound);$('#domino-panel').addEventListener?.('keydown',unlockSound);$('#domino-sound').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('our-place:domino:sound',soundOn?'on':'off');}catch{}soundButton();if(soundOn)unlockSound(true);};$('#domino-open').onclick=()=>{opened=true;unlockSound();show();render();};
+ host=h;if(typeof setInterval!=='undefined')setInterval(updateClock,250);soundButton();$('#domino-panel').addEventListener?.('pointerdown',unlockSound);$('#domino-panel').addEventListener?.('keydown',unlockSound);$('#domino-sound').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('our-place:domino:sound',soundOn?'on':'off');}catch{}soundButton();if(soundOn)unlockSound(true);};$('#domino-open').onclick=()=>{opened=true;fullView=false;unlockSound();show();render();host.revealPanel?.('#domino-panel');};
  $('#domino-collapse').onclick=()=>closeGame();
  for(const m of ['solo','shared'])$('#domino-'+m+'-tab').onclick=()=>{mode=m;picked=null;signature='';render();};
  $('#domino-start').onclick=()=>command('create',{mode,difficulty:$('#domino-difficulty').value,target:Number($('#domino-target').value),turnSeconds:Number($('#domino-timer').value)||0},null);

@@ -127,7 +127,7 @@ function init(options){host=options;
  grip.onpointerup=endDrag;grip.onpointercancel=endDrag;grip.onlostpointercapture=endDrag;
  grip.onkeydown=e=>{const change={ArrowUp:-20,ArrowDown:20,Home:-10000,End:10000}[e.key];if(change!==undefined){e.preventDefault();resizeChat(chatHeight+change);}};
 
-$('#media-search').onsubmit=find;document.querySelectorAll('[data-media-mode]').forEach(b=>b.onclick=()=>{host.goto('together');pane().hidden=false;setMode(b.dataset.mediaMode);$('#media-recent').open=false;render();});
+$('#media-search').onsubmit=find;document.querySelectorAll('[data-media-mode]').forEach(b=>b.onclick=()=>{host.goto('together');pane().hidden=false;setMode(b.dataset.mediaMode);$('#media-recent').open=false;render();host.revealPanel?.('#media-panel');});
  $('#media-invite').onclick=async()=>{if(busy)return;try{if(current()){await action('media.invite');return;}if(!selected)return;busy=true;const t=selected;await host.command('media.create',{mode,track:t,position:ready?player.getCurrentTime():0});await host.sync();if(shared?.owner===who){activeId=shared.id;allowed=true;applyPlayback(true);}say('Invitation sent to '+other()+'.');}catch(e){fail(e);}finally{busy=false;applyPlayback(true);render();}};
  $('#media-play').onclick=()=>{if(!ready)return;allowed=true;$('#media-resume').hidden=true;if(current()){publish(player.getPlayerState()!==1).catch(fail);}else player.getPlayerState()===1?player.pauseVideo():player.playVideo();};
  $('#media-resume').onclick=()=>{allowed=true;$('#media-resume').hidden=true;mutedUntil=performance.now()+1000;if(!ready&&selected)mount(selected,true);else if(current())applyPlayback(true);else player?.playVideo?.();};

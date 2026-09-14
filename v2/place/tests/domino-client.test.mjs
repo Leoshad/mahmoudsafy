@@ -105,7 +105,7 @@ test('game refresh retains the table container and unplayed hand buttons',async(
  const get=cls=>all(a.get('#domino-game')).find(e=>e.className===cls),board=get('domino-board'),area=get('domino-table-area'),hand=get('domino-hand'),buttons=[...hand.children];
  const g=state.domino.solo.Mahmoud,tile=g.hands.Mahmoud[0];g.hands.Mahmoud.shift();g.chain.push({...tile,order:1});state.version++;a.sync();
  assert.equal(get('domino-board'),board);assert.equal(get('domino-table-area'),area);assert.equal(get('domino-hand'),hand);assert.equal(hand.children.length,6);
- assert.equal(hand.children[0],buttons[1]);assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),true);
+ assert.equal(hand.children[0],buttons[1]);assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),false);
  assert.equal(board._unit,25,'opening tile uses readable full size');
  await click(a.get('#domino-chat'));assert.equal(a.get('#domino-panel').hidden,true);
 });
@@ -115,7 +115,8 @@ test('completed match presents result and next steps separately from the hand',a
  const nodes=all(a.get('#domino-game')),card=nodes.find(e=>e.className==='domino-result');assert.ok(card);assert.ok(all(card).some(e=>e.textContent==='You won!'));
  assert.ok(all(card).some(e=>e.textContent==='Mahmoud 108 · Computer 6 / 100'));assert.ok(all(card).some(e=>e.textContent==='New match'));
  assert.ok(!all(card).some(e=>e.className==='domino-hand'));
- await click(nodes.find(e=>e.textContent==='Exit full screen'));assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),false);assert.equal(g.status,'complete');
+ await click(nodes.find(e=>e.textContent==='Full screen'));
+ await click(all(a.get('#domino-game')).find(e=>e.textContent==='Exit full screen'));assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),false);assert.equal(g.status,'complete');
  await click(all(a.get('#domino-game')).find(e=>e.textContent==='Back'));assert.equal(a.get('#domino-panel').hidden,true);
 });
 test('round result offers next round and table pips retain their natural orientation',async()=>{
@@ -145,6 +146,7 @@ test('timer selection reaches the server and countdown is separate from table up
 });
 test('minimized and closed preferences survive refresh and closing pauses play',async()=>{
  const state=initial(),storage=new Map(),a=client('Mahmoud',state,[],storage);await click(a.get('#domino-open'));await click(a.get('#domino-start'));
+ await click(all(a.get('#domino-game')).find(e=>e.textContent==='Full screen'));
  await click(all(a.get('#domino-game')).find(e=>e.textContent==='Exit full screen'));
  const b=client('Mahmoud',state,[],storage);assert.equal(b.get('#domino-panel').hidden,false);assert.equal(b.get('#domino-panel').classList.contains('domino-focused'),false);
  await click(b.get('#domino-collapse'));assert.equal(state.domino.solo.Mahmoud.paused,true);
