@@ -49,3 +49,14 @@ Before live use:
 20 local Node tests pass, covering domain rules, real local HTTP/SSE to two independent cookie clients, privacy, approval conflicts, durable restart, idempotency, budgets, streaming parser and cancellation. Supabase authentication and OpenAI are substituted by deterministic test adapters: these tests do not establish live credentials, model availability, image understanding, real-device performance or visual approval of the implementation. Production entrypoint has no demo-auth route or model fallback.
 
 The source is isolated under `v2/place/`. The existing `v2/render.yaml`, world experiment, main branch and V1 are not changed by this implementation.
+
+
+### Profiles and Our Dates — 2026-09-14
+
+Each invited account can edit its own photo, optional bio and birthday. Uploaded profile photos are cropped locally to a square and displayed as circles in chat, profiles, Ocho and Dominoes. Profile names remain the authenticated account names. A hidden age also removes the full birth date and birth year from the partner's API, SSE and export. The month/day remains shared for birthday reminders. The bio is shown only within the profile. Shared crown totals are reused without changing game scoring or crown rules.
+
+Our Space now opens Our Dates. Birthdays are derived from profiles, so editing a birthday updates its single occasion. Other occasions can be shared or private, one-off or annual, associated with either person or both. Only the creator edits/deletes an occasion; each person controls their own reminder offsets and private note. Annual February 29 occasions use February 28 outside leap years. Cairo, Riyadh and UTC are supported; reminders without an occasion time use 09:00 in that zone.
+
+Reminders are calculated server-side, displayed through the existing chat bell, and refreshed by the existing SSE reconnection. Due reminders are retained for 30 days for return visits and dismissed separately for each account. Reminders scheduled before their creation/enabling are not sent retroactively. This release does not implement closed-app push or email notifications. Personal data stays outside automatic Echo context. SQLite state and a new additive photo-owner table use the existing persistent disk.
+
+Validation: 139 Node tests pass, including two-account HTTP/SSE/export privacy, photo ownership, duplicate actions, revisions, reminder timing, annual rollover, leap years, dismissal isolation, and client profile/date form flows. Existing chat and game suites remain passing. The managed browser could not access the local preview (ERR_BLOCKED_BY_CLIENT), so these automated checks do not constitute phone/browser visual approval.
