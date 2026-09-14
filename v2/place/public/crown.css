@@ -7,7 +7,7 @@
 #our-place-trial .crown-summary[hidden]{display:none}
 .crown-summary>span:nth-child(2){flex:1}.crown-summary strong,.crown-summary small{display:block}.crown-summary small{font-size:11px;color:#baa984;line-height:1.8}.crown-summary strong{font-size:16px;font-weight:600}.crown-summary-icon{font-size:36px;color:#dfbd6c}
 /* Keep each crown bound to its name; connection status follows the crown. */
-#our-place-trial #account{display:inline-flex;align-items:center;gap:10px}
+#our-place-trial #account{display:inline-flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;min-width:0;max-width:100%}
 #our-place-trial #account>span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;line-height:1.2}
 #our-place-trial #account>span.crown-holder::after{margin:0;font-size:14px;flex:none}
 #our-place-trial #presence .person{white-space:nowrap;flex-wrap:nowrap}

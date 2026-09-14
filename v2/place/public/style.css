@@ -2,7 +2,7 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial{--gold:#d1b078;--rose:#ce9ab1;font:15px/1.5 system-ui,sans-serif;color:#eee8e9;background:#111115;color-scheme:dark;max-width:1200px;margin:auto;min-height:100dvh;box-sizing:border-box}
 #our-place-trial *{box-sizing:border-box}
 #our-place-trial [hidden]{display:none!important}
-#our-place-trial header{padding:22px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px;border-bottom:1px solid #30272e;background:linear-gradient(115deg,#111115,#211820)}
+#our-place-trial header{padding:22px 28px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid #30272e;background:linear-gradient(115deg,#111115,#211820)}
 #our-place-trial .brand{font:500 27px Georgia,serif;letter-spacing:.5px}
 #our-place-trial .overline{font-size:11px;letter-spacing:3px;color:var(--gold);margin-bottom:5px}
 #our-place-trial .heart{color:var(--rose)}
@@ -217,8 +217,10 @@ body{margin:0;background:#0b0b0e}
 
 #our-place-trial .history-button{display:block;margin:0 auto 12px;background:transparent;color:var(--gold);font-size:12px;min-height:44px}
 
-#our-place-trial .header-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
-#our-place-trial #install-app{font-size:12px;min-height:40px;padding:6px 10px}
+#our-place-trial .header-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end;min-width:0;max-width:100%;margin-left:auto}
+#our-place-trial #install-app{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;flex:0 0 40px;color:var(--gold)}
+#our-place-trial #install-app svg{display:block;flex:none}
+#our-place-trial .header-actions button{white-space:nowrap;flex-shrink:0}
 #our-place-trial dialog{max-width:min(460px,90vw);background:#211921;color:#eee8e9;border:1px solid #765767;border-radius:16px;padding:24px}
 #our-place-trial dialog::backdrop{background:#0009}
 #our-place-trial .delete-confirm{padding:12px;border:1px solid #996c81;border-radius:10px}
