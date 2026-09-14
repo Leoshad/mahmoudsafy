@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <defs>
+  <path id="leaf" d="M15 93V69C15 32 42 19 83 24v25c0 32-24 49-68 44Z"/>
+  <clipPath id="leaf-clip"><use href="#leaf" xlink:href="#leaf"/></clipPath>
+  <path id="shield-shape" d="M15 31Q35 33 50 23q15 10 35 8v32q0 24-35 42Q15 88 15 64Z"/>
+  <clipPath id="shield-clip"><use href="#shield-shape" xlink:href="#shield-shape"/></clipPath>
+  <path id="x-shape" d="M13 29h25l12 18 12-18h25L64 62l24 33H63L50 76 37 95H12l24-33Z"/>
+  <clipPath id="x-clip"><use href="#x-shape" xlink:href="#x-shape"/></clipPath>
+  <g id="four-colors"><path fill="#ffcc25" d="M0 0h50v62H0Z"/><path fill="#ff4c4c" d="M50 0h50v62H50Z"/><path fill="#188ed9" d="M0 62h50v58H0Z"/><path fill="#6bc440" d="M50 62h50v58H50Z"/></g>
+  <g id="reverse-arrows"><path d="M30 52a24 24 0 0 1 42-7l7-5v24H55l8-7a14 14 0 0 0-25-1Z" fill="currentColor"/><path d="M70 72a24 24 0 0 1-42 7l-7 5V60h24l-8 7a14 14 0 0 0 25 1Z" fill="currentColor"/></g>
+ </defs>
+ <symbol id="number" viewBox="0 0 100 120"><use href="#leaf" xlink:href="#leaf" fill="#fffdf5"/></symbol>
+ <symbol id="skip" viewBox="0 0 100 120"><use href="#leaf" xlink:href="#leaf" fill="#fffdf5"/><circle cx="50" cy="60" r="21" fill="none" stroke="currentColor" stroke-width="9"/><path d="m34 76 32-32" stroke="currentColor" stroke-width="9"/></symbol>
+ <symbol id="reverse" viewBox="0 0 100 120"><use href="#leaf" xlink:href="#leaf" fill="#fffdf5"/><use href="#reverse-arrows" xlink:href="#reverse-arrows"/></symbol>
+ <symbol id="draw2" viewBox="0 0 100 120"><use href="#leaf" xlink:href="#leaf" fill="#fffdf5"/><g fill="currentColor" stroke="#fffdf5" stroke-width="5" stroke-linejoin="round"><rect x="27" y="48" width="30" height="40" rx="3"/><rect x="45" y="32" width="30" height="40" rx="3"/></g><g fill="none" stroke="currentColor" stroke-opacity=".25"><rect x="23" y="44" width="38" height="48" rx="5"/><rect x="41" y="28" width="38" height="48" rx="5"/></g></symbol>
+ <symbol id="wild" viewBox="0 0 100 120"><g clip-path="url(#leaf-clip)"><use href="#four-colors" xlink:href="#four-colors"/></g><text x="50" y="84" text-anchor="middle" font-family="Arial,sans-serif" font-size="69" font-weight="900" fill="white" stroke="#493b53" stroke-width="4" paint-order="stroke">8</text></symbol>
+ <symbol id="draw4" viewBox="0 0 100 120"><g stroke="#fffdf5" stroke-width="5" stroke-linejoin="round"><rect x="8" y="44" width="31" height="43" rx="3" fill="#ffcd26"/><rect x="62" y="44" width="31" height="43" rx="3" fill="#62c64a"/><rect x="35" y="22" width="31" height="43" rx="3" fill="#ff4a50"/><rect x="35" y="71" width="31" height="43" rx="3" fill="#178ddb"/></g></symbol>
+ <symbol id="booblue" viewBox="0 0 100 120"><path fill="#fffdf5" fill-rule="evenodd" d="M25 93V69C2 66 9 45 25 53V44C25 10 77 10 77 44v9c16-8 23 13 0 16v24c-9 9-13-5-19 0-8 9-12-4-18 0-6 7-11 6-15 0Zm11-42a5 5 0 1 0 10 0 5 5 0 0 0-10 0Zm21 0a5 5 0 1 0 10 0 5 5 0 0 0-10 0Zm-11 15a6 8 0 1 0 12 0 6 8 0 0 0-12 0Z"/></symbol>
+ <symbol id="deadred" viewBox="0 0 100 120"><path fill="#fffdf5" fill-rule="evenodd" d="M50 22C7 22 7 70 31 81v12q0 6 7 6h3V86h5v13h9V86h5v13h4q6 0 6-7V81c24-11 23-59-20-59ZM25 59a11 11 0 1 0 22 0 11 11 0 0 0-22 0Zm31 0a11 11 0 1 0 22 0 11 11 0 0 0-22 0ZM44 80q6-17 13 0l-7-3Z"/></symbol>
+ <symbol id="shield" viewBox="0 0 100 120"><use href="#shield-shape" xlink:href="#shield-shape" fill="#493b53" stroke="#fffdf5" stroke-width="7"/><g clip-path="url(#shield-clip)"><use href="#four-colors" xlink:href="#four-colors" transform="translate(7 7) scale(.86)"/></g><use href="#shield-shape" xlink:href="#shield-shape" fill="none" stroke="#fffdf5" stroke-width="5"/><path d="m80 18 5 13 12 6-12 6-5 15-5-15-12-6 12-6Z" fill="#fff0b6"/></symbol>
+ <symbol id="xray" viewBox="0 0 100 120"><use href="#x-shape" xlink:href="#x-shape" fill="#493b53" stroke="#fffdf5" stroke-width="7" stroke-linejoin="round"/><g clip-path="url(#x-clip)"><use href="#four-colors" xlink:href="#four-colors"/></g><path d="M24 61q27-34 53 0-26 32-53 0Z" fill="#493b53" stroke="#fffdf5" stroke-width="5"/><circle cx="50" cy="61" r="12" fill="#fffdf5"/><circle cx="50" cy="61" r="7" fill="#493b53"/><circle cx="46" cy="56" r="3" fill="#fffdf5"/></symbol>
+ <symbol id="back" viewBox="0 0 100 120"><rect x="12" y="9" width="76" height="102" rx="7" fill="none" stroke="#b6a386" stroke-width="2"/><path d="m50 19 29 41-29 41L21 60Z" fill="none" stroke="#b6a386" stroke-width="2"/><path d="m50 31 20 29-20 29-20-29Z" fill="none" stroke="#b6a386" stroke-opacity=".4"/><text x="50" y="76" text-anchor="middle" font-family="Georgia,serif" font-size="48" fill="#e8d3a3">8</text></symbol>
+</svg>
