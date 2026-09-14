@@ -19,6 +19,36 @@ function paintPresence(known=true){const root=$('#presence');root.replaceChildre
 function connect(){source?.close();source=new EventSource('/api/events');source.addEventListener('snapshot',e=>absorb(JSON.parse(e.data)));source.addEventListener('presence',e=>{online=JSON.parse(e.data).online;paintPresence();});source.addEventListener('delta',e=>{const d=JSON.parse(e.data),m=state?.messages.find(m=>m.id===d.id);if(m){const f=$('#timeline'),mark=tab==='chat'?PlaceScroll.capture(f):null;m.text+=d.text;const p=document.getElementById('text-'+d.id);if(p&&mark)renderMessageText(p,m);if(mark)PlaceScroll.restore(f,mark);}});source.addEventListener('wall-delta',e=>wall.delta(JSON.parse(e.data)));source.addEventListener('notice',e=>info(JSON.parse(e.data).text));source.onerror=()=>{paintPresence(false);window.OurMedia?.connection(false);};}
 $('#login-form').onsubmit=async e=>{e.preventDefault();const b=e.submitter;b.disabled=true;$('#login-error').textContent='';try{await api('login',{email:$('#email').value,password:$('#password').value});$('#password').value='';await sync();connect();}catch(e){$('#login-error').textContent=e.message;}finally{b.disabled=false;}};
 document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>goto(b.dataset.tab));
+// Main-section swipe navigation. Nested activities own their gestures.
+(()=>{
+ const root=$('#app'),tabs=['chat','together','space'];let gesture=null,suppressUntil=0;
+ const blocked='input,textarea,select,button,a,summary,label,[contenteditable],dialog,[role="dialog"],canvas,video,audio,iframe,#ocho-panel,#domino-panel,#court-panel,#media-panel,[data-no-tab-swipe]';
+ function available(){return !!state&&tabs.includes(tab)&&!document.querySelector('dialog[open],[aria-modal="true"]')&&!window.getSelection()?.toString();}
+ root.addEventListener('touchstart',e=>{
+  gesture=null;if(e.touches.length!==1||!available()||e.target.closest(blocked))return;
+  const t=e.touches[0];if(t.clientX<24||t.clientX>window.innerWidth-24)return;
+  for(let n=e.target;n&&n!==root;n=n.parentElement){if(n.scrollWidth>n.clientWidth+2&&/auto|scroll/.test(getComputedStyle(n).overflowX))return;}
+  gesture={id:t.identifier,x:t.clientX,y:t.clientY,started:performance.now(),tab,locked:false};
+ },{passive:true});
+ root.addEventListener('touchmove',e=>{
+  const g=gesture;if(!g)return;if(e.touches.length!==1||!available()||tab!==g.tab){gesture=null;return;}
+  const t=e.touches[0],dx=t.clientX-g.x,dy=t.clientY-g.y;
+  if(!g.locked){if(Math.abs(dy)>10&&Math.abs(dy)>=Math.abs(dx)*0.65){gesture=null;return;}if(Math.abs(dx)>18&&Math.abs(dx)>Math.abs(dy)*1.6)g.locked=true;}
+  if(g.locked&&e.cancelable)e.preventDefault();
+ },{passive:false});
+ root.addEventListener('touchend',e=>{
+  const g=gesture;gesture=null;if(!g||!available()||tab!==g.tab||performance.now()-g.started>800)return;
+  const t=[...e.changedTouches].find(t=>t.identifier===g.id);if(!t)return;
+  const dx=t.clientX-g.x,dy=t.clientY-g.y;
+  if(Math.abs(dx)<64||Math.abs(dx)<Math.abs(dy)*1.6)return;
+  suppressUntil=performance.now()+400;const next=tabs[tabs.indexOf(tab)+(dx<0?1:-1)];if(!next)return;
+  goto(next);
+  if(!window.matchMedia('(prefers-reduced-motion: reduce)').matches)$('#'+next).animate?.([{opacity:0.65},{opacity:1}],{duration:160,easing:'ease-out'});
+ },{passive:true});
+ root.addEventListener('touchcancel',()=>{gesture=null;},{passive:true});
+ root.addEventListener('click',e=>{if(performance.now()<suppressUntil){e.preventDefault();e.stopPropagation();}},true);
+})();
+
 function paint(){if(!state)return;paintWallpaper();const paused=state.pauses.length>0,mine=state.pauses.includes(state.who);$('#pause').textContent=mine?'Allow Echo':'Pause Echo';$('#silence').textContent=mine?'Allow Echo for me':'Pause Echo for me';$('#ask-label').textContent='Echo';$('#echo-power').textContent=state.echoInvited&&!paused?'On':'Off';$('#echo-switch').classList.toggle('is-on',!!state.echoInvited&&!paused);$('#ask').checked=!!state.echoInvited&&!paused;$('#ask').disabled=paused;$('#invite-hint').textContent=paused?'Paused — resume permissions in More':state.echoInvited?'On for both · each message can use AI credit':'Off · stays on when invited';$('#echo-status').textContent=state.jobs.some(j=>j.scope==='shared')?(paused?'Echo is replying once · Just Us stays on':'Echo is replying…'):paused?'Just Us · paused by '+state.pauses.join(' & '):state.aiConnected?(state.echoInvited?'Echo is with you · turn off to silence':'Echo is silent · invite when you want'):'Echo is not connected';$('#recall').textContent=paused?'Ask Echo once to recap':'Ask Echo to recap';$('#stop').hidden=!state.jobs.length;$('#prep-status').textContent=state.jobs.some(j=>j.scope==='private')?' Preparing… You can keep chatting.':'';$('#compose').placeholder='Message '+(state.who==='Mahmoud'?'Safy':'Mahmoud')+'…';$('#launch').textContent='Launch for '+(state.who==='Mahmoud'?'Safy':'Mahmoud');$('#launch').disabled=!state.draft.length;$('#launch').hidden=!state.draft.length;$('#prep-progress').hidden=!state.jobs.some(j=>j.scope==='private');$('#draft-count').textContent=state.draft.length+' / 10 questions · Private to '+state.who;const mark=tab==='chat'?PlaceScroll.capture($('#timeline')):null;paintFeed();paintDraft();paintProposals();paintPins();if(mark){PlaceScroll.restore($('#timeline'),mark);updateLatest();updateActivityReminder();}if(tab==='space')paintItems();}
 function closeFollowups(){followupsOpen=false;$('#activity-list').hidden=true;paintPins();updateActivityReminder();}
 $('#followups').onclick=()=>{followupsOpen=!followupsOpen;$('#pinned').open=false;$('#activity-list').hidden=true;paintPins();updateActivityReminder();};
