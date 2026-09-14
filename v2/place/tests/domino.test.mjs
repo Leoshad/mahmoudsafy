@@ -92,7 +92,7 @@ test('50/100 match targets archive one win, survive persistence, and separate so
  dominoChange(s,'Mahmoud','domino.create',{mode:'shared',target:50});act(s,'Safy','accept');let g=s.domino.shared;
  g.scores.Mahmoud=49;g.hands={Mahmoud:[{id:'1-1',a:1,b:1}],Safy:[{id:'3-4',a:3,b:4}]};g.chain=[];g.turn='Mahmoud';
  act(s,'Mahmoud','play',{tile:'1-1',side:'right'});
- assert.equal(g.status,'complete');assert.equal(g.matchWinner,'Mahmoud');
+ assert.equal(g.status,'complete');assert.equal(g.matchWinner,'Mahmoud');assert.equal(s.competition.totals.Mahmoud,1);assert.equal(s.competition.holder,'Mahmoud');
  assert.equal(s.domino.records.shared.wins.Mahmoud,1);assert.equal(s.domino.records.shared.history[0].scores.Mahmoud,56);
  assert.throws(()=>act(s,'Mahmoud','rematch'),/Finish/);dominoTick(s,Date.now()+5000);
  assert.equal(s.domino.records.shared.history.length,1);

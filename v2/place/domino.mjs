@@ -1,3 +1,4 @@
+import {recordCompetitiveResult} from './crown.mjs';
 import {randomUUID,randomInt} from 'node:crypto';
 import {check,names} from './domain.mjs';
 const opponent=(g,who)=>g.players.find(n=>n!==who);
@@ -53,6 +54,7 @@ function ledger(s,g){
 }
 function archive(s,g,now,completed){
  if(g.archived)return;
+ recordCompetitiveResult(s,{game:'domino',title:'Dominoes',matchId:g.id,participants:g.players,mode:g.mode,status:completed?'complete':'ended',winner:completed?g.result.winner:null},now);
  const records=ledger(s,g);g.archived=true;
  const winner=completed?g.result.winner:null;
  if(winner)records.wins[winner]=(records.wins[winner]??0)+1;

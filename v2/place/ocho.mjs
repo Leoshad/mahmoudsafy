@@ -1,3 +1,4 @@
+import {recordCompetitiveResult} from './crown.mjs';
 import {randomUUID,randomInt} from 'node:crypto';
 import {check,names} from './domain.mjs';
 export const COLORS=['red','blue','green','yellow'];
@@ -21,7 +22,7 @@ export function ochoLegal(g,who){
 }
 function draw(g,who,count){let n=0;while(n<count){if(!g.stock.length){if(g.pile.length<=1)break;const top=g.pile.pop();g.stock=shuffle(g.pile);g.pile=[top];}g.hands[who].push(g.stock.pop());n++;}if(n){g.drawSerial=(g.drawSerial??0)+1;g.drawEvents=[...(g.drawEvents??[]),{id:g.drawSerial,by:who,count:n}].slice(-12);}return n;}
 function clock(g,now){g.deadline=g.status==='active'&&!g.pausedBy.length&&g.turnSeconds?now+g.turnSeconds*1000:null;g.botDue=g.status==='active'&&!g.pausedBy.length&&g.turn==='Computer'?now+1400:null;}
-function record(s,g,now){if(g.recorded)return;g.recorded=true;const r=g.mode==='shared'?s.ocho.records.shared:s.ocho.records.solo[g.owner]??=( {wins:{[g.owner]:0,Computer:0},history:[]} );if(g.winner)r.wins[g.winner]=(r.wins[g.winner]||0)+1;r.history.unshift({id:g.id,winner:g.winner??null,status:g.status,at:new Date(now).toISOString()});r.history=r.history.slice(0,100);}
+function record(s,g,now){if(g.recorded)return;recordCompetitiveResult(s,{game:'ocho',title:'Ocho',matchId:g.id,participants:g.players,mode:g.mode,status:g.status,winner:g.winner},now);g.recorded=true;const r=g.mode==='shared'?s.ocho.records.shared:s.ocho.records.solo[g.owner]??=( {wins:{[g.owner]:0,Computer:0},history:[]} );if(g.winner)r.wins[g.winner]=(r.wins[g.winner]||0)+1;r.history.unshift({id:g.id,winner:g.winner??null,status:g.status,at:new Date(now).toISOString()});r.history=r.history.slice(0,100);}
 function finish(s,g,now){const winner=g.players.find(n=>g.hands[n].length===0);if(winner){g.status='complete';g.winner=winner;g.turn=null;g.last+=' '+winner+' wins!';record(s,g,now);}clock(g,now);}
 function deal(g,now){g.stock=shuffle(ochoDeck());g.hands=Object.fromEntries(g.players.map(n=>[n,g.stock.splice(0,8)]));const i=g.stock.findIndex(c=>c.kind==='number');g.pile=[g.stock.splice(i,1)[0]];g.color=g.pile[0].color;g.status='active';g.turn=g.owner;g.last=g.owner+' starts.';clock(g,now);}
 export function ochoLabel(c){return c.kind==='number'?c.color+' '+c.value:({draw2:'+2',draw4:'Wild +4',deadred:'Dead Red',booblue:'Boo Blue',xray:'X-Ray',shield:'Shield',wild:'Wild',skip:'Skip',reverse:'Reverse'}[c.kind]);}

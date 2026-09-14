@@ -18,7 +18,7 @@ export class Store {
     this.db.prepare('INSERT OR IGNORE INTO state VALUES(1,?)').run(JSON.stringify(initial()));
     // Unknown request cost stays charged after crashes/cancellation. Never blindly retry a billed request.
     this.db.exec("UPDATE jobs SET status='interrupted' WHERE status='running'; UPDATE messages SET status='interrupted' WHERE status='streaming'");
-    const recovered=this.state();let changed=!recovered.crownTrial;for(const item of recovered.items)for(const c of item.comments??[])if(c.by==='Echo'&&c.status==='streaming'){c.status='interrupted';c.text=c.text||'Echo was interrupted. You can ask again.';changed=true;}if(changed)this.save(recovered);
+    const recovered=this.state();let changed=recovered.competition?.schema!==1;for(const item of recovered.items)for(const c of item.comments??[])if(c.by==='Echo'&&c.status==='streaming'){c.status='interrupted';c.text=c.text||'Echo was interrupted. You can ask again.';changed=true;}if(changed)this.save(recovered);
   }
   tx(fn){this.db.exec('BEGIN IMMEDIATE');try{const r=fn();this.db.exec('COMMIT');return r;}catch(e){this.db.exec('ROLLBACK');throw e;}}
   state(){return JSON.parse(this.db.prepare('SELECT body FROM state WHERE id=1').get().body);}
