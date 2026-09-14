@@ -131,3 +131,18 @@ Background delivery follow-up: device registration is checked server-side in the
 Own sent messages show a neutral `✓ Sent`. They change to gold `✓✓ Read` only after the other human participant’s browser reports the message exposed inside the active, focused, visible chat viewport for at least 600 ms. Games, hidden tabs, open dialogs, covered messages and offscreen messages do not count. This records screen exposure, not a claim about human comprehension. Echo messages never generate human read receipts. Authenticated, idempotent receipts are persisted per message in SQLite and broadcast over SSE; snapshots and history retain the timestamp. No push is generated for a read receipt.
 
 Push latency follow-up: the foreground lease is now eight seconds, with a two-second heartbeat; queue coalescing is 300 ms and dispatch checks run every 250 ms. High urgency remains enabled for attention events. Provider acceptance logs include only queue and provider durations so server delay can be distinguished from phone delivery; they do not prove a device displayed an alert. Actual OS delivery time is not guaranteed.
+
+
+### Account settings and recovery
+
+Menu → Account settings lets the signed-in person change their email or password. Password changes verify the current password, accept 12–128 characters without trimming, keep the current device signed in and revoke the same person’s other local sessions, including unmapped legacy sessions. Provider `logout?scope=others` is also requested; failures cannot restore revoked local sessions. No changes affect the partner’s session, content, points or stable identity.
+
+Membership is bound to the Supabase user UUID in the existing identities table. Environment emails bootstrap only an unbound identity. An already bound account cannot be claimed through an old email or editable user metadata. Confirmed current emails are stored for recovery routing. A pending email never replaces the stable identity or bypasses provider confirmation.
+
+Forgot password sends the standard Supabase recovery email with an S256 PKCE challenge. The encrypted verifier and later recovery tokens stay server-side, with an opaque HttpOnly cookie, 30-minute expiry and one-time completion. Open the email link in the same browser that requested it; cross-browser/PWA-to-Safari opening cannot exchange that verifier and must request a new link there. Recovery does not open the normal app until the new password has been saved. Email-change URL fragments are discarded, never used to sign in another account.
+
+Deployment configuration: the V2 Supabase project must have Site URL / allowed redirect URL `https://mahmoud-safy-our-place.onrender.com/`, confirmed email and secure email change enabled, and an email sender configured for both current and new recipient addresses. This change does not edit Supabase configuration or send test messages to real accounts. The connector exposes SQL but not Auth configuration; SMTP delivery, secure-email-change setting and redirect allowlist require verification in the project dashboard. Default hosted mail restrictions can prevent delivery to arbitrary new addresses. No new paid mail service is created.
+
+Validation uses an isolated provider mock for current-password validation, email continuity, other-device revocation, anti-takeover, CSRF, recovery PKCE binding, one-time reset, and whitespace-preserving passwords. Production credentials were not changed and real confirmation email delivery is not claimed tested.
+
+References: https://supabase.com/docs/guides/auth/passwords and https://supabase.com/docs/guides/auth/auth-email-templates .
