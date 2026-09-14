@@ -56,7 +56,7 @@
 #our-place-trial .ocho-full .ocho-records{grid-row:1;padding:3px;font-size:12px}
 #our-place-trial .ocho-full .ocho-table{grid-row:2;min-height:0;padding:8px;gap:4px;overflow:hidden}
 #our-place-trial .ocho-full .ocho-actions{grid-row:3;margin:0;padding:0}
-#our-place-trial .ocho-full .ocho-self{grid-row:4;display:flex;flex-direction:column;max-height:clamp(108px,22dvh,176px)}
+#our-place-trial .ocho-full .ocho-self{grid-row:4;display:flex;flex-direction:column;max-height:min(42dvh,340px)}
 #our-place-trial .ocho-full .ocho-footer{grid-row:5}
 #our-place-trial .ocho-full .ocho-hand{min-height:92px;overflow:auto;overscroll-behavior:contain;align-content:flex-start;gap:7px;padding:7px 3px;scrollbar-width:thin}
 #our-place-trial .ocho-full .ocho-center{flex:1;min-height:116px;height:auto;margin:0}
