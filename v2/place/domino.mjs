@@ -62,10 +62,10 @@ function archive(s,g,now,completed){
 function settleMatch(s,g,now){
  if(g.status==='finished'&&g.result?.winner&&g.scores[g.result.winner]>=(g.target??100)){g.status='complete';g.matchWinner=g.result.winner;archive(s,g,now,true);}
 }
-function resetClock(g,now){g.turnDeadline=g.status==='active'&&g.turnSeconds?now+g.turnSeconds*1000:null;}
+function resetClock(g,now){g.turnDeadline=g.status==='active'&&!g.paused&&g.turnSeconds?now+g.turnSeconds*1000:null;}
 function scheduleBot(g,now){g.botDueAt=g.status==='active'&&g.turn==='Computer'?now+1100:null;}
 export function dominoDue(s,now=Date.now()){
- return [s.domino?.shared,...Object.values(s.domino?.solo??{})].some(g=>g?.status==='active'&&(g.turn==='Computer'&&(g.botDueAt??0)<=now||g.turnDeadline&&g.turnDeadline<=now));
+ return [s.domino?.shared,...Object.values(s.domino?.solo??{})].some(g=>g?.status==='active'&&!g.paused&&(g.turn==='Computer'&&(g.botDueAt??0)<=now||g.turnDeadline&&g.turnDeadline<=now));
 }
 function timedMove(g){
  const who=g.turn;let drawn=0,move=legalMoves(g.hands[who],g.chain)[0];
@@ -75,7 +75,7 @@ function timedMove(g){
 }
 export function dominoTick(s,now=Date.now()){
  let changed=false;for(const g of [s.domino?.shared,...Object.values(s.domino?.solo??{})]){
-  if(!g||g.status!=='active')continue;
+  if(!g||g.status!=='active'||g.paused)continue;
   if(g.turn==='Computer'&&(g.botDueAt??0)<=now){bots(g);g.botDueAt=null;}
   else if(g.turnDeadline&&g.turnDeadline<=now){timedMove(g);scheduleBot(g,now);}
   else continue;
@@ -102,6 +102,14 @@ export function dominoChange(s,who,type,p={},now=Date.now()){
   if(type==='domino.accept'||type==='domino.decline'){
    check(g.mode==='shared'&&g.owner!==who&&g.status==='waiting'&&g.expires>now,'This invitation has expired or changed.',409);
    if(type==='domino.accept')deal(g,now);else{g.status='declined';g.last={text:who+' declined the invitation.'};}
+  }else if(type==='domino.pause'){
+   check(g.status==='active','Only an active game can be paused.',409);
+   if(!g.paused){g.clockRemaining=g.turnDeadline?Math.max(0,g.turnDeadline-now):null;g.botRemaining=g.botDueAt?Math.max(0,g.botDueAt-now):null;}
+   g.paused=true;g.pausedBy=[...new Set([...(g.pausedBy??[]),who])];g.turnDeadline=null;g.botDueAt=null;
+  }else if(type==='domino.resume'){
+   check(g.status==='active'&&g.paused,'This game is not paused.',409);
+   g.pausedBy=(g.pausedBy??[]).filter(n=>n!==who);g.paused=!!g.pausedBy.length;
+   if(!g.paused){g.turnDeadline=g.turnSeconds?now+(g.clockRemaining??g.turnSeconds*1000):null;g.botDueAt=g.turn==='Computer'?now+(g.botRemaining??1100):null;}
   }else if(type==='domino.leave'){
    check(g.status==='active'||g.status==='waiting'||g.status==='finished'||g.status==='complete','This game has ended.',409);
    check(g.status!=='waiting'||g.owner===who,'Accept or decline this invitation.',403);
@@ -111,7 +119,7 @@ export function dominoChange(s,who,type,p={},now=Date.now()){
    if(g.mode==='shared'){g.owner=who;g.status='waiting';g.expires=now+600000;g.hands={};g.stock=[];g.chain=[];g.last={text:who+' invited you to another round.'};}
    else{deal(g,now);scheduleBot(g,now);}
   }else{
-   check(g.status==='active'&&g.turn===who,'Wait for your turn.',409);
+   check(g.status==='active'&&!g.paused&&g.turn===who,'Wait for your turn.',409);
    check(!g.turnDeadline||g.turnDeadline>now,'Your time ran out. The game is updating.',409);
    if(type==='domino.play')play(g,who,p.tile,p.side);
    else if(type==='domino.draw'){check(!legalMoves(g.hands[who],g.chain).length,'Play a matching tile first.');check(g.stock.length,'No tiles left to draw. Pass instead.');g.hands[who].push(g.stock.pop());g.last={text:who+' drew a tile.'};}
@@ -127,7 +135,7 @@ export function dominoChange(s,who,type,p={},now=Date.now()){
 function view(g,who,now){
  if(!g||!g.players.includes(who))return null;
  const status=g.status==='waiting'&&g.expires<=now?'expired':g.status;
- const hand=g.hands[who]??[],other=opponent(g,who),legal=status==='active'&&g.turn===who?legalMoves(hand,g.chain):[];
- return {turnSeconds:g.turnSeconds??0,turnDeadline:g.turnDeadline??null,id:g.id,revision:g.revision,target:g.target??100,matchWinner:g.matchWinner??null,lastMove:g.lastMove??null,botDueAt:g.botDueAt??null,owner:g.owner,mode:g.mode,difficulty:g.difficulty,players:g.players,status,expires:g.expires,round:g.round,scores:g.scores,chain:g.chain,turn:g.turn,result:g.result,last:g.last,hand:status==='waiting'||status==='expired'?[]:hand,opponent:other,opponentCount:g.hands[other]?.length??0,stockCount:g.stock.length,legal,canDraw:status==='active'&&g.turn===who&&!legal.length&&!!g.stock.length,canPass:status==='active'&&g.turn===who&&!legal.length&&!g.stock.length};
+ const hand=g.hands[who]??[],other=opponent(g,who),legal=status==='active'&&!g.paused&&g.turn===who?legalMoves(hand,g.chain):[];
+ return {paused:!!g.paused,pausedBy:g.pausedBy??[],turnSeconds:g.turnSeconds??0,turnDeadline:g.turnDeadline??null,id:g.id,revision:g.revision,target:g.target??100,matchWinner:g.matchWinner??null,lastMove:g.lastMove??null,botDueAt:g.botDueAt??null,owner:g.owner,mode:g.mode,difficulty:g.difficulty,players:g.players,status,expires:g.expires,round:g.round,scores:g.scores,chain:g.chain,turn:g.turn,result:g.result,last:g.last,hand:status==='waiting'||status==='expired'?[]:hand,opponent:other,opponentCount:g.hands[other]?.length??0,stockCount:g.stock.length,legal,canDraw:status==='active'&&!g.paused&&g.turn===who&&!legal.length&&!!g.stock.length,canPass:status==='active'&&!g.paused&&g.turn===who&&!legal.length&&!g.stock.length};
 }
 export function dominoSnapshot(s,who,now=Date.now()){return {solo:view(s.domino?.solo?.[who],who,now),shared:view(s.domino?.shared,who,now),records:{shared:s.domino?.records?.shared??{wins:{Mahmoud:0,Safy:0},history:[]},solo:s.domino?.records?.solo?.[who]??{wins:{[who]:0,Computer:0},history:[]}}};}

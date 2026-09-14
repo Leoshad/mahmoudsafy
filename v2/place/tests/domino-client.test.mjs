@@ -67,11 +67,11 @@ test('tile sounds play once per new move, respect mute and preserve preference a
  a.context.AudioContext=class {state='running';currentTime=0;destination={};createOscillator(){return {frequency:param,connect(){},disconnect(){},start(){starts++;},stop(){}};}createGain(){return {gain:param,connect(){},disconnect(){}};}};
  await click(a.get('#domino-open'));await click(a.get('#domino-start'));
  await click(a.get('#domino-sound'));await click(a.get('#domino-sound'));
- const g=state.domino.solo.Mahmoud;g.lastMove={id:'1-2',order:1,by:'Mahmoud'};state.version++;a.sync();assert.equal(starts,2);
- a.sync();assert.equal(starts,2);
- await click(a.get('#domino-sound'));g.lastMove.order=2;state.version++;a.sync();assert.equal(starts,2);
+ const g=state.domino.solo.Mahmoud;g.lastMove={id:'1-2',order:1,by:'Mahmoud'};state.version++;a.sync();assert.equal(starts,4);
+ a.sync();assert.equal(starts,4);
+ await click(a.get('#domino-sound'));g.lastMove.order=2;state.version++;a.sync();assert.equal(starts,4);
  const b=client('Mahmoud',state,[],storage);assert.equal(b.get('#domino-sound').textContent,'Muted');
- await click(a.get('#domino-sound'));a.context.document.hidden=true;g.lastMove.order=3;state.version++;a.sync();assert.equal(starts,2);
+ await click(a.get('#domino-sound'));a.context.document.hidden=true;g.lastMove.order=3;state.version++;a.sync();assert.equal(starts,6);
 });
 test('adding tiles at either end preserves every previous pose and avoids overlap',()=>{
  const a=client('Mahmoud',initial(),[]),layout=a.context.DominoTable.layout;
@@ -142,4 +142,13 @@ test('timer selection reaches the server and countdown is separate from table up
  const clock=all(a.get('#domino-game')).find(e=>e.className==='domino-clock');assert.equal(clock.hidden,false);assert.match(clock.textContent,/^30s$/);
  g.status='finished';g.result={winner:null,points:0,reason:'blocked',totals:{Mahmoud:8,Computer:8}};g.turnDeadline=null;state.version++;a.sync();
  await click(all(a.get('#domino-game')).find(e=>e.textContent==='Next round'));assert.equal(g.turnSeconds,30);assert.ok(g.turnDeadline>Date.now());
+});
+test('minimized and closed preferences survive refresh and closing pauses play',async()=>{
+ const state=initial(),storage=new Map(),a=client('Mahmoud',state,[],storage);await click(a.get('#domino-open'));await click(a.get('#domino-start'));
+ await click(all(a.get('#domino-game')).find(e=>e.textContent==='Exit full screen'));
+ const b=client('Mahmoud',state,[],storage);assert.equal(b.get('#domino-panel').hidden,false);assert.equal(b.get('#domino-panel').classList.contains('domino-focused'),false);
+ await click(b.get('#domino-collapse'));assert.equal(state.domino.solo.Mahmoud.paused,true);
+ const c=client('Mahmoud',state,[],storage);assert.equal(c.get('#domino-panel').hidden,true);await click(c.get('#domino-open'));
+ let nodes=all(c.get('#domino-game'));assert.ok(nodes.filter(e=>e.className==='domino-piece'&&e.tag==='button').every(e=>e.disabled&&!e.classList.contains('playable')));
+ await click(nodes.find(e=>e.textContent==='Resume game'));assert.equal(state.domino.solo.Mahmoud.paused,false);
 });

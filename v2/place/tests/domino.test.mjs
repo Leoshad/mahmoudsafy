@@ -143,3 +143,13 @@ test('no timer remains unlimited; timer settings are validated and drawing does 
  const deadline=g.turnDeadline;dominoChange(timed,'Mahmoud','domino.draw',{game:g.id,revision:g.revision},1000);assert.equal(g.turnDeadline,deadline);
  dominoChange(timed,'Mahmoud','domino.leave',{game:g.id,revision:g.revision},1100);assert.equal(g.turnDeadline,null);assert.equal(dominoTick(timed,99999),false);
 });
+test('pause freezes human clock and bot across restart; each participant resumes their own pause',()=>{
+ const s=initial();dominoChange(s,'Mahmoud','domino.create',{mode:'shared',turnSeconds:30},1000);let g=s.domino.shared;
+ const change=(who,type,now)=>dominoChange(s,who,'domino.'+type,{game:g.id,revision:g.revision},now);
+ change('Safy','accept',1000);change('Mahmoud','pause',11000);change('Safy','pause',12000);
+ assert.equal(g.clockRemaining,20000);assert.equal(dominoTick(s,999999),false);assert.deepEqual(dominoSnapshot(s,'Mahmoud').shared.legal,[]);
+ change('Mahmoud','resume',30000);assert.equal(g.paused,true);change('Safy','resume',40000);assert.equal(g.paused,false);assert.equal(g.turnDeadline,60000);
+ const solo=initial();dominoChange(solo,'Mahmoud','domino.create',{mode:'solo',difficulty:'medium'},1000);g=solo.domino.solo.Mahmoud;g.turn='Computer';g.botDueAt=2100;
+ dominoChange(solo,'Mahmoud','domino.pause',{game:g.id,revision:g.revision},1500);const loaded=JSON.parse(JSON.stringify(solo));g=loaded.domino.solo.Mahmoud;
+ assert.equal(dominoTick(loaded,9000),false);dominoChange(loaded,'Mahmoud','domino.resume',{game:g.id,revision:g.revision},9000);assert.equal(g.botDueAt,9600);assert.equal(dominoTick(loaded,9599),false);assert.equal(dominoTick(loaded,9600),true);
+});

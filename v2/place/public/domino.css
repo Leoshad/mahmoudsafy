@@ -150,3 +150,11 @@
 #our-place-trial .domino-clock{font-size:12px;font-variant-numeric:tabular-nums;color:#dec89c;line-height:20px;padding:0 7px;border-radius:5px;background:#101a1480}
 #our-place-trial .domino-clock.clock-low{color:#ffb9a6;background:#542d2480}
 #our-place-trial .domino-timer-note{font-size:11px;line-height:1.5;color:#b5c1ae}
+
+/* Non-playable tiles share one stable appearance, including after touch and draw. */
+#our-place-trial .domino-hand .domino-piece,
+#our-place-trial .domino-hand .domino-piece:hover,
+#our-place-trial .domino-hand .domino-piece:active{background:#eee5d2;border-color:#b8a78c;filter:none;-webkit-tap-highlight-color:transparent}
+#our-place-trial .domino-hand .domino-piece:disabled{opacity:.62;outline:none;transform:none;cursor:default}
+#our-place-trial .domino-hand .domino-piece:not(:disabled){opacity:1}
+@keyframes domino-hand-receive{from{transform:translateY(-8px)}to{transform:translateY(0)}}
