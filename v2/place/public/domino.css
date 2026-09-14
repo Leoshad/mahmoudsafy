@@ -43,7 +43,6 @@
 #our-place-trial .domino-board .domino-piece{position:absolute;width:calc(var(--domino-unit)*2);height:var(--domino-unit);transform-origin:center;transition:width .3s ease-out,height .3s ease-out}
 #our-place-trial .domino-board .domino-half{width:calc(var(--domino-unit) - 2px);height:calc(var(--domino-unit) - 4px);padding:1px;transition:width .3s ease-out,height .3s ease-out}
 #our-place-trial .domino-end-label{position:absolute;font:bold 9px system-ui;color:#edcf8f}
-#our-place-trial .domino-board .computer-last{outline:2px solid #dec17e;outline-offset:2px}
 #our-place-trial .domino-arriving{animation:domino-arrive .32s ease-out both;z-index:2}
 @keyframes domino-arrive{from{transform:translate(var(--arrival-x),var(--arrival-y));opacity:.3}to{transform:translate(0,0);opacity:1}}
 #our-place-trial .domino-last{font-size:11px;color:#c5c0ad;margin:7px 0;min-height:16px}
