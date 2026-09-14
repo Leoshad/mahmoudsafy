@@ -292,3 +292,11 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial .conversation-window #pinned{position:absolute;top:6px;left:8px;right:8px;z-index:15;max-height:32%;overflow:auto;margin:0;background:#282219f5}
 #our-place-trial .conversation-window #activity-reminder{position:absolute;bottom:8px;left:8px;right:8px;z-index:16;padding:0}
 @media(max-width:380px){#our-place-trial .room-bar{gap:3px}#our-place-trial #followups{min-width:30px;padding:0 3px}}
+
+
+#our-place-trial #activity-reminder{max-height:40dvh;overflow:auto;background:#241d25;border-radius:14px;box-shadow:0 6px 24px #0006}
+#our-place-trial .proposal-reminder{display:block;width:100%;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:4px 0}
+#our-place-trial .proposal-dialog{box-sizing:border-box;width:min(520px,calc(100vw - 24px));max-height:85dvh;margin:auto;padding:20px;color:#ece4e8;background:#241d25;border:1px solid #987382;border-radius:20px;overflow:auto}
+#our-place-trial .proposal-dialog::backdrop{background:#0009}
+#our-place-trial .proposal-content{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;margin:16px 0}
+#our-place-trial .proposal-dialog .row{display:flex;flex-wrap:wrap;gap:8px;position:sticky;bottom:-20px;background:#241d25;padding:12px 0}

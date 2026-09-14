@@ -1,2 +1,13 @@
-{"name":"mahmoud-safy-our-place","private":true,"type":"module","engines":{"node":">=24.0.0"},"scripts":{"start":"node server.mjs","test":"node --test tests/*.test.mjs","check":"node --check server.mjs && node --check ai.mjs && node --check domain.mjs && node --check public/app.js && node --check public/wall.js && node --check public/media.js && node --check media.mjs && node --check domino.mjs && node --check public/domino.js"}}
-
+{
+  "name": "mahmoud-safy-our-place",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check server.mjs && node --check ai.mjs && node --check domain.mjs && node --check public/app.js && node --check public/wall.js && node --check public/media.js && node --check media.mjs && node --check domino.mjs && node --check public/domino.js && node --check ocho.mjs && node --check public/ocho.js && node --check public/disclosures.js"
+  }
+}

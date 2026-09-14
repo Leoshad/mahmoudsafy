@@ -8,13 +8,13 @@ const walk=e=>[e,...e.children.flatMap(walk)];
 function client(s){
  let doc;
  class Node{
-  constructor(tag='div'){this.tag=tag;this.children=[];this.dataset={};this.value='';this.className='';this.scrollTop=0;this.textContent='';}
+  constructor(tag='div'){this.tag=tag;this.children=[];this.dataset={};this.value='';this.className='';this.scrollTop=0;this.textContent='';this.classList={add:c=>this.className+=' '+c};}
   append(n){n.remove();n.parentElement=this;this.children.push(n);}
   insertBefore(n,b){n.remove();n.parentElement=this;const i=this.children.indexOf(b);this.children.splice(i<0?this.children.length:i,0,n);}
   remove(){if(this.parentElement){const p=this.parentElement;p.children=p.children.filter(x=>x!==this);this.parentElement=null;}}
   replaceChildren(){for(const n of [...this.children])n.remove();}
   setAttribute(k,v){this[k]=v;}removeAttribute(k){delete this[k];}
-  matches(q){if(q.startsWith('.'))return this.className.split(' ').includes(q.slice(1));if(q.startsWith('[data-field='))return this.dataset.field===q.match(/"(.*?)"/)[1];return this.tag===q;}
+  matches(q){if(q.startsWith('.'))return this.className.split(' ').includes(q.slice(1));if(q==='[data-comment]')return !!this.dataset.comment;if(q.startsWith('[data-field='))return this.dataset.field===q.match(/"(.*?)"/)[1];return this.tag===q;}
   querySelectorAll(q){return walk(this).slice(1).filter(n=>n.matches(q));}querySelector(q){return this.querySelectorAll(q)[0]??null;}
   contains(n){return walk(this).includes(n);}get isConnected(){return !!this.parentElement;}getBoundingClientRect(){return {top:0,bottom:100};}
   focus(){doc.activeElement=this;}setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}showModal(){this.open=true;}close(){this.open=false;}reset(){}
@@ -23,7 +23,7 @@ function client(s){
  const el=(t,text,p,cls)=>{const n=new Node(t);n.textContent=text??'';n.className=cls??'';p?.append(n);return n;};const failures=[],btn=(t,p,fn,cls)=>{const n=el('button',t,p,cls);n.onclick=async()=>{try{await fn();}catch(e){failures.push(e);}};return n;};
  let wall,filter='All',tab='',commands=[];
  const context={document:doc,structuredClone,Intl,Date,crypto:{randomUUID},history:{back:()=>tab='space',replaceState(){}}};context.window=context;vm.createContext(context);vm.runInContext(readFileSync(new URL('../public/wall.js',import.meta.url),'utf8'),context);
- wall=context.OurWall({getState:()=>({...s,who:'Mahmoud'}),api:async()=>({}),command:async(type,data,id)=>{commands.push({type,data,id});change(s,'Mahmoud',type,data);},sync:async()=>wall.paint(),goto:t=>tab=t,info(){},error:e=>failures.push(e),el,btn,categories:['Idea','Photo','Plan','Agreement'],getFilter:()=>filter,setFilter:v=>filter=v,openSource(){}});
+ wall=context.OurWall({getState:()=>({...s,who:'Mahmoud'}),api:async()=>({}),command:async(type,data,id)=>{commands.push({type,data,id});if(type==='item.ask'){const item=s.items.find(i=>i.id===data.id);item.comments??=[];item.comments.push({id:randomUUID(),by:'Mahmoud',text:data.question,to:'Echo'},{id:'echo-test',by:'Echo',text:'',status:'streaming'});item.revision++;}else change(s,'Mahmoud',type,data);},sync:async()=>wall.paint(),goto:t=>tab=t,info(){},error:e=>failures.push(e),el,btn,categories:['Idea','Photo','Plan','Agreement'],getFilter:()=>filter,setFilter:v=>filter=v,openSource(){}});
  return {$,wall,failures,commands,tab:()=>tab,doc};
 }
 const button=(root,text)=>walk(root).find(n=>n.tag==='button'&&n.textContent===text);
@@ -47,4 +47,22 @@ test('tab navigation and browser back restore each scrolling position',()=>{
  vm.createContext(context);vm.runInContext("let tab='space';"+source.slice(start,end)+';this.go=goto;',context);
  $('.shell').scrollTop=650;context.go('editor');assert.equal($('.shell').scrollTop,0);$('.shell').scrollTop=95;context.go('space',true);assert.equal($('.shell').scrollTop,650);
  context.go('together');$('.shell').scrollTop=430;context.go('space');assert.equal($('.shell').scrollTop,650);context.go('together',true);assert.equal($('.shell').scrollTop,430);
+});
+test('delete opens a visible modal, cancellation keeps the post, confirmation removes it after updates',async()=>{
+ const s=initial();change(s,'Mahmoud','item.save',{type:'Idea',title:'Disposable deletion test'});const c=client(s);c.wall.paint();let card=c.$('#items').children[0];await button(card,'Delete post').onclick();const modal=c.$('#our-place-trial').children.find(n=>n.className==='wall-delete-dialog');assert.equal(modal.open,true);
+ await button(modal,'Keep it').onclick();assert.equal(s.items.length,1);assert.equal(modal.open,false);
+ await button(card,'Delete post').onclick();change(s,'Safy','item.like',{id:s.items[0].id,value:true});c.wall.paint();assert.equal(modal.open,true);await button(modal,'Delete post').onclick();assert.equal(s.items.length,0);assert.equal(modal.open,false);c.wall.paint();assert.ok(c.$('#items').querySelector('.wall-empty'));assert.deepEqual(c.failures,[]);
+});
+test('wall controls: gallery, reactions, pinning, comments, filtering and approval',async()=>{
+ const s=initial();change(s,'Mahmoud','item.save',{type:'Photo',title:'Photo test',images:[randomUUID()]});const c=client(s);c.wall.paint();let card=c.$('#items').children[0];
+ await button(card,'♡ Like').onclick();assert.deepEqual(s.items[0].likes,['Mahmoud']);await button(card,'♥ 1').onclick();assert.deepEqual(s.items[0].likes,[]);
+ await button(card,'Pin for us').onclick();assert.equal(s.items[0].pinned,true);await button(card,'Unpin').onclick();assert.equal(s.items[0].pinned,false);
+ await card.querySelector('.wall-gallery').children[0].onclick();const viewer=c.$('#our-place-trial').children.find(n=>n.className==='wall-viewer');assert.equal(viewer.open,true);await button(viewer,'Close').onclick();assert.equal(viewer.open,false);
+ await button(card,'Comment').onclick();let form=card.querySelector('textarea').parentElement;card.querySelector('textarea').value='Comment test';await form.onsubmit({preventDefault(){}});assert.equal(s.items[0].comments.length,1);await button(card,'Remove').onclick();assert.equal(s.items[0].comments.length,0);
+ c.$('#space-search').value='not there';c.wall.paint();assert.ok(c.$('#items').querySelector('.wall-empty'));c.$('#space-search').value='';c.wall.paint();assert.equal(c.$('#items').children.length,1);
+ c.wall.edit(s.items[0]);c.$('#item-type').value='Agreement';c.$('#item-text').value='Test agreement';c.$('#item-ai').checked=true;await c.$('#item-form').onsubmit({preventDefault(){}});assert.equal(s.items[0].aiAllowed,true);card=c.$('#items').children[0];await button(card,'I agree').onclick();assert.deepEqual(s.items[0].approvals,['Mahmoud']);await button(card,'Withdraw my approval').onclick();assert.equal(s.items[0].approvals.length,0);assert.deepEqual(c.failures,[]);
+});
+test('Ask Echo sends the post reference, opens its thread and displays streamed reply without navigating',async()=>{
+ const s=initial();change(s,'Mahmoud','item.save',{type:'Idea',title:'Our post'});const c=client(s);c.wall.paint();const card=c.$('#items').children[0],input=card.querySelector('input');input.value='Any suggestions?';await input.parentElement.onsubmit({preventDefault(){}});assert.equal(c.commands[0].type,'item.ask');assert.equal(c.commands[0].data.id,s.items[0].id);assert.equal(c.tab(),'');assert.equal(card.querySelector('.wall-comments').open,true);
+ c.wall.delta({post:s.items[0].id,id:'echo-test',text:'Try a picnic.'});const reply=card.querySelectorAll('[data-comment]').find(n=>n.dataset.comment==='echo-test');assert.equal(reply.textContent,'Try a picnic.');assert.deepEqual(c.failures,[]);
 });

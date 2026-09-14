@@ -51,3 +51,11 @@
 #our-place-trial .wall-viewer img{display:block;max-width:85vw;max-height:75dvh;object-fit:contain;margin-top:10px}
 #our-place-trial .wall-confirm{padding:12px;border:1px solid #bc819f;border-radius:10px}
 @media(max-width:450px){#our-place-trial .wall-post{padding:14px;border-radius:16px}#our-place-trial .wall-heading h2{font-size:25px}#our-place-trial .wall-heading .label{letter-spacing:1px;font-size:9px}}
+#our-place-trial .wall-delete-dialog{width:min(380px,calc(100vw - 32px));max-height:85dvh;overflow:auto;color:#eee6e9;background:#251c28;border:1px solid #b1809b;border-radius:18px;padding:24px;box-shadow:0 20px 70px #000a}
+#our-place-trial .wall-delete-dialog::backdrop{background:#08050bc9}
+#our-place-trial .wall-delete-dialog h3{font:24px Georgia,serif;margin:0 0 12px}
+#our-place-trial .wall-delete-dialog .row{justify-content:flex-end;margin-top:20px}
+#our-place-trial .wall-danger{background:#63394d;color:#fff0f5;border-color:#ba7b99}
+#our-place-trial .wall-error{color:#f1b8c6;font-size:13px}
+#our-place-trial .wall-error:empty{display:none}
+#our-place-trial .wall-echo-comment{background:#302a20;border:1px solid #6f5b39}

@@ -65,6 +65,25 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  await t.test('SSE carries a saved message to a second authenticated connection',async()=>{const controller=new AbortController();const response=await fetch(base+'/api/events',{headers:{Cookie:cookies.safy},signal:controller.signal});const reader=response.body.getReader();await reader.read();await cmd('mahmoud','message',{text:'Stream delivery'});let received='';for(let i=0;i<5&&!received.includes('Stream delivery');i++)received+=new TextDecoder().decode((await reader.read()).value);assert.ok(received.includes('Stream delivery'));controller.abort();});
  await t.test('slow AI does not hold the human chat transaction; other person can stop it',async()=>{const r=await cmd('mahmoud','ai.ask',{prompt:'Talk to us'});assert.equal(r.status,200);const id=r.body.job;for(let i=0;i<100&&!activeAI;i++)await new Promise(r=>setTimeout(r,5));assert.ok(activeAI);assert.ok(!activeAI.context.includes('Secret first question'));const human=await cmd('safy','message',{text:'While Echo thinks'});assert.equal(human.status,200);assert.equal(s.job(id).status,'running');await cmd('safy','pause',{value:true});await waitJob(id);await new Promise(r=>setImmediate(r));assert.equal(s.job(id).status,'cancelled');assert.ok(!s.messages().find(m=>m.id===id).text.includes('MUST NOT PUBLISH'));});
  await t.test('Just Us messages are excluded; Ask once does not resume AI',async()=>{await cmd('safy','message',{text:'Private pause text'});assert.equal((await cmd('mahmoud','ai.ask',{prompt:'No explicit once'})).status,409);activeAI=null;const r=await cmd('mahmoud','ai.ask',{prompt:'One answer',once:true});for(let i=0;i<100&&!activeAI;i++)await new Promise(r=>setTimeout(r,5));assert.equal(activeAI.context,'');release();await waitJob(r.body.job);assert.deepEqual(s.state().pauses,['Safy']);await cmd('safy','pause',{value:false});});
+ await t.test('Ocho HTTP actions persist, hide hands, enforce revisions and deduplicate receipts',async()=>{
+  const createId=randomUUID();let r=await cmd('mahmoud','ocho.create',{mode:'shared',turnSeconds:0},createId);assert.equal(r.status,200);
+  const first=(await request('mahmoud','state')).body.ocho.shared;
+  assert.equal((await cmd('mahmoud','ocho.create',{mode:'shared',turnSeconds:0},createId)).status,200);
+  assert.equal((await request('mahmoud','state')).body.ocho.shared.id,first.id);
+  assert.equal((await cmd('safy','ocho.accept',{game:first.id,revision:first.revision})).status,200);
+  const a=(await request('mahmoud','state')).body.ocho.shared,b=(await request('safy','state')).body.ocho.shared;
+  assert.equal(a.hand.length,8);assert.equal(b.hand.length,8);assert.equal(a.opponentCount,8);
+  assert.equal(a.hand.some(c=>b.hand.some(d=>d.id===c.id)),false);assert.equal('stock' in a,false);assert.equal('hands' in a,false);
+  assert.equal((await cmd('safy','ocho.draw',{game:a.id,revision:a.revision})).status,409);
+  const card=a.hand.find(c=>a.legal.includes(c.id)),move=card?'play':'draw',data={game:a.id,revision:a.revision,...(card?{card:card.id,color:'blue'}:{})},receipt=randomUUID();
+  assert.equal((await cmd('mahmoud','ocho.'+move,data,receipt)).status,200);
+  const after=(await request('mahmoud','state')).body.ocho.shared;
+  assert.equal((await cmd('mahmoud','ocho.'+move,data,receipt)).status,200);
+  assert.equal((await request('mahmoud','state')).body.ocho.shared.revision,after.revision);
+  assert.equal((await cmd('mahmoud','ocho.pause',{game:a.id,revision:a.revision})).status,409);
+  assert.equal((await cmd('mahmoud','ocho.pause',{game:after.id,revision:after.revision})).status,200);
+  assert.deepEqual((await request('safy','state')).body.ocho.shared.pausedBy,['Mahmoud']);
+ });
  await t.test('private proposals require owner and never expose solutions',async()=>{const id=randomUUID();s.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,'Safy','private','done',JSON.stringify({proposals:[{type:'quiz',title:'New quiz',questions:quiz}]}),new Date().toISOString());assert.ok(!(await request('mahmoud','state')).body.proposals.some(p=>p.job===id));assert.equal((await cmd('mahmoud','proposal.accept',{job:id})).status,403);assert.ok(!JSON.stringify((await request('safy','state')).body.proposals).includes('correct'));assert.equal((await cmd('safy','proposal.accept',{job:id})).status,200);});
  await t.test('media requires authentication, sniffs bytes and rejects HTML',async()=>{assert.equal((await request('safy','photos',{data:Buffer.from('<script>alert(1)</script>').toString('base64')})).status,400);const png=Buffer.from([137,80,78,71,13,10,26,10,0,0]);const p=await request('safy','photos',{data:png.toString('base64')});assert.equal(p.status,201);const r=await fetch(base+'/api/photos/'+p.body.id);assert.equal(r.status,401);});
  await t.test('source lookup requires authentication and returns the exact shared message',async()=>{
@@ -72,6 +91,20 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
   assert.equal((await request('none','messages/'+id)).status,401);
   const found=await request('safy','messages/'+id);assert.equal(found.status,200);assert.equal(found.body.text,'Source of our plan');assert.ok(found.body.sequence>0);
   assert.equal((await request('safy','messages/'+randomUUID())).status,404);
+ });
+ await t.test('dismissal removes only the chosen suggestion persistently and enforces ownership',async()=>{
+  const id=randomUUID();s.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,'Safy','private','done',JSON.stringify({proposals:[{type:'item',itemType:'Idea',title:'Dismiss me'},{type:'item',itemType:'Plan',title:'Keep me'}]}),new Date().toISOString());
+  const before=s.state().items.length;
+  assert.equal((await cmd('mahmoud','proposal.dismiss',{job:id,index:0})).status,403);
+  assert.equal((await cmd('safy','proposal.dismiss',{job:id,index:2})).status,404);
+  assert.equal((await cmd('safy','proposal.dismiss',{job:id,index:0})).status,200);
+  assert.equal(s.state().items.length,before);
+  assert.deepEqual(JSON.parse(s.job(id).body).dismissedIndices,[0]);
+  for(let i=0;i<2;i++)assert.deepEqual((await request('safy','state')).body.proposals.filter(p=>p.job===id).map(p=>p.index),[1]);
+  assert.equal((await cmd('safy','proposal.accept',{job:id,index:0})).status,409);
+  assert.equal((await cmd('safy','proposal.accept',{job:id,index:1})).status,200);
+  assert.equal(s.state().items.length,before+1);
+  assert.ok(!(await request('safy','state')).body.proposals.some(p=>p.job===id));
  });
  await t.test('each proposal accepts its own index once and remains private to its requester',async()=>{
   const id=randomUUID();s.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,'Safy','private','done',JSON.stringify({proposals:[{type:'item',itemType:'Idea',title:'First idea'},{type:'item',itemType:'Plan',title:'Second plan'}]}),new Date().toISOString());
@@ -128,6 +161,14 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  assert.equal((await cmd('safy','wallpaper.set',{image:null,revision:1})).status,200);
  assert.equal((await request('mahmoud','state')).body.wallpaper.image,null);
  assert.ok(s.db.prepare('SELECT id FROM photos WHERE id=?').get(photo));
+ });
+ await t.test('post questions stay in their own thread with streaming, follow-up context, and deletion',async()=>{
+  nextProposals=[];await cmd('mahmoud','item.save',{type:'Idea',title:'WALL TEST: keep it here'});let item=s.state().items[0];const before=s.messages().length;
+  const receipt=randomUUID(),payload={id:item.id,question:'What would make this fun?',once:true};const response=await cmd('mahmoud','item.ask',payload,receipt);assert.equal(response.status,200);assert.equal((await cmd('mahmoud','item.ask',payload,receipt)).body.job,response.body.job);
+  assert.equal(activeAI.purpose,'wall');assert.ok(activeAI.context.includes('WALL TEST'));assert.equal(s.messages().length,before);let view=(await request('safy','state')).body.items.find(i=>i.id===item.id);assert.equal(view.comments.length,2);assert.equal(view.comments[0].by,'Mahmoud');assert.equal(view.comments[1].text,'Beginning');
+  release();await waitJob(response.body.job);view=(await request('safy','state')).body.items.find(i=>i.id===item.id);assert.equal(view.comments[1].status,'sent');assert.equal(s.messages().length,before);
+  const follow=await cmd('safy','item.ask',{id:item.id,question:'Tell me more',once:true});assert.equal(follow.status,200);assert.ok(activeAI.context.includes('What would make this fun?'));assert.ok(activeAI.context.includes('Beginning'));
+  item=s.state().items.find(i=>i.id===item.id);assert.equal((await cmd('mahmoud','item.delete',{id:item.id,revision:item.revision})).status,200);await waitJob(follow.body.job);assert.equal(s.job(follow.body.job).status,'cancelled');assert.equal((await request('safy','state')).body.items.some(i=>i.id===item.id),false);assert.equal((await cmd('mahmoud','item.ask',{id:item.id,question:'Gone?',once:true})).status,404);
  });
  await t.test('wall assets load and gallery references are checked before saving',async()=>{
   for(const path of ['/wall.js','/wall.css'])assert.equal((await fetch(base+path)).status,200);

@@ -7,6 +7,7 @@ import {Store,hash} from './store.mjs';
 import {check,Fault,change,text,names} from './domain.mjs';
 import {respond,MODEL} from './ai.mjs';
 import {mediaChange,youtubeService} from './media.mjs';
+import {ochoChange,ochoSnapshot,ochoTick,ochoDue} from './ocho.mjs';
 import {dominoChange,dominoSnapshot,dominoTick,dominoDue} from './domino.mjs';
 import {resolveOrigin} from './config.mjs';
 
@@ -37,26 +38,30 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
   }
   const send=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};
   async function body(req,max=8*1024*1024){let size=0,chunks=[];for await(const c of req){size+=c.length;check(size<=max,'This attachment is too large.',413);chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString());}catch{throw new Fault('Invalid request.');}}
-  function snapshot(who){const s=store.snapshot(who);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.who=who;s.domino=dominoSnapshot(store.state(),who);s.media=store.state().media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
-    s.proposals=store.db.prepare("SELECT id,actor,scope,body FROM jobs WHERE status='done' ORDER BY createdAt DESC LIMIT 20").all().flatMap(j=>{const b=JSON.parse(j.body);return j.actor===who&&!b.accepted?(b.proposals??[]).flatMap((p,index)=>(b.acceptedIndices??[]).includes(index)?[]:[{job:j.id,index,type:p.type,title:p.title,count:p.questions?.length,itemType:p.itemType}]):[];});return s;}
+  function snapshot(who){const s=store.snapshot(who);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.items=s.items.map(i=>({...i,comments:(i.comments??[]).map(c=>running.has(c.id)?{...c,text:running.get(c.id).text}:c)}));s.who=who;s.ocho=ochoSnapshot(store.state(),who);s.domino=dominoSnapshot(store.state(),who);s.media=store.state().media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
+    s.proposals=store.db.prepare("SELECT id,actor,scope,body FROM jobs WHERE status='done' ORDER BY createdAt DESC LIMIT 20").all().flatMap(j=>{const b=JSON.parse(j.body);return j.actor===who&&!b.accepted?(b.proposals??[]).flatMap((p,index)=>[...(b.acceptedIndices??[]),...(b.dismissedIndices??[])].includes(index)?[]:[{job:j.id,index,type:p.type,title:p.title,count:p.questions?.length,itemType:p.itemType}]):[];});return s;}
   function emit(event,data,who){for(const [res,meta] of streams){if(!who||meta.who===who)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);}}
   function refresh(){for(const [res,meta]of streams)res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}
   function cancel(who,all=false){for(const [id,job]of running)if(all&&job.scope==='shared'||job.actor===who){store.status(id,'cancelled');job.controller.abort();}}
+  function saveWallReply(post,id,value,status){const s=store.state(),item=s.items.find(i=>i.id===post),c=item?.comments?.find(c=>c.id===id);if(!c)return;c.text=value;c.status=status;if(status!=='streaming')item.revision++;store.save(s);}
   async function run(id){
-    const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body),controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),45000);running.set(id,{controller,actor:j.actor,scope:j.scope,text:''});let output='',lastSave=0;const started=Date.now();let first=null;
+    const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body),controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),45000);running.set(id,{controller,actor:j.actor,scope:j.scope,wallItem:b.wallItem,text:''});let output='',lastSave=0;const started=Date.now();let first=null;
     try{
       const {proposals,usage}=await ai({actor:j.actor,prompt:b.prompt,context:b.context,image:b.image,privatePrep:j.scope==='private',purpose:b.purpose,signal:controller.signal,onText:delta=>{
         if(store.job(id).status!=='running'||controller.signal.aborted)return;if(first===null)first=Date.now()-started;output+=delta;running.get(id).text=output;
-        if(j.scope==='shared'){emit('delta',{id,text:delta});if(Date.now()-lastSave>300){store.db.prepare('UPDATE messages SET text=? WHERE id=?').run(output,id);lastSave=Date.now();}}
+        if(b.wallItem){emit('wall-delta',{post:b.wallItem,id,text:delta});if(Date.now()-lastSave>300){saveWallReply(b.wallItem,id,output,'streaming');lastSave=Date.now();}}
+        else if(j.scope==='shared'){emit('delta',{id,text:delta});if(Date.now()-lastSave>300){store.db.prepare('UPDATE messages SET text=? WHERE id=?').run(output,id);lastSave=Date.now();}}
       }});
       if(store.job(id).status!=='running'||controller.signal.aborted)return;
-      store.tx(()=>{const liveQuiz=proposals.find(p=>p.type==='start');if(liveQuiz){check(j.scope==='shared','Live activities belong in shared chat.');const current=store.state();change(current,j.actor,'quiz.launch',{...liveQuiz,afterSequence:store.messages().at(-1)?.sequence??0});store.save(current);proposals.splice(proposals.indexOf(liveQuiz),1);output=output||'Let’s begin — one question at a time.';}store.settle(id,usage);store.db.prepare('UPDATE jobs SET body=?,status=? WHERE id=?').run(JSON.stringify({proposals,accepted:false,latency:{firstTokenMs:first,totalMs:Date.now()-started}}),'done',id);
-        if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||(proposals.length?'I prepared something for you to review.':'I could not produce a reply.'),'sent',id);
+      store.tx(()=>{const liveQuiz=!b.wallItem&&proposals.find(p=>p.type==='start');if(liveQuiz){check(j.scope==='shared','Live activities belong in shared chat.');const current=store.state();change(current,j.actor,'quiz.launch',{...liveQuiz,afterSequence:store.messages().at(-1)?.sequence??0});store.save(current);proposals.splice(proposals.indexOf(liveQuiz),1);output=output||'Let’s begin — one question at a time.';}store.settle(id,usage);store.db.prepare('UPDATE jobs SET body=?,status=? WHERE id=?').run(JSON.stringify({proposals,accepted:false,latency:{firstTokenMs:first,totalMs:Date.now()-started}}),'done',id);
+        if(b.wallItem)saveWallReply(b.wallItem,id,output||'I could not produce a reply.','sent');
+        else if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||(proposals.length?'I prepared something for you to review.':'I could not produce a reply.'),'sent',id);
       });
-    }catch(e){if(store.job(id).status==='running')store.status(id,controller.signal.aborted?'interrupted':'failed');if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||'Echo could not finish. Your chat is still available.',store.job(id).status,id);emit('notice',{text:controller.signal.aborted?'Echo stopped.':'Echo could not finish. Try again when you are ready.'},j.scope==='private'?j.actor:undefined);
+    }catch(e){if(store.job(id).status==='running')store.status(id,controller.signal.aborted?'interrupted':'failed');if(b.wallItem)saveWallReply(b.wallItem,id,output||'Echo could not finish. Ask again when you are ready.',store.job(id).status);else if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||'Echo could not finish. Your chat is still available.',store.job(id).status,id);emit('notice',{text:controller.signal.aborted?'Echo stopped.':'Echo could not finish. Try again when you are ready.'},j.scope==='private'?j.actor:undefined);
     }finally{
       clearTimeout(timeout);running.delete(id);
-      if(store.job(id).status==='cancelled'&&j.scope==='shared')store.db.prepare("UPDATE messages SET text=?,status='cancelled' WHERE id=?").run(output||'Echo was stopped.',id);
+      if(store.job(id).status==='cancelled'&&b.wallItem)saveWallReply(b.wallItem,id,output||'Echo was stopped.','cancelled');
+      else if(store.job(id).status==='cancelled'&&j.scope==='shared')store.db.prepare("UPDATE messages SET text=?,status='cancelled' WHERE id=?").run(output||'Echo was stopped.',id);
       // Drop transient input/images even on failure; keep only proposal and timing data on success.
       if(store.job(id).status!=='done')store.db.prepare("UPDATE jobs SET body='{}' WHERE id=?").run(id);
       refresh();
@@ -95,11 +100,22 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
         if(['media.create','media.enqueue'].includes(p.type)){limit('youtube:'+who,12);verifiedTrack=await youtube.resolve(p.data?.track?.videoId);}
         const result=store.once(who,p.id,p,()=>{
           const s=store.state();const data={...(p.data??{})};
+          if(p.type?.startsWith('ocho.')){ochoChange(s,who,p.type,data);store.save(s);return {ok:true};}
           if(p.type?.startsWith('domino.')){dominoChange(s,who,p.type,data);store.save(s);return {ok:true};}
           if(p.type?.startsWith('media.')){if(verifiedTrack)data.track=verifiedTrack;mediaChange(s,who,p.type,data);store.save(s);return {ok:true};}
           if(p.type==='message'){
             const value=data.text?.trim()?text(data.text,4000):'';check(value||data.image,'Write a message or attach a photo.');if(data.image)photoData(data.image);if(data.reply)check(store.db.prepare('SELECT 1 FROM messages WHERE id=?').get(data.reply),'The original message is unavailable.');
             store.message({id:p.id,author:who,text:value,image:data.image,reply:data.reply,aiAllowed:!s.pauses.length});return {ok:true};
+          }
+          if(p.type==='item.ask'){
+            check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);
+            const item=s.items.find(i=>i.id===data.id);check(item,'This post is no longer available.',404);
+            check(!s.pauses.length||data.once===true,'Echo is paused. Choose Ask once explicitly.',409);
+            const question=text(data.question,650);item.comments??=[];check(item.comments.length<=198,'This post has reached 200 comments.');
+            const imageId=(item.images??(item.image?[item.image]:[]))[0];
+            const context=JSON.stringify({post:{type:item.type,text:item.title,steps:item.steps??[]},conversation:item.comments.filter(c=>!c.status||c.status==='sent').slice(-12).map(c=>({by:c.by,text:c.text}))}).slice(0,18000);
+            const id=store.reserve(who,'shared',{prompt:question,purpose:'wall',wallItem:item.id,context,image:imageId?photoData(imageId):null});
+            item.comments.push({id:randomUUID(),by:who,text:question,to:'Echo',createdAt:new Date().toISOString()},{id,by:'Echo',text:'',status:'streaming',createdAt:new Date().toISOString()});item.revision++;store.save(s);return {job:id};
           }
           if(p.type==='ai.ask'){
             check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);const scope=data.private?'private':'shared';if(data.session)check(s.echoInvited&&!s.pauses.length,'Echo is no longer invited.',409);
@@ -109,16 +125,18 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
             if(scope==='shared')store.message({id,author:'Echo',text:'',status:'streaming',aiAllowed:!s.pauses.length});return {job:id};
           }
           if(p.type==='ai.cancel'){cancel(who,true);return {ok:true};}
-          if(p.type==='proposal.accept'){
-            const j=store.job(data.job);check(j?.actor===who&&j.status==='done','This proposal is private to its requester.',403);const b=JSON.parse(j.body);check(!b.accepted&&b.proposals?.length,'This proposal is no longer available.',409);const index=data.index??0;check(Number.isInteger(index)&&index>=0&&index<b.proposals.length,'This proposal is unavailable.',404);check(!(b.acceptedIndices??[]).includes(index),'This proposal was already accepted.',409);const proposal=b.proposals[index];
-            if(proposal.type==='quiz')s.drafts[who]=proposal.questions;
+          if(p.type==='proposal.accept'||p.type==='proposal.dismiss'){
+            const j=store.job(data.job);check(j?.actor===who&&j.status==='done','This proposal is private to its requester.',403);const b=JSON.parse(j.body);check(!b.accepted&&b.proposals?.length,'This proposal is no longer available.',409);const index=data.index??0;check(Number.isInteger(index)&&index>=0&&index<b.proposals.length,'This proposal is unavailable.',404);check(!(b.acceptedIndices??[]).includes(index),'This proposal was already accepted.',409);check(!(b.dismissedIndices??[]).includes(index),'This proposal was dismissed.',409);const proposal=b.proposals[index];
+            if(p.type==='proposal.dismiss')b.dismissedIndices=[...(b.dismissedIndices??[]),index];
+            else {if(proposal.type==='quiz')s.drafts[who]=proposal.questions;
             else change(s,who,'item.save',{type:proposal.itemType,title:proposal.title,aiAllowed:true});
-            b.acceptedIndices=[...(b.acceptedIndices??[]),index];b.accepted=b.acceptedIndices.length===b.proposals.length;store.db.prepare('UPDATE jobs SET body=? WHERE id=?').run(JSON.stringify(b),j.id);s.version++;store.save(s);return {kind:proposal.type};
+            b.acceptedIndices=[...(b.acceptedIndices??[]),index];}b.accepted=(b.acceptedIndices?.length||0)+(b.dismissedIndices?.length||0)===b.proposals.length;store.db.prepare('UPDATE jobs SET body=? WHERE id=?').run(JSON.stringify(b),j.id);s.version++;store.save(s);return {kind:proposal.type};
           }
           if(p.type==='message.pin'&&data.value){const m=store.db.prepare('SELECT * FROM messages WHERE id=?').get(data.id);check(m&&m.status==='sent','Only a sent shared message can be pinned.',404);data.text=m.text||'Shared photo';data.author=m.author;}
           if(p.type==='echo.invite'&&data.value===false){for(const job of store.db.prepare("SELECT id FROM jobs WHERE scope='shared' AND status='running'").all()){store.status(job.id,'cancelled');store.db.prepare("UPDATE messages SET status='cancelled' WHERE id=?").run(job.id);running.get(job.id)?.controller.abort();}}
           if(p.type==='wallpaper.set'&&data.image)photoData(data.image);
           if(p.type==='item.save'){if(data.image)photoData(data.image);if(data.images){check(Array.isArray(data.images)&&data.images.length<=6,'Choose up to 6 photos.');for(const image of data.images)photoData(image);}}
+          if(p.type==='item.delete'){const item=s.items.find(i=>i.id===data.id);check(item&&item.revision===data.revision,'This post changed. Try deleting again.',409);for(const job of store.db.prepare("SELECT id,body FROM jobs WHERE status='running'").all())if(JSON.parse(job.body).wallItem===data.id){store.status(job.id,'cancelled');running.get(job.id)?.controller.abort();}}
           if(p.type==='pause'&&data.value)cancel(who,true);
           if(['quiz.start','quiz.launch','quiz.answer'].includes(p.type))data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);store.save(s);return {ok:true};
         });
@@ -127,10 +145,10 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,testin
       if(path==='/api/export'&&req.method==='GET'){res.setHeader('Content-Disposition','attachment; filename="our-place-backup.json"');return send(res,200,{...snapshot(who),messages:store.db.prepare('SELECT * FROM messages ORDER BY rowid').all(),note:'Shared chat and your own drafts. Download photos separately. Keep this file private.'});}
       throw new Fault('Not found.',404);
     }
-    check(req.method==='GET','Method not allowed.',405);const files={'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
+    check(req.method==='GET','Method not allowed.',405);const files={'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
   const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
-  const dominoTimer=setInterval(()=>{try{if(!dominoDue(store.state()))return;const changed=store.tx(()=>{const s=store.state();if(!dominoTick(s))return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
+  const dominoTimer=setInterval(()=>{try{if(!dominoDue(store.state())&&!ochoDue(store.state()))return;const changed=store.tx(()=>{const s=store.state();const d=dominoTick(s),o=ochoTick(s);if(!d&&!o)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
   server.on('close',()=>{clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
