@@ -87,3 +87,5 @@
 #our-place-trial .wall-settings-dialog .muted{font-size:13px;line-height:1.6}
 #our-place-trial #daily-settings{margin:auto}
 @media(max-width:360px){#our-place-trial #space .wall-heading h2{font-size:24px}#our-place-trial .wall-utilities{gap:0}}
+
+#our-place-trial .wall-avatar.wall-avatar-echo{background:#3e3222;color:#D1B078;border:1px solid #90754a;box-sizing:border-box;font-family:inherit}

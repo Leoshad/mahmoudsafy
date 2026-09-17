@@ -43,7 +43,7 @@ window.OurWall=function({getState,api,command,sync,goto,info,error,el,btn,catego
  }
  function render(i,card,who){
   if(i.pinned)el('div','Pinned for us',card,'wall-pin-label');
-  const head=el('div',null,card,'wall-post-head');el('span',i.by?.[0]||'♡',head,'wall-avatar');const meta=el('div',null,head,'wall-meta');el('strong',i.by,meta);el('div',date(i.createdAt)+(i.updatedAt?' · edited':''),meta,'muted');
+  const head=el('div',null,card,'wall-post-head');el('span',i.by==='Echo'?'✦':i.by?.[0]||'♡',head,i.by==='Echo'?'wall-avatar wall-avatar-echo':'wall-avatar');const meta=el('div',null,head,'wall-meta');el('strong',i.by,meta);el('div',date(i.createdAt)+(i.updatedAt?' · edited':''),meta,'muted');
   const menu=el('details',null,head,'wall-menu');menu.dataset.section='menu';el('summary','⋯',menu).setAttribute('aria-label','Post actions');const controls=el('div',null,menu,'wall-menu-list');
   btn('Edit post',controls,()=>edit(latest(i.id)));action(i.pinned?'Unpin':'Pin for us',controls,()=>act('item.pin',{id:i.id,value:!latest(i.id).pinned}));
   btn('Delete post',controls,()=>{menu.open=false;askDelete(i.id);});
