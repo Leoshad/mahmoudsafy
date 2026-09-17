@@ -30,3 +30,13 @@ test('wall operations persist through storage and duplicate command receipts do 
  const add=()=>store.once('Safy',receipt,{type:'item.comment'},()=>{s=store.state();change(s,'Safy','item.comment',{id,text:'Ready'});change(s,'Safy','item.pin',{id,value:true});store.save(s);return {ok:true};});add();add();
  const saved=project(store.state(),'Mahmoud').items[0];assert.equal(saved.comments.length,1);assert.equal(saved.pinned,true);assert.equal(saved.aiAllowed,false);assert.equal(saved.steps.length,1);store.close();
 });
+
+test('reactions preserve legacy hearts, switch only the actor and survive storage',()=>{
+ const store=new Store(':memory:'),s=initial();change(s,'Mahmoud','item.save',{type:'Idea',title:'A moment'});const i=s.items[0];i.likes=['Safy'];
+ change(s,'Mahmoud','item.react',{id:i.id,value:'😂',who:'Safy'});assert.deepEqual(i.reactions,{Safy:'❤️',Mahmoud:'😂'});
+ change(s,'Mahmoud','item.react',{id:i.id,value:'🔥'});assert.equal(i.reactions.Mahmoud,'🔥');assert.deepEqual(i.likes,['Safy']);
+ assert.throws(()=>change(s,'Mahmoud','item.react',{id:i.id,value:'invalid'}));
+ store.save(s);assert.equal(store.state().items[0].reactions.Mahmoud,'🔥');
+ change(s,'Mahmoud','item.react',{id:i.id,value:null});assert.deepEqual(i.reactions,{Safy:'❤️'});
+ change(s,'Safy','item.like',{id:i.id,value:false});assert.deepEqual(i.reactions,{});store.close();
+});

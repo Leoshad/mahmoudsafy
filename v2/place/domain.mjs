@@ -67,10 +67,11 @@ export function change(s,who,type,p={}){
       if(item){if(item.title!==title){item.sources=[];item.publishedDate=null;}Object.assign(item,{title,type:p.type,images,image:images[0]??null,steps,approvals:[],aiAllowed:!!p.aiAllowed,updatedAt:new Date().toISOString()});if(p.type==='Plan'&&steps.length)item.done=steps.every(s=>s.done);item.revision++;}
       else {check(s.items.length<500,'Your space is full. Export a backup before adding more.',409);s.items.unshift({id:randomUUID(),type:p.type,title,by:who,images,image:images[0]??null,steps,source:p.source??null,done:false,approvals:[],revision:1,aiAllowed:!!p.aiAllowed,createdAt:new Date().toISOString()});}break;
     }
-    case 'item.echo': case 'item.like': case 'item.pin': case 'item.comment': case 'item.comment.delete': case 'item.step': {
+    case 'item.react': case 'item.echo': case 'item.like': case 'item.pin': case 'item.comment': case 'item.comment.delete': case 'item.step': {
       const i=s.items.find(i=>i.id===p.id);check(i,'This post is no longer available.',404);
       if(type==='item.echo'){check(typeof p.value==='boolean','Choose whether Echo can join.');i.echoComments=p.value;i.echoEpoch=(i.echoEpoch??0)+1;}
-      if(type==='item.like'){check(typeof p.value==='boolean','Choose like or unlike.');i.likes=(i.likes??[]).filter(n=>n!==who);if(p.value)i.likes.push(who);}
+      if(type==='item.like'){check(typeof p.value==='boolean','Choose like or unlike.');i.likes=(i.likes??[]).filter(n=>n!==who);if(p.value)i.likes.push(who);if(i.reactions){delete i.reactions[who];if(p.value)i.reactions[who]='❤️';}}
+      if(type==='item.react'){check(p.value===null||['❤️','😂','😮','😢','🔥','👏'].includes(p.value),'Choose a supported reaction.');i.reactions={...Object.fromEntries((i.likes??[]).map(n=>[n,'❤️'])),...i.reactions};delete i.reactions[who];if(p.value)i.reactions[who]=p.value;i.likes=Object.entries(i.reactions).filter(([,v])=>v==='❤️').map(([n])=>n);}
       if(type==='item.pin'){check(typeof p.value==='boolean','Choose pin or unpin.');check(!p.value||i.pinned||s.items.filter(x=>x.pinned).length<5,'Keep up to 5 pinned posts.');i.pinned=p.value;}
       if(type==='item.comment'){const value=text(p.text,1500);i.comments??=[];check(i.comments.length<200,'This post has reached 200 comments.');i.comments.push({id:randomUUID(),by:who,text:value,createdAt:new Date().toISOString()});}
       if(type==='item.comment.delete'){const c=i.comments?.find(c=>c.id===p.comment);check(c&&c.by===who,'You can only remove your own comment.',403);i.comments=i.comments.filter(c=>c.id!==p.comment);}

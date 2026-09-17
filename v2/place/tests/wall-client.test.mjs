@@ -74,3 +74,18 @@ test('wall toolbar opens separate search/settings dialogs without moving the fee
 test('Echo suggestions remain discoverable inside the add-moment screen',()=>{
  const s=initial();s.proposals=[{type:'item',title:'An evening'}];const c=client(s);c.wall.paint();assert.equal(c.$('#wall-suggestions').hidden,false);c.$('#wall-suggestions').onclick();assert.equal(c.tab(),'editor');assert.equal(c.$('#wall-create-echo').open,true);
 });
+
+test('comment threads resist outside dismissal and emoji choices persist without losing the draft',async()=>{
+ const s=initial();change(s,'Safy','item.save',{type:'Discussion',title:'Talk to me'});const c=client(s);c.wall.paint();const card=c.$('#items').children[0];
+ await button(card,'Comment').onclick();assert.equal(card.querySelector('.wall-comments').dataset.persistent,'true');
+ const field=card.querySelector('textarea');field.value='Still writing';field.oninput();
+ await button(card,'😂').onclick();assert.equal(s.items[0].reactions.Mahmoud,'😂');assert.equal(card.querySelector('textarea').value,'Still writing');assert.equal(card.querySelector('.wall-comments').open,true);
+ assert.ok(walk(card.querySelector('.wall-comments')).some(n=>n.textContent==='✦ Echo in comments: off'));
+ await button(card,'😂').onclick();assert.equal(s.items[0].reactions.Mahmoud,undefined);assert.deepEqual(c.failures,[]);
+});
+test('Echo prose gains paragraph breaks and citation markup is replaced by one named source',()=>{
+ const s=initial(),citation='[nature.com](https://www.nature.com/article)',title='First sentence. Second sentence. Third sentence. ('+citation+')';
+ s.items.push({id:'daily-source',by:'Echo',type:'Discussion',title,sources:[{start:title.indexOf(citation),end:title.indexOf(citation)+citation.length,url:'https://www.nature.com/article',title:'Nature study'}],daily:{},revision:1});
+ const c=client(s);c.wall.paint();const card=c.$('#items').children[0],prose=card.querySelector('.wall-text');
+ assert.equal(prose.children.length,2);assert.ok(!walk(prose).some(n=>n.textContent.includes('https://')));assert.equal(card.querySelector('.wall-sources').querySelectorAll('a').length,1);assert.equal(card.querySelector('.wall-sources').querySelector('a').textContent,'Nature study');
+});

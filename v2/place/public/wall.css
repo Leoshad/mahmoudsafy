@@ -89,3 +89,20 @@
 @media(max-width:360px){#our-place-trial #space .wall-heading h2{font-size:24px}#our-place-trial .wall-utilities{gap:0}}
 
 #our-place-trial .wall-avatar.wall-avatar-echo{background:#3e3222;color:#D1B078;border:1px solid #90754a;box-sizing:border-box;font-family:inherit}
+
+/* Comfortable reading and persistent, reachable comment composers. */
+#our-place-trial .wall-text{line-height:1.75;margin:18px 0 22px}
+#our-place-trial .wall-text p{margin:0 0 1em}
+#our-place-trial .wall-text p:last-child{margin-bottom:0}
+#our-place-trial .wall-sources{padding:12px 0;line-height:1.6;border-top:1px solid #493442}
+#our-place-trial .wall-comments[open]{padding-bottom:max(24px,env(safe-area-inset-bottom))}
+#our-place-trial .wall-reply{scroll-margin-block:24px;margin:16px 0;align-items:flex-end}
+#our-place-trial .wall-reply textarea{box-sizing:border-box;min-height:48px;resize:vertical}
+#our-place-trial #space{padding-bottom:max(48px,env(safe-area-inset-bottom))}
+#our-place-trial .wall-comment-tools{margin:8px 0 16px}
+#our-place-trial .wall-comment-tools button{font-size:12px;background:transparent;min-height:44px}
+#our-place-trial .wall-reactions>summary{cursor:pointer;list-style:none;padding:12px 10px;min-height:44px;box-sizing:border-box;font-size:13px}
+#our-place-trial .wall-reaction-choices{display:flex;flex-wrap:wrap;gap:3px;padding:6px;background:#302330;border-radius:12px}
+#our-place-trial .wall-reaction-choices button{font-size:23px;min-width:44px}
+#our-place-trial .wall-reaction-choices button[aria-pressed=true]{background:#513345}
+#our-place-trial .wall-reaction-names{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:#d5bdcb;padding:10px 0}
