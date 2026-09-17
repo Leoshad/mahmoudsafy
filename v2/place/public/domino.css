@@ -10,10 +10,10 @@
 #our-place-trial .domino-tabs button{flex:1;font-size:12px;padding:9px;min-height:38px}
 #our-place-trial .domino-tabs .selected{background:#d1b078;color:#171c18}
 #our-place-trial #domino-setup label{display:grid;gap:6px;font-size:12px;margin:12px 0}
-#our-place-trial .domino-scoreboard{display:grid;grid-template-columns:1fr 42px 1fr;gap:6px;margin:8px 0;padding:8px;border:1px solid #615c46;border-radius:10px;background:#202a23}
+#our-place-trial .domino-scoreboard{display:grid;grid-template-columns:1fr 48px 1fr;gap:6px;margin:8px 0;padding:8px;border:1px solid #615c46;border-radius:10px;background:#202a23}
 #our-place-trial .domino-player-score{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;border:1px solid transparent;border-radius:7px;padding:4px}
-#our-place-trial .domino-player-score span{font-size:12px}
-#our-place-trial .domino-player-score strong{font-size:22px;line-height:1.2;white-space:nowrap;font-variant-numeric:tabular-nums}
+#our-place-trial .domino-player-score span{font-size:15px;font-weight:600}
+#our-place-trial .domino-player-score strong{font-size:30px;line-height:1.2;white-space:nowrap;font-variant-numeric:tabular-nums}
 #our-place-trial .domino-player-score small{font-size:8px;letter-spacing:1px;color:#a7b1a0}
 #our-place-trial .domino-player-score.mahmoud{color:#d4bad0}
 #our-place-trial .domino-player-score.safy{color:#edb9cb}
@@ -24,8 +24,8 @@
 #our-place-trial .domino-round strong{font-size:15px}
 #our-place-trial .domino-turn{font-size:14px;font-weight:600;color:#e0c693;margin:8px 0;min-height:20px}
 #our-place-trial .domino-table-meta,#our-place-trial .domino-ends{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;color:#b7c2b1;margin:6px 0}
-#our-place-trial .domino-opponent{display:flex;gap:2px;flex-wrap:wrap;justify-content:flex-end;max-width:58%}
-#our-place-trial .domino-opponent span{display:block;width:10px;height:18px;border:1px solid #817469;border-radius:2px;background:#554a55}
+#our-place-trial .domino-opponent{display:flex;gap:4px;flex-wrap:wrap;justify-content:center;flex:1;max-width:100%}
+#our-place-trial .domino-opponent span{display:block;width:15px;height:28px;border:1px solid #817469;border-radius:2px;background:#554a55}
 #our-place-trial .domino-table-area{position:relative;display:flex;flex-direction:column;gap:6px;width:100%;min-width:0}
 #our-place-trial .domino-stock{order:1;display:flex;align-items:center;gap:7px;padding:7px 8px;min-height:34px;box-sizing:border-box;background:#263128;border:1px solid #495849;border-radius:7px;color:#bcc7b5}
 #our-place-trial .domino-stock small{font-size:8px;letter-spacing:.5px;white-space:nowrap}
@@ -88,8 +88,8 @@
 #our-place-trial .domino-focused .domino-tabs button{min-height:30px;padding:5px}
 #our-place-trial .domino-focused #domino-records{padding:3px 0;flex:none;justify-content:center;gap:5px 12px}
 #our-place-trial .domino-focused #domino-records>small{display:none}
-#our-place-trial .domino-focused #domino-game{flex:1;min-height:0;display:grid;grid-template-rows:58px 22px 20px 0 minmax(110px,1fr) 22px 40px 0 auto 44px;gap:2px}
-#our-place-trial .domino-focused .domino-scoreboard{margin:0;padding:3px;height:58px;box-sizing:border-box}
+#our-place-trial .domino-focused #domino-game{flex:1;min-height:0;display:grid;grid-template-rows:72px 24px minmax(46px,auto) 0 minmax(110px,1fr) 22px 40px 0 auto 44px;gap:2px}
+#our-place-trial .domino-focused .domino-scoreboard{margin:0;padding:3px;height:72px;box-sizing:border-box}
 #our-place-trial .domino-focused .domino-player-score{padding:1px;gap:0}
 #our-place-trial .domino-focused .domino-player-score small{display:none}
 #our-place-trial .domino-focused .domino-turn,#our-place-trial .domino-focused .domino-table-meta,#our-place-trial .domino-focused .domino-last{margin:0;line-height:20px}
@@ -128,11 +128,11 @@
 #our-place-trial .domino-result{padding:12px;border:1px solid #bea471;border-radius:12px;background:linear-gradient(125deg,#343e2c,#253128);text-align:center}
 #our-place-trial .domino-result>small{font-size:9px;letter-spacing:1.5px;color:#c9b686}
 #our-place-trial .domino-result h3{font:26px Georgia,serif;color:#f1d897;margin:5px 0}
-#our-place-trial .domino-result p{font-size:12px;margin:4px 0}
+#our-place-trial .domino-result p{font-size:15px;margin:4px 0}
 #our-place-trial .domino-result-note{color:#becab5}
 #our-place-trial .domino-result-actions{display:flex;gap:8px;margin-top:10px}
 #our-place-trial .domino-result-actions button{flex:1;min-height:42px;font-size:13px;padding:8px}
-#our-place-trial .domino-focused #domino-game.domino-ended{grid-template-rows:58px 0 0 0 minmax(80px,1fr) 0 auto 0 auto 44px}
+#our-place-trial .domino-focused #domino-game.domino-ended{grid-template-rows:72px 0 0 0 minmax(80px,1fr) 0 minmax(0,auto) 0 0 44px}
 #our-place-trial .domino-ended .domino-zone-status,#our-place-trial .domino-ended .domino-zone-meta,#our-place-trial .domino-ended .domino-zone-last{display:none}
 #our-place-trial .domino-ended .domino-zone-actions{padding-top:6px}
 #our-place-trial .domino-focused .domino-footer .domino-game-tools summary{padding:7px 0}
@@ -140,7 +140,7 @@
 
 /* Keep explicit rows when the finished-state labels are hidden. */
 #our-place-trial .domino-focused #domino-game>div{min-width:0}
-#our-place-trial .domino-result h3{font-size:clamp(20px,5vw,26px);line-height:1.2;overflow-wrap:anywhere}
+#our-place-trial .domino-result h3{font-size:clamp(28px,7vw,36px);line-height:1.2;overflow-wrap:anywhere}
 #our-place-trial .domino-result>small{display:block;line-height:1.5;padding:2px 0 5px}
 #our-place-trial .domino-result{position:relative;overflow:hidden}
 #our-place-trial .domino-leave{min-height:40px;padding:8px 14px;font-size:12px;border-radius:8px;color:#ecc5bd}
@@ -162,3 +162,24 @@
 #our-place-trial .domino-board .domino-place-target:hover,#our-place-trial .domino-board .domino-place-target:focus-visible{background:#e9ca7938;border-color:#ffe6ac;outline:2px solid #d9bd7e;outline-offset:1px}
 #our-place-trial .domino-board .domino-place-target .domino-piece{left:50%;top:50%;opacity:.6;pointer-events:none;box-shadow:none}
 #our-place-trial .domino-placement-hint{font-size:12px;color:#dfcca5}
+
+
+/* Results retain the existing green/gold card and table layout. */
+#our-place-trial .domino-table-meta{flex-direction:column;justify-content:center;gap:4px}
+#our-place-trial .domino-focused .domino-table-meta{flex-direction:column;justify-content:center;min-height:46px;line-height:1.2}
+#our-place-trial .domino-focused .domino-table-meta>span{font-size:10px}
+#our-place-trial .domino-result .domino-result-points{font-size:24px;font-weight:750;color:#ffe2a0;margin:8px 0}
+#our-place-trial .domino-result .domino-result-score{font-size:19px;font-weight:650;font-variant-numeric:tabular-nums}
+#our-place-trial .domino-result .domino-result-calculation{font-size:13px;line-height:1.45;color:#e3d5b7}
+#our-place-trial .domino-result-hands{display:grid;gap:8px;margin:10px 0;text-align:left}
+#our-place-trial .domino-result-hand>strong{font-size:13px;color:#e6dec7}
+#our-place-trial .domino-result-tiles{display:flex;gap:5px;flex-wrap:wrap;align-items:center;padding-top:5px}
+#our-place-trial .domino-result-tiles .domino-piece{width:26px;height:52px;flex-direction:column}
+#our-place-trial .domino-result-tiles .domino-half{width:100%;height:50%}
+#our-place-trial .domino-result-tiles .domino-half+.domino-half{border-left:0;border-top:1px solid #a79b85}
+#our-place-trial .domino-result-empty{font-size:13px;color:#c3cfba}
+#our-place-trial .domino-ended .domino-zone-hand,#our-place-trial .domino-ended .domino-zone-handTitle,#our-place-trial .domino-ended .domino-hand,#our-place-trial .domino-ended>.label{display:none}
+#our-place-trial .domino-focused .domino-ended .domino-zone-actions{max-height:52dvh;overflow-y:auto;min-height:0;overscroll-behavior:contain}
+#our-place-trial .domino-result-enter{animation:domino-result-reveal .65s ease-out both}
+@keyframes domino-result-reveal{from{opacity:.35;transform:translateY(12px) scale(.97);box-shadow:0 0 0 #d1b07800}to{opacity:1;transform:none;box-shadow:0 0 20px #d1b07820}}
+@media(prefers-reduced-motion:reduce){#our-place-trial .domino-result-enter{animation:none}}

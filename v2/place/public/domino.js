@@ -6,7 +6,7 @@ let fullView=true,clockOffset=0;
 function updateClock(){const g=game(),e=view?.clock;if(!e)return;e.hidden=!(g?.status==='active'&&!g.paused&&g.turnSeconds);if(e.hidden)return;const seconds=Math.max(0,Math.ceil((g.turnDeadline-(Date.now()+clockOffset))/1000));e.textContent=seconds+'s';e.classList.toggle('clock-low',seconds<=5);e.setAttribute('aria-label',g.turn+' has '+seconds+' seconds remaining');}
 function focused(){return opened&&fullView&&['active','finished','complete'].includes(game()?.status);}
 let soundOn=true,audioContext=null;
-const heardMoves=new Map();
+const heardMoves=new Map(),shownResults=new Set();
 try{soundOn=localStorage.getItem('our-place:domino:sound')!=='off';}catch{}
 function soundButton(){const b=$('#domino-sound');b.textContent=soundOn?'Sound on':'Muted';b.setAttribute('aria-pressed',String(soundOn));b.setAttribute('aria-label',soundOn?'Mute domino sounds':'Enable domino sounds');}
 function unlockSound(preview=false){
@@ -212,11 +212,16 @@ function render(){
  make('p',g.last?.text||'',slot('last'),'domino-last');
  const actions=slot('actions');const ended=['finished','complete'].includes(g.status);root.classList.toggle('domino-ended',ended);
  if(g.status==='finished'||g.status==='complete'){
-  const card=make('div',undefined,actions,'domino-result');card.setAttribute('role','status');
+  const card=make('div',undefined,actions,'domino-result');card.setAttribute('role','status');const resultKey=g.id+':'+g.round+':'+g.status;if(!shownResults.has(resultKey)){card.classList.toggle('domino-result-enter',true);shownResults.add(resultKey);}
   make('small',g.status==='complete'?'MATCH COMPLETE':'ROUND COMPLETE',card);
   const winner=g.status==='complete'?g.matchWinner:g.result.winner;
   make('h3',winner===who?(g.status==='complete'?'You won!':'You won this round!'):winner?winner+' won'+(g.status==='complete'?' the match':' this round'):'Round drawn',card);
+  make('p',winner?winner+' · +'+g.result.points+' points':'Equal pips · 0 points',card,'domino-result-points');
   make('p',g.players.map(n=>n+' '+g.scores[n]).join(' · ')+' / '+g.target,card,'domino-result-score');
+  const totals=g.result.totals,other=g.players.find(n=>n!==winner);
+  make('p',g.result.reason==='blocked'?(winner?'Blocked round · '+totals[other]+' − '+totals[winner]+' = '+g.result.points+' points':'Blocked round · '+g.players.map(n=>totals[n]).join(' = ')+' · no points awarded'):'Empty hand · '+totals[other]+' remaining pips = '+g.result.points+' points',card,'domino-result-calculation');
+  const evidence=make('div',undefined,card,'domino-result-hands');
+  for(const name of g.players){const group=make('div',undefined,evidence,'domino-result-hand');make('strong',name+' · '+totals[name]+' pips',group);const row=make('div',undefined,group,'domino-result-tiles');row.setAttribute('aria-label',name+' remaining tiles');const tiles=g.result.hands?.[name];if(tiles?.length)for(const tile of tiles)piece(tile,row);else make('span',tiles?'No tiles left':'Tile details unavailable',row,'domino-result-empty');}
   make('p',g.status==='complete'?'Match saved in your history.':g.result.points+' points this round. Keep playing to '+g.target+'.',card,'domino-result-note');
   const next=make('div',undefined,card,'domino-result-actions');
   btn(g.status==='complete'?'New match':g.mode==='solo'?'Next round':'Invite to next round',next,()=>command(g.status==='complete'?'leave':'rematch'),'primary').disabled=busy;
@@ -225,7 +230,7 @@ function render(){
   const controls=make('div',undefined,actions,'domino-actions');
   if(picked&&g.legal.some(m=>m.tile===picked))make('span','Tap where you want to place it.',controls,'domino-placement-hint');
   if(g.paused){if(g.pausedBy?.includes(who))btn('Resume game',controls,()=>command('resume'),'primary').disabled=busy;else make('span','Waiting for '+g.pausedBy.join(' & ')+' to resume.',controls);}
-  if(g.canDraw)btn('Draw a tile',controls,()=>command('draw'),'primary').disabled=busy;
+  if(g.canDraw)btn('Draw until playable',controls,()=>command('draw'),'primary').disabled=busy;
   if(g.canPass)btn('Pass turn',controls,()=>command('pass'),'primary').disabled=busy;
  }
  view.handTitle.textContent='YOUR TILES · '+g.hand.length;view.handTitle.className='label';
@@ -256,5 +261,6 @@ window.OurDomino={init,sync(s){
  if(who!==s.who){heardMoves.clear();who=s.who;opened=false;mode='solo';picked=null;signature='';
  try{const saved=JSON.parse(localStorage.getItem('our-place:domino:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;fullView=saved.fullView!==false;}}catch{}}
  if(Number.isFinite(s.serverNow))clockOffset=s.serverNow-Date.now();version=s.version;hearMoves(s.domino??{});games=s.domino??{};if(picked&&!game()?.legal.some(m=>m.tile===picked))picked=null;render();
-},reset(){drawSeen.clear();heardMoves.clear();boardObserver?.disconnect();historySignature='';view=null;$('#domino-records').replaceChildren();$('#domino-history-list').replaceChildren();who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
+},reset(){drawSeen.clear();heardMoves.clear();shownResults.clear();boardObserver?.disconnect();historySignature='';view=null;$('#domino-records').replaceChildren();$('#domino-history-list').replaceChildren();who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
 })();
+

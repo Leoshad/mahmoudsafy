@@ -24,7 +24,7 @@ function finish(g,winner,reason){
  g.status='finished';g.turn=null;const totals=Object.fromEntries(g.players.map(n=>[n,sum(g.hands[n])]));
  const points=winner?reason==='blocked'?Math.abs(totals[g.players[0]]-totals[g.players[1]]):totals[opponent(g,winner)]:0;
  if(winner)g.scores[winner]+=points;
- g.result={winner,reason,points,totals};g.last={text:winner?winner+' wins '+points+' points.':'The round is a draw.'};
+ g.result={winner,reason,points,totals,hands:Object.fromEntries(g.players.map(n=>[n,g.hands[n].map(t=>({...t}))]))};g.last={text:winner?winner+' wins '+points+' points.':'The round is a draw.'};
 }
 function play(g,who,tile,side){
  const hand=g.hands[who];check(legalMoves(hand,g.chain).some(m=>m.tile===tile&&m.side===side),'Choose a matching tile and end.');
@@ -124,7 +124,7 @@ export function dominoChange(s,who,type,p={},now=Date.now()){
    check(g.status==='active'&&!g.paused&&g.turn===who,'Wait for your turn.',409);
    check(!g.turnDeadline||g.turnDeadline>now,'Your time ran out. The game is updating.',409);
    if(type==='domino.play')play(g,who,p.tile,p.side);
-   else if(type==='domino.draw'){check(!legalMoves(g.hands[who],g.chain).length,'Play a matching tile first.');check(g.stock.length,'No tiles left to draw. Pass instead.');g.hands[who].push(g.stock.pop());g.last={text:who+' drew a tile.'};}
+   else if(type==='domino.draw'){check(!legalMoves(g.hands[who],g.chain).length,'Play a matching tile first.');check(g.stock.length,'No tiles left to draw. Pass instead.');let drawn=0;do{g.hands[who].push(g.stock.pop());drawn++;}while(g.stock.length&&!legalMoves(g.hands[who],g.chain).length);g.last={text:who+' drew '+drawn+' tile'+(drawn===1?'':'s')+'. '+(legalMoves(g.hands[who],g.chain).length?'A matching tile is ready.':'No matching tile. Pass your turn.')};}
    else if(type==='domino.pass')pass(g,who);
    else check(false,'Unknown domino action.');
    settleMatch(s,g,now);scheduleBot(g,now);if(type!=='domino.draw')resetClock(g,now);
@@ -138,6 +138,7 @@ function view(g,who,now){
  if(!g||!g.players.includes(who))return null;
  const status=g.status==='waiting'&&g.expires<=now?'expired':g.status;
  const hand=g.hands[who]??[],other=opponent(g,who),legal=status==='active'&&!g.paused&&g.turn===who?legalMoves(hand,g.chain):[];
- return {paused:!!g.paused,pausedBy:g.pausedBy??[],turnSeconds:g.turnSeconds??0,turnDeadline:g.turnDeadline??null,id:g.id,revision:g.revision,target:g.target??100,matchWinner:g.matchWinner??null,lastMove:g.lastMove??null,botDueAt:g.botDueAt??null,owner:g.owner,mode:g.mode,difficulty:g.difficulty,players:g.players,status,expires:g.expires,round:g.round,scores:g.scores,chain:g.chain,turn:g.turn,result:g.result,last:g.last,hand:status==='waiting'||status==='expired'?[]:hand,opponent:other,opponentCount:g.hands[other]?.length??0,stockCount:g.stock.length,legal,canDraw:status==='active'&&!g.paused&&g.turn===who&&!legal.length&&!!g.stock.length,canPass:status==='active'&&!g.paused&&g.turn===who&&!legal.length&&!g.stock.length};
+ return {paused:!!g.paused,pausedBy:g.pausedBy??[],turnSeconds:g.turnSeconds??0,turnDeadline:g.turnDeadline??null,id:g.id,revision:g.revision,target:g.target??100,matchWinner:g.matchWinner??null,lastMove:g.lastMove??null,botDueAt:g.botDueAt??null,owner:g.owner,mode:g.mode,difficulty:g.difficulty,players:g.players,status,expires:g.expires,round:g.round,scores:g.scores,chain:g.chain,turn:g.turn,result:['finished','complete','ended'].includes(status)&&g.result?{...g.result,hands:g.result.hands??Object.fromEntries(g.players.map(n=>[n,g.hands[n]??[]]))}:null,last:g.last,hand:status==='waiting'||status==='expired'?[]:hand,opponent:other,opponentCount:g.hands[other]?.length??0,stockCount:g.stock.length,legal,canDraw:status==='active'&&!g.paused&&g.turn===who&&!legal.length&&!!g.stock.length,canPass:status==='active'&&!g.paused&&g.turn===who&&!legal.length&&!g.stock.length};
 }
 export function dominoSnapshot(s,who,now=Date.now()){return {solo:view(s.domino?.solo?.[who],who,now),shared:view(s.domino?.shared,who,now),records:{shared:s.domino?.records?.shared??{wins:{Mahmoud:0,Safy:0},history:[]},solo:s.domino?.records?.solo?.[who]??{wins:{[who]:0,Computer:0},history:[]}}};}
+

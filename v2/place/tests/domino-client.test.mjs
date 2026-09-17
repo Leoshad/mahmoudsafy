@@ -168,3 +168,11 @@ test('two-ended tile uses board previews, supports cancel and plays the chosen e
   assert.equal(a.commands(),1);assert.equal((side==='left'?g.chain[0]:g.chain.at(-1)).id,'0-1');assert.equal(g.chain[0].b,g.chain[1].a);assert.equal(nodes().filter(e=>e.className==='domino-place-target').length,0);
  }
 });
+
+
+test('result shows awarded points, both hands and a one-time entrance without changing saved score',async()=>{
+ const state=initial(),clients=[],a=client('Mahmoud',state,clients);await click(a.get('#domino-open'));await click(a.get('#domino-start'));const g=state.domino.solo.Mahmoud;
+ g.status='finished';g.scores={Mahmoud:11,Computer:0};g.result={winner:'Mahmoud',points:11,reason:'blocked',totals:{Mahmoud:1,Computer:12},hands:{Mahmoud:[{id:'0-1',a:0,b:1}],Computer:[{id:'6-6',a:6,b:6}]}};state.version++;a.sync();
+ let card=all(a.get('#domino-game')).find(e=>e.className==='domino-result');assert.ok(all(card).some(e=>e.textContent==='Mahmoud · +11 points'));assert.ok(all(card).some(e=>e.textContent==='Blocked round · 12 − 1 = 11 points'));assert.equal(all(card).filter(e=>e.className==='domino-piece').length,2);assert.ok(card.classList.contains('domino-result-enter'));
+ g.revision++;state.version++;a.sync();card=all(a.get('#domino-game')).find(e=>e.className==='domino-result');assert.equal(card.classList.contains('domino-result-enter'),false);assert.equal(g.scores.Mahmoud,11);
+});

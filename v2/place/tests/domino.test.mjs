@@ -153,3 +153,15 @@ test('pause freezes human clock and bot across restart; each participant resumes
  dominoChange(solo,'Mahmoud','domino.pause',{game:g.id,revision:g.revision},1500);const loaded=JSON.parse(JSON.stringify(solo));g=loaded.domino.solo.Mahmoud;
  assert.equal(dominoTick(loaded,9000),false);dominoChange(loaded,'Mahmoud','domino.resume',{game:g.id,revision:g.revision},9000);assert.equal(g.botDueAt,9600);assert.equal(dominoTick(loaded,9599),false);assert.equal(dominoTick(loaded,9600),true);
 });
+
+
+test('one draw action stops at the first legal tile without playing it or resetting the clock',()=>{
+ const s=initial();dominoChange(s,'Mahmoud','domino.create',{mode:'shared',turnSeconds:30});act(s,'Safy','accept');const g=s.domino.shared;
+ g.chain=[{id:'6-6',a:6,b:6}];g.hands={Mahmoud:[{id:'0-0',a:0,b:0}],Safy:[{id:'3-3',a:3,b:3}]};g.stock=[{id:'4-4',a:4,b:4},{id:'1-6',a:1,b:6},{id:'2-2',a:2,b:2},{id:'1-1',a:1,b:1}];g.turn='Mahmoud';const deadline=g.turnDeadline,revision=g.revision;
+ dominoChange(s,'Mahmoud','domino.draw',{game:g.id,revision});assert.deepEqual(g.hands.Mahmoud.map(t=>t.id),['0-0','1-1','2-2','1-6']);assert.equal(g.stock.length,1);assert.equal(g.turn,'Mahmoud');assert.equal(g.chain.length,1);assert.equal(g.turnDeadline,deadline);assert.equal(g.revision,revision+1);assert.equal(dominoSnapshot(s,'Mahmoud').shared.canDraw,false);assert.equal(dominoSnapshot(s,'Mahmoud').shared.result,null);assert.throws(()=>dominoChange(s,'Mahmoud','domino.draw',{game:g.id,revision}),/changed/);
+});
+test('draw exhaustion enables pass and blocked ties award no points; revealed result hands are frozen',()=>{
+ const s=initial();dominoChange(s,'Mahmoud','domino.create',{mode:'shared'});act(s,'Safy','accept');const g=s.domino.shared;
+ g.chain=[{id:'6-6',a:6,b:6}];g.hands={Mahmoud:[{id:'0-0',a:0,b:0}],Safy:[{id:'0-2',a:0,b:2}]};g.stock=[{id:'1-1',a:1,b:1}];g.turn='Mahmoud';act(s,'Mahmoud','draw');assert.equal(g.stock.length,0);assert.equal(dominoSnapshot(s,'Mahmoud').shared.canPass,true);
+ act(s,'Mahmoud','pass');act(s,'Safy','pass');assert.equal(g.result.winner,null);assert.equal(g.result.points,0);assert.deepEqual(g.scores,{Mahmoud:0,Safy:0});assert.deepEqual(dominoSnapshot(s,'Mahmoud').shared.result.hands.Safy,[{id:'0-2',a:0,b:2}]);g.hands.Safy[0].a=5;assert.equal(g.result.hands.Safy[0].a,0);
+});
