@@ -3,6 +3,7 @@
  function dismiss(target){
   const controls=(target?.closest?.('[aria-controls]')?.getAttribute('aria-controls')||'').split(/\s+/);
   for(const panel of document.querySelectorAll('#our-place-trial details[open]')){
+   if(panel.dataset?.persistent==='true')continue;
    if(!panel.contains(target)&&!controls.includes(panel.id))panel.open=false;
   }
  }
