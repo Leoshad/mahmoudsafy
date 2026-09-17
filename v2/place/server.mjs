@@ -1,3 +1,4 @@
+import {DailyWall,updateDaily} from './daily.mjs';
 import {exportArchive} from './export.mjs';
 import {echoContext} from './context.mjs';
 import {startMaintenance} from './backup.mjs';
@@ -33,10 +34,11 @@ const security={
   'Content-Security-Policy':"default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self'; img-src 'self' blob: https://i.ytimg.com; connect-src 'self' https://www.youtube.com; frame-src https://www.youtube.com 'self';  frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
   'Permissions-Policy':'camera=(), microphone=(), geolocation=()'
 };
-export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtAI=judge,drawAI=drawingWords,testing=false,mediaFetch=fetch,pushSend}={}){
+export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtAI=judge,drawAI=drawingWords,testing=false,mediaFetch=fetch,pushSend,dailyAI}={}){
   check(typeof secret==='string'&&secret.length>=32,'SESSION_SECRET must have at least 32 characters.',503);
   check(origin&&(!origin.includes('oiwxwogdfjgrapigiqrw')),'A separate V2 APP_ORIGIN is required.',503);
   const notifications=new PushNotifications(store,{secret,origin,...(pushSend?{send:pushSend}:{})});
+  const daily=new DailyWall(store,{refresh,...(dailyAI?{generate:dailyAI}:{})});
   const key=Buffer.from(hash(secret),'hex'),cookieName=testing?'ms_place':'__Host-ms_place';
   const streams=new Map(),running=new Map(),cache=new Map(),rates=new Map();
   const youtube=youtubeService({fetcher:mediaFetch,reserve:()=>{const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),key='youtube-search:'+day;store.tx(()=>{store.db.prepare('INSERT OR IGNORE INTO budget(key) VALUES(?)').run(key);check(store.db.prepare('SELECT used FROM budget WHERE key=?').get(key).used<80,'Today’s song-search allowance is used. Try again tomorrow.',429);store.db.prepare('UPDATE budget SET used=used+1 WHERE key=?').run(key);});}});
@@ -55,7 +57,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   }
   const send=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};
   async function body(req,max=8*1024*1024){let size=0,chunks=[];for await(const c of req){size+=c.length;check(size<=max,'This attachment is too large.',413);chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString());}catch{throw new Fault('Invalid request.');}}
-  function snapshot(who){const saved=store.state(),s=store.snapshot(who,saved);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.items=s.items.map(i=>({...i,comments:(i.comments??[]).map(c=>running.has(c.id)?{...c,text:running.get(c.id).text}:c)}));s.who=who;s.draw=drawView(saved,who);s.court=courtView(saved,who);s.personal=personalSnapshot(saved,who);s.crown=crownSnapshot(saved,who);s.ocho=ochoSnapshot(saved,who);s.domino=dominoSnapshot(saved,who);s.media=saved.media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
+  function snapshot(who){const saved=store.state(),s=store.snapshot(who,saved);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.items=s.items.map(i=>({...i,comments:(i.comments??[]).map(c=>running.has(c.id)?{...c,text:running.get(c.id).text}:c)}));s.daily=daily.view();s.who=who;s.draw=drawView(saved,who);s.court=courtView(saved,who);s.personal=personalSnapshot(saved,who);s.crown=crownSnapshot(saved,who);s.ocho=ochoSnapshot(saved,who);s.domino=dominoSnapshot(saved,who);s.media=saved.media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
     s.proposals=store.db.prepare("SELECT id,actor,scope,body FROM jobs WHERE status='done' ORDER BY createdAt DESC LIMIT 20").all().flatMap(j=>{const b=JSON.parse(j.body);return j.scope==='shared'&&j.actor===who&&!b.accepted?(b.proposals??[]).flatMap((p,index)=>[...(b.acceptedIndices??[]),...(b.dismissedIndices??[])].includes(index)||p.type!=='item'?[]:[{job:j.id,index,type:p.type,title:p.title,count:p.questions?.length,itemType:p.itemType}]):[];});return s;}
   function emit(event,data,who){for(const [res,meta] of streams){if(!who||meta.who===who)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);}}
   let presenceTimer=null;
@@ -189,9 +191,12 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
             const value=data.text?.trim()?text(data.text,4000):'';check(value||data.image,'Write a message or attach a photo.');if(data.image)photoData(data.image);if(data.reply)check(store.db.prepare('SELECT 1 FROM messages WHERE id=?').get(data.reply),'The original message is unavailable.');
             store.message({id:p.id,author:who,text:value,image:data.image,reply:data.reply,aiAllowed:!s.pauses.length});return {ok:true};
           }
+          if(p.type==='daily.settings'){updateDaily(s,data);store.save(s);daily.cancel(x=>x.kind==='daily');return {ok:true};}
+          if(p.type==='item.echo'&&data.value===false){daily.cancel(x=>x.postId===data.id);for(const [id,job]of running)if(job.wallItem===data.id){store.status(id,'cancelled');job.controller.abort();}}
           if(p.type==='item.ask'){
             check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);
             const item=s.items.find(i=>i.id===data.id);check(item,'This post is no longer available.',404);
+            check(item.echoComments===true,'Turn on Echo in comments first.',409);
             check(!s.pauses.length||data.once===true,'Echo is paused. Choose Ask once explicitly.',409);
             const question=text(data.question,650);item.comments??=[];check(item.comments.length<=198,'This post has reached 200 comments.');
             const imageId=(item.images??(item.image?[item.image]:[]))[0];
@@ -206,7 +211,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
             const id=store.reserve(who,scope,{prompt,purpose:data.purpose==='space'?'space':'chat',context:s.pauses.length?'':context(s),image});
             if(scope==='shared')store.message({id,author:'Echo',text:'',status:'streaming',aiAllowed:!s.pauses.length});return {job:id};
           }
-          if(p.type==='ai.cancel'){cancel(who,true);return {ok:true};}
+          if(p.type==='ai.cancel'){cancel(who,true);daily.cancel(()=>true);return {ok:true};}
           if(p.type==='proposal.accept'||p.type==='proposal.dismiss'){
             const j=store.job(data.job);check(j?.actor===who&&j.status==='done','This proposal is private to its requester.',403);const b=JSON.parse(j.body);check(!b.accepted&&b.proposals?.length,'This proposal is no longer available.',409);const index=data.index??0;check(Number.isInteger(index)&&index>=0&&index<b.proposals.length,'This proposal is unavailable.',404);check(!(b.acceptedIndices??[]).includes(index),'This proposal was already accepted.',409);check(!(b.dismissedIndices??[]).includes(index),'This proposal was dismissed.',409);const proposal=b.proposals[index];check(j.scope==='shared'&&proposal.type==='item','This proposal is no longer available.',410);
             if(p.type==='proposal.dismiss')b.dismissedIndices=[...(b.dismissedIndices??[]),index];
@@ -217,8 +222,8 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
           if(p.type==='echo.invite'&&data.value===false){for(const job of store.db.prepare("SELECT id FROM jobs WHERE scope='shared' AND status='running'").all()){store.status(job.id,'cancelled');store.db.prepare("UPDATE messages SET status='cancelled' WHERE id=?").run(job.id);running.get(job.id)?.controller.abort();}}
           if(p.type==='wallpaper.set'&&data.image)photoData(data.image);
           if(p.type==='item.save'){if(data.image)photoData(data.image);if(data.images){check(Array.isArray(data.images)&&data.images.length<=6,'Choose up to 6 photos.');for(const image of data.images)photoData(image);}}
-          if(p.type==='item.delete'){const item=s.items.find(i=>i.id===data.id);check(item&&item.revision===data.revision,'This post changed. Try deleting again.',409);for(const job of store.db.prepare("SELECT id,body FROM jobs WHERE status='running'").all())if(JSON.parse(job.body).wallItem===data.id){store.status(job.id,'cancelled');running.get(job.id)?.controller.abort();}}
-          if(p.type==='pause'&&data.value)cancel(who,true);
+          if(p.type==='item.delete'){daily.cancel(x=>x.postId===data.id);const item=s.items.find(i=>i.id===data.id);check(item&&item.revision===data.revision,'This post changed. Try deleting again.',409);for(const job of store.db.prepare("SELECT id,body FROM jobs WHERE status='running'").all())if(JSON.parse(job.body).wallItem===data.id){store.status(job.id,'cancelled');running.get(job.id)?.controller.abort();}}
+          if(p.type==='pause'&&data.value){cancel(who,true);daily.cancel(()=>true);}
           if(p.type==='quiz.react'){const a=s.activities?.find(a=>a.id===data.activity);check(a&&a.target===who,'This round belongs to your partner.',403);check(!s.pauses.length&&!a.pauses.length,'Resume Echo permissions before asking for a reaction.',409);const job=activityFeedback(s,a,who,true);check(job||a.feedback?.some(f=>f.index===a.index&&f.final===(a.status!=='active')&&['running','sent'].includes(f.status)),'Echo is unavailable right now. Your answers are saved.',409);store.save(s);return {ok:true,job};}
           if(['quiz.answer','quiz.end'].includes(p.type)){
             data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);
@@ -228,7 +233,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
           }
           if(['quiz.launch'].includes(p.type))data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);store.save(s);return {ok:true};
         });
-        send(res,200,result);if(p.type==='draw.stroke'&&result.segment){for(const [stream,meta] of streams)stream.write(meta.segments?`event: draw-segment\ndata: ${JSON.stringify(result.segment)}\n\n`:`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}else refresh(who);if(result.job)setImmediate(()=>run(result.job));return;
+        send(res,200,result);if(p.type==='draw.stroke'&&result.segment){for(const [stream,meta] of streams)stream.write(meta.segments?`event: draw-segment\ndata: ${JSON.stringify(result.segment)}\n\n`:`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}else refresh(who);if(result.job)setImmediate(()=>run(result.job));if(p.type==='item.comment')setImmediate(()=>daily.comment(p.data?.id).catch(()=>{}));return;
       }
       if(path==='/api/export'&&req.method==='GET')return exportArchive(store,snapshot(who),res);
       throw new Fault('Not found.',404);
@@ -238,7 +243,8 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   const dominoTimer=setInterval(()=>{try{const current=store.state();if(!drawDue(current)&&!dominoDue(current)&&!ochoDue(current))return;const changed=store.tx(()=>{const s=store.state();const a=drawTick(s),d=dominoTick(s),o=ochoTick(s);if(!d&&!o&&!a)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
   const pushTimer=setInterval(()=>notifications.drain().catch(()=>console.error('Notification delivery failed.')),250);pushTimer.unref();
-  server.on('close',()=>{clearTimeout(presenceTimer);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
+  const dailyTimer=setInterval(()=>daily.tick().catch(()=>console.error('Daily Echo update failed.')),15000);dailyTimer.unref();
+  server.on('close',()=>{clearInterval(dailyTimer);daily.stop();clearTimeout(presenceTimer);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});

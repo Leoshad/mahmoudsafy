@@ -31,7 +31,7 @@ export function attentionEvents(before,after,actor){
   for(const q of c.questions??[])if(!old?.questions?.some(x=>x.id===q.id)&&!q.answer)add('court:q:'+q.id,q.target,'Echo has a question for you in Court.',target,'echo');
   if(['review','decided'].includes(c.stage)&&old?.stage!==c.stage)both('court:'+c.id+':'+c.round+':'+c.stage,'Echo’s Court has an update for you to review.',target);
  }
- for(const post of after.items??[]){const old=before.items?.find(x=>x.id===post.id),target={tab:'space',post:post.id};if(!old){if(people.includes(post.by))add('post:'+post.id,other(post.by),post.by+' shared a post in Our Space.',target,'wall');continue;}
+ for(const post of after.items??[]){const old=before.items?.find(x=>x.id===post.id),target={tab:'space',post:post.id};if(!old){if(post.daily?.notify)people.forEach(n=>add('daily:'+post.id+':'+n,n,'Echo shared a new post on your wall.',target,'wall'));if(people.includes(post.by))add('post:'+post.id,other(post.by),post.by+' shared a post in Our Space.',target,'wall');continue;}
   for(const c of post.comments??[])if((!c.status||c.status==='sent')&&!old.comments?.some(x=>x.id===c.id&&(!x.status||x.status==='sent'))){if(c.by==='Echo'){const idx=post.comments.indexOf(c),requester=post.comments.slice(0,idx).findLast(x=>x.to==='Echo')?.by;if(requester)add('comment:'+c.id,requester,'Echo replied to your question on the wall.',target,'echo');}else if(people.includes(c.by))add('comment:'+c.id,other(c.by),c.by+' commented on your post.',target,'wall');}
   for(const n of post.likes??[])if(n!==post.by&&!old.likes?.includes(n))add('like:'+post.id+':'+n+':'+post.revision,post.by,n+' liked your post.',target,'wall',true);
  }

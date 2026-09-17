@@ -60,6 +60,11 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  try{
  await t.test('reject unauthenticated and forged-origin requests',async()=>{assert.equal((await request('none','state')).status,401);assert.equal((await request('none','login',{email:'mahmoud@example.test',password:'test-password'},{Origin:'http://evil.test'})).status,403);});
  for(const who of ['mahmoud','safy'])assert.equal((await request(who,'login',{email:who+'@example.test',password:'test-password'})).status,200);
+ await t.test('daily settings are shared, validated and revision guarded; comment consent enforced',async()=>{
+ const cfg=(await request('mahmoud','state')).body.daily;assert.equal(cfg.timeZone,'Asia/Riyadh');
+ const receipt=randomUUID(),payload={...cfg,enabled:false,comments:true};assert.equal((await cmd('mahmoud','daily.settings',payload,receipt)).status,200);assert.equal((await cmd('mahmoud','daily.settings',payload,receipt)).status,200);assert.equal((await cmd('safy','daily.settings',payload)).status,409);assert.equal((await request('safy','state')).body.daily.enabled,false);
+ await cmd('mahmoud','item.save',{type:'Discussion',title:'Consent test'});const item=s.state().items[0];assert.equal((await cmd('safy','item.ask',{id:item.id,question:'Echo?',once:true})).status,409);assert.equal((await cmd('safy','item.echo',{id:item.id,value:true})).status,200);assert.equal((await request('mahmoud','state')).body.items[0].echoComments,true);await cmd('safy','item.echo',{id:item.id,value:false});
+ });
  await t.test('journey progress is private, durable, revision checked and authenticated',async()=>{
  const d={revision:0,unlocked:5,current:4,complete:false,who:'Safy'};
  assert.equal((await cmd('mahmoud','journey.save',d)).status,200);
@@ -174,6 +179,7 @@ test('two authenticated HTTP clients: shared chat, private preparation, live str
  });
  await t.test('post questions stay in their own thread with streaming, follow-up context, and deletion',async()=>{
   nextProposals=[];await cmd('mahmoud','item.save',{type:'Idea',title:'WALL TEST: keep it here'});let item=s.state().items[0];const before=s.messages().length;
+  await cmd('mahmoud','item.echo',{id:item.id,value:true});
   const receipt=randomUUID(),payload={id:item.id,question:'What would make this fun?',once:true};const response=await cmd('mahmoud','item.ask',payload,receipt);assert.equal(response.status,200);assert.equal((await cmd('mahmoud','item.ask',payload,receipt)).body.job,response.body.job);
   assert.equal(activeAI.purpose,'wall');assert.ok(activeAI.context.includes('WALL TEST'));assert.equal(s.messages().length,before);let view=(await request('safy','state')).body.items.find(i=>i.id===item.id);assert.equal(view.comments.length,2);assert.equal(view.comments[0].by,'Mahmoud');assert.equal(view.comments[1].text,'Beginning');
   release();await waitJob(response.body.job);view=(await request('safy','state')).body.items.find(i=>i.id===item.id);assert.equal(view.comments[1].status,'sent');assert.equal(s.messages().length,before);
