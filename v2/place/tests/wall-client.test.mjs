@@ -107,3 +107,11 @@ test('sheet closes only explicitly or by its header swipe, and reopens the draft
  assert.equal(dialog.querySelector('.wall-thread-list').onpointerup,undefined);const head=dialog.querySelector('.wall-sheet-head');head.onpointerdown({target:head,clientX:100,clientY:100});head.onpointerup({clientX:105,clientY:180});assert.equal(dialog.open,false);
  await button(card,'Comment').onclick();assert.equal(input.value,'Keep this');assert.equal(c.doc.activeElement,button(dialog,'×'));await button(dialog,'×').onclick();assert.equal(dialog.open,false);assert.deepEqual(c.failures,[]);
 });
+
+test('Echo autocomplete replaces the active mention, preserves surrounding text and focus',async()=>{
+ const s=initial();change(s,'Safy','item.save',{type:'Idea',title:'Hello'});const c=client(s);c.wall.paint();await button(c.$('#items').children[0],'Comment').onclick();const input=sheet(c).querySelector('textarea'),suggestion=button(sheet(c),'✦ Echo');
+ input.value='Can you @ec help?';input.setSelectionRange(11,11);input.oninput();assert.equal(suggestion.hidden,false);let prevented=false;suggestion.onpointerdown({preventDefault(){prevented=true;}});assert.equal(prevented,true);await suggestion.onclick();assert.equal(input.value,'Can you @Echo help?');assert.equal(input.selectionStart,14);assert.equal(c.doc.activeElement,input);assert.equal(suggestion.hidden,true);assert.equal(c.commands.length,0);
+ for(const value of ['me@example.com','@someone','@Echo ']){input.value=value;input.setSelectionRange(value.length,value.length);input.oninput();assert.equal(suggestion.hidden,true);}
+ input.value='@';input.setSelectionRange(1,1);input.oninput();assert.equal(suggestion.hidden,false);input.onkeydown({key:'Enter',preventDefault(){}});assert.equal(input.value,'@Echo ');assert.equal(c.commands.length,0);
+ input.value='@e';input.setSelectionRange(2,2);input.oninput();input.onkeydown({key:'Escape',preventDefault(){},stopPropagation(){}});assert.equal(suggestion.hidden,true);assert.equal(sheet(c).open,true);
+});
