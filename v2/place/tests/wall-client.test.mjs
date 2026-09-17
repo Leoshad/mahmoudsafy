@@ -115,3 +115,12 @@ test('Echo autocomplete replaces the active mention, preserves surrounding text 
  input.value='@';input.setSelectionRange(1,1);input.oninput();assert.equal(suggestion.hidden,false);input.onkeydown({key:'Enter',preventDefault(){}});assert.equal(input.value,'@Echo ');assert.equal(c.commands.length,0);
  input.value='@e';input.setSelectionRange(2,2);input.oninput();input.onkeydown({key:'Escape',preventDefault(){},stopPropagation(){}});assert.equal(suggestion.hidden,true);assert.equal(sheet(c).open,true);
 });
+
+test('Echo comments render bold safely for existing replies and split streaming chunks',async()=>{
+ const s=initial();change(s,'Safy','item.save',{type:'Idea',title:'A thought'});s.items[0].comments=[{id:'old-bold',by:'Echo',text:'يعني **تعرف معنى الكلام** و **تختبر بناءه**.',status:'sent'},{id:'human-stars',by:'Safy',text:'Keep **my stars**'},{id:'stream-bold',by:'Echo',text:'',status:'streaming'}];
+ const c=client(s);c.wall.paint();await button(c.$('#items').children[0],'Comment').onclick();const body=id=>sheet(c).querySelectorAll('[data-comment]').find(n=>n.dataset.comment===id);
+ assert.deepEqual(body('old-bold').querySelectorAll('strong').map(n=>n.textContent),['تعرف معنى الكلام','تختبر بناءه']);assert.equal(body('human-stars').textContent,'Keep **my stars**');
+ c.wall.delta({post:s.items[0].id,id:'stream-bold',text:'Here **bo'});assert.equal(body('stream-bold').querySelector('strong').textContent,'bo');
+ c.wall.delta({post:s.items[0].id,id:'stream-bold',text:'ld** and <img src=x onerror=alert(1)>'});assert.equal(body('stream-bold').querySelector('strong').textContent,'bold');assert.equal(body('stream-bold').querySelectorAll('img').length,0);assert.ok(walk(body('stream-bold')).some(n=>n.textContent.includes('<img')));
+ s.items[0].comments[2].status='sent';c.wall.paint();assert.equal(body('stream-bold').querySelector('strong').textContent,'bold');assert.equal(s.items[0].comments[0].text,'يعني **تعرف معنى الكلام** و **تختبر بناءه**.');
+});
