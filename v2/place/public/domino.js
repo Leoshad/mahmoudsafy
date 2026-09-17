@@ -245,7 +245,7 @@ function render(){
  const help=slot('help');help.className='domino-zone-help domino-footer';
  btn(focused()?'Exit full screen':'Full screen',help,()=>{fullView=!fullView;show();signature='';render();},'domino-size-toggle').setAttribute('aria-label',focused()?'Exit full screen; keep game saved':'Fill screen with game');
  if(g.status==='active'||g.status==='finished'){
-  btn('Leave game',help,()=>command('leave'),'domino-leave').disabled=busy;
+  btn('Leave game',help,async()=>{if(await window.OurGameUI.confirm({title:'Leave this game?',message:'This ends the match without a win. Choose Minimize to continue later.',confirmLabel:'Leave game'}))await command('leave',{},g);},'domino-leave').disabled=busy;
  }
 }
 function init(h){
