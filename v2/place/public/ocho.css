@@ -71,3 +71,19 @@
  #our-place-trial .ocho-full .ocho-self{grid-column:2;grid-row:3;max-height:none}
  #our-place-trial .ocho-full .ocho-footer{grid-column:2;grid-row:4}
 }
+
+
+/* Keep the existing table palette while making instructions and results readable. */
+#our-place-trial .ocho-draw-hint{font-size:13px;line-height:1.35;text-align:center;color:#efd49f;margin:0}
+#our-place-trial .ocho-draw-hint:empty{display:none}
+#our-place-trial .ocho-peek{font-size:14px;font-weight:600;text-align:center;color:#eee4cf}
+#our-place-trial .ocho-records{font-size:16px;font-weight:600}
+#our-place-trial .ocho-result h3{font-size:clamp(30px,7vw,40px);margin:0 0 12px}
+#our-place-trial .ocho-result p{font-size:16px;line-height:1.45;margin:8px 0;overflow-wrap:anywhere}
+#our-place-trial .ocho-result .ocho-result-award{font-size:26px;font-weight:700;color:#efd49f}
+#our-place-trial .ocho-result .ocho-result-score{font-size:20px;font-weight:600;color:#efd49f}
+#our-place-trial .ocho-result-counts{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 20px}
+#our-place-trial .ocho-winning-card{display:flex;align-items:center;justify-content:center;gap:14px;margin:12px 0;font-size:16px}
+#our-place-trial .ocho-result-enter{animation:ocho-result-in .55s ease-out}
+@keyframes ocho-result-in{from{opacity:.3;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){#our-place-trial .ocho-result-enter{animation:none}}
