@@ -66,3 +66,11 @@ test('Ask Echo sends the post reference, opens its thread and displays streamed 
  const s=initial();change(s,'Mahmoud','item.save',{type:'Idea',title:'Our post'});change(s,'Mahmoud','item.echo',{id:s.items[0].id,value:true});const c=client(s);c.wall.paint();const card=c.$('#items').children[0],input=card.querySelector('input');input.value='Any suggestions?';await input.parentElement.onsubmit({preventDefault(){}});assert.equal(c.commands[0].type,'item.ask');assert.equal(c.commands[0].data.id,s.items[0].id);assert.equal(c.tab(),'');assert.equal(card.querySelector('.wall-comments').open,true);
  c.wall.delta({post:s.items[0].id,id:'echo-test',text:'Try a picnic.'});const reply=card.querySelectorAll('[data-comment]').find(n=>n.dataset.comment==='echo-test');assert.equal(reply.textContent,'Try a picnic.');assert.deepEqual(c.failures,[]);
 });
+test('wall toolbar opens separate search/settings dialogs without moving the feed',async()=>{
+ const s=initial();change(s,'Safy','item.save',{type:'Idea',title:'A little memory'});const c=client(s);c.wall.paint();const card=c.$('#items').children[0];
+ c.$('#wall-search-open').onclick();assert.equal(c.$('#wall-search-dialog').open,true);c.$('#space-search').value='missing';c.wall.paint();assert.equal(c.$('#wall-filter-status').hidden,false);c.$('#wall-filter-clear').onclick();assert.equal(c.$('#space-search').value,'');assert.equal(c.$('#wall-filter-status').hidden,true);c.$('#wall-search-done').onclick();assert.equal(c.$('#wall-search-dialog').open,false);
+ c.$('#wall-settings-open').onclick();assert.equal(c.$('#daily-settings').open,true);c.$('#wall-settings-close').onclick();assert.equal(c.$('#daily-settings').open,false);assert.equal(c.doc.activeElement,c.$('#wall-settings-open'));assert.equal(s.items[0].title,'A little memory');
+});
+test('Echo suggestions remain discoverable inside the add-moment screen',()=>{
+ const s=initial();s.proposals=[{type:'item',title:'An evening'}];const c=client(s);c.wall.paint();assert.equal(c.$('#wall-suggestions').hidden,false);c.$('#wall-suggestions').onclick();assert.equal(c.tab(),'editor');assert.equal(c.$('#wall-create-echo').open,true);
+});

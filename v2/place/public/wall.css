@@ -62,3 +62,28 @@
 
 /* Echo daily controls fit the existing wall, including narrow phones. */
 .daily-form{display:grid;gap:14px;margin:16px 0}.daily-option,.daily-slot{display:flex;align-items:center;gap:10px}.daily-option input,.daily-slot input[type=checkbox]{width:18px;min-width:18px;height:18px;accent-color:#bd91aa}.daily-slot{display:grid;grid-template-columns:18px minmax(0,1fr);align-items:start}.daily-slot span{min-width:0}.daily-slot input[type=time]{grid-column:2;width:150px;max-width:100%;min-width:0;box-sizing:border-box}.daily-run{font-size:12px;overflow-wrap:anywhere}.wall-sources{display:grid;gap:5px;margin:8px 0 14px;font-size:12px}.wall-sources a,.wall-text a{color:#d7b58d;text-decoration:underline;overflow-wrap:anywhere}.wall-post-actions{flex-wrap:wrap}#daily-settings{margin-bottom:18px}#daily-settings-body{padding:8px 0}.daily-option{line-height:1.5}
+
+/* The wall opens on content; occasional tools live in accessible dialogs. */
+#our-place-trial .wall-utilities{display:flex;align-items:center;gap:5px;flex-shrink:0}
+#our-place-trial .wall-utilities button{display:inline-flex;align-items:center;justify-content:center;padding:8px;min-width:40px;min-height:44px;background:transparent;border-color:transparent}
+#our-place-trial .wall-utilities .wall-dates-link{font-size:12px;padding:8px 5px;color:var(--rose)}
+#our-place-trial #space .wall-heading{margin:4px 0 18px}
+#our-place-trial #space .wall-heading h2{font-size:27px;white-space:nowrap}
+#our-place-trial .wall-add{width:100%;min-height:48px;text-align:left;padding:12px 16px}
+#our-place-trial .wall-upcoming{display:block;width:100%;text-align:left;margin:0 0 12px;background:transparent;border:0;padding:8px 0;color:var(--rose);font-size:13px}
+#our-place-trial .wall-upcoming[hidden]{display:none}
+#our-place-trial .wall-empty{padding:28px 10px}
+#our-place-trial .wall-empty-icon{font-size:36px}
+#our-place-trial .wall-empty h3{margin:12px 0 8px;font-size:19px}
+#our-place-trial .wall-empty p{font-size:14px;line-height:1.6}
+#our-place-trial .wall-settings-dialog{box-sizing:border-box;width:min(520px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;overscroll-behavior:contain;margin:auto;padding:20px;border:1px solid #795468;border-radius:20px;background:#201923;color:#eee6e9;color-scheme:dark;box-shadow:0 20px 70px #000a}
+#our-place-trial .wall-settings-dialog::backdrop{background:#08050bbd}
+#our-place-trial .wall-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+#our-place-trial .wall-dialog-head h3{margin:0;font:24px/1.2 Georgia,serif}
+#our-place-trial .wall-dialog-head button{min-width:44px;min-height:44px;padding:8px;background:transparent}
+#our-place-trial .wall-settings-dialog input[type=search]{width:100%;box-sizing:border-box;margin-bottom:14px}
+#our-place-trial .wall-settings-dialog .daily-option{font-size:14px}
+#our-place-trial .wall-settings-dialog .daily-slot{font-size:14px;padding:12px 0;border-top:1px solid #48313f}
+#our-place-trial .wall-settings-dialog .muted{font-size:13px;line-height:1.6}
+#our-place-trial #daily-settings{margin:auto}
+@media(max-width:360px){#our-place-trial #space .wall-heading h2{font-size:24px}#our-place-trial .wall-utilities{gap:0}}
