@@ -1,6 +1,11 @@
 import {randomUUID} from 'node:crypto';
 import {check} from './domain.mjs';
 import {recordCompetitiveResult} from './crown.mjs';
+export function strokeEvent(s, p) {
+ const b=p.mode==='shared'?s.draw.shared:s.draw.match.board;
+ const line=b.strokes.find(v=>v.id===p.strokeId);
+ return {mode:p.mode,matchId:p.mode==='guess'?s.draw.match.id:null,boardId:b.id,revision:b.revision,version:s.version,offset:p.offset,stroke:{id:line.id,by:line.by,color:line.color,width:line.width,tool:line.tool,points:line.points.slice(p.offset,p.offset+p.points.length)}};
+}
 const names=['Mahmoud','Safy'],other=n=>names.find(x=>x!==n);
 const board=()=>({id:randomUUID(),strokes:[],revision:0});
 export function drawState(s){return s.draw??= {countCrown:false,settingsRevision:0,shared:board(),match:null,history:[]};}

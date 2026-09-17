@@ -5,6 +5,7 @@ import {readFileSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {initial} from '../domain.mjs';
 import {drawState,drawChange,drawView,drawApply} from '../draw.mjs';
+import {strokeEvent} from '../draw.mjs';
 const walk=n=>[n,...n.children.flatMap(walk)];
 function client(s){
  class Node{constructor(tag='div'){this.tag=tag;this.children=[];this.className='';this.style={};this.value='';this.ownText='';this.classList={add:c=>this.className+=' '+c,remove:c=>this.className=this.className.split(' ').filter(x=>x!==c).join(' '),toggle:(c,v)=>{this.classList.remove(c);if(v)this.classList.add(c);}};}set textContent(v){this.ownText=v;this.children=[];}get textContent(){return this.ownText+this.children.map(n=>n.textContent).join('');}append(...nodes){for(const n of nodes){n.parentElement=this;this.children.push(n);}}replaceChildren(){this.children=[];this.ownText='';}remove(){if(this.parentElement)this.parentElement.children=this.parentElement.children.filter(n=>n!==this);}setAttribute(k,v){this[k]=v;}querySelector(q){return walk(this).slice(1).find(n=>n.tag===q)??null;}getBoundingClientRect(){return {left:0,top:0,width:400,height:300};}getContext(){return {fillRect(){},clearRect(){},beginPath(){},lineTo(){},moveTo(){},arc(){},fill(){},stroke(){}};}setPointerCapture(){}toDataURL(){return 'data:image/png;base64,AAAA';}click(){this.onclick?.();}}
@@ -17,3 +18,18 @@ test('shared strokes are persisted and partner updates preserve the guess input'
 test('guesser UI never contains the active word and exposes guess and hint controls',()=>{const s=initial();drawState(s);drawChange(s,'Safy','draw.create',{settingsRevision:0,language:'English',difficulty:'Easy',seconds:90});const m=s.draw.match;drawChange(s,'Mahmoud','draw.accept',{id:m.id});m.pending='job';drawApply(s,m.id,'job',Array.from({length:6},(_,i)=>({word:'Secret'+i,hint:'An object',answers:[]})));drawChange(s,'Mahmoud','draw.ready',{id:m.id,round:0});drawChange(s,'Safy','draw.ready',{id:m.id,round:0});const c=client(s);c.document.querySelector('#draw-open').onclick();c.button('Draw & Guess').onclick();assert.ok(!c.panel().textContent.includes('Secret0'));assert.ok(c.button('Ask for hint · max 5 points'));assert.equal(c.panel().querySelector('form').hidden,false);});
 test('tool button names the next tool and ink selection returns to drawing',async()=>{const s=initial();drawState(s);const c=client(s);c.document.querySelector('#draw-open').onclick();const canvas=c.panel().querySelector('canvas');assert.ok(c.button('Eraser'));c.button('Eraser').onclick();assert.ok(c.button('Pen'));canvas.onpointerdown({button:0,pointerId:1,clientX:100,clientY:100,preventDefault(){}});canvas.onpointerup();await new Promise(r=>setTimeout(r,10));assert.equal(s.draw.shared.strokes[0].tool,'eraser');c.button('Pen').onclick();assert.ok(c.button('Eraser'));c.button('Eraser').onclick();const picker=walk(c.panel()).find(n=>n['aria-label']==='Choose drawing color');assert.equal(picker.type,'color');picker.value='#00c853';picker.oninput();assert.ok(c.button('Eraser'));canvas.onpointerdown({button:0,pointerId:2,clientX:120,clientY:110,preventDefault(){}});canvas.onpointerup();await new Promise(r=>setTimeout(r,10));assert.equal(s.draw.shared.strokes[1].tool,'pen');assert.equal(s.draw.shared.strokes[1].color,'#00c853');});
 test('incoming sync cannot resize the canvas while a pointer stroke is active',async()=>{const s=initial();drawState(s);const c=client(s);c.document.querySelector('#draw-open').onclick();c.button('Full screen').onclick();const canvas=c.panel().querySelector('canvas'),paper=canvas.parentElement;const before={...canvas.style};canvas.onpointerdown({button:0,pointerId:1,clientX:100,clientY:100,preventDefault(){}});paper.getBoundingClientRect=()=>({left:0,top:0,width:300,height:200});await c.sync();assert.deepEqual(canvas.style,before);canvas.onpointerup();assert.notEqual(canvas.style.width,before.width);});
+
+test('live drawing segments paint once, recover gaps and preserve the current generation',async()=>{
+ const s=initial();drawState(s);const c=client(s);c.document.querySelector('#draw-open').onclick();
+ const canvas=c.panel().querySelector('canvas');let lines=0;
+ canvas.getContext=()=>({fillRect(){},clearRect(){},beginPath(){},lineTo(){lines++;},moveTo(){},arc(){},fill(){},stroke(){}});
+ const p={mode:'shared',boardId:s.draw.shared.id,strokeId:randomUUID(),offset:0,color:'#ff0000',width:5,tool:'pen',points:[[0,0],[.1,.1]]};
+ drawChange(s,'Safy','draw.stroke',p);const first=strokeEvent(s,p);c.ctx.OurDraw.segment(first);assert.equal(lines,1);
+ c.ctx.OurDraw.segment(first);assert.equal(lines,1);
+ p.offset=2;p.points=[[.2,.2]];drawChange(s,'Safy','draw.stroke',p);
+ p.offset=3;p.points=[[.3,.3]];drawChange(s,'Safy','draw.stroke',p);
+ // Deliver revision 3 without revision 2: recover via the authoritative snapshot.
+ c.ctx.OurDraw.segment(strokeEvent(s,p));await new Promise(r=>setImmediate(r));assert.equal(lines,4);
+ drawChange(s,'Mahmoud','draw.clear',{mode:'shared',boardId:s.draw.shared.id,revision:s.draw.shared.revision});await c.sync();
+ c.ctx.OurDraw.segment(first);await new Promise(r=>setImmediate(r));assert.equal(lines,4);
+});

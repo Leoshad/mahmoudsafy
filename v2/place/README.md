@@ -146,3 +146,29 @@ Deployment configuration: the V2 Supabase project must have Site URL / allowed r
 Validation uses an isolated provider mock for current-password validation, email continuity, other-device revocation, anti-takeover, CSRF, recovery PKCE binding, one-time reset, and whitespace-preserving passwords. Production credentials were not changed and real confirmation email delivery is not claimed tested.
 
 References: https://supabase.com/docs/guides/auth/passwords and https://supabase.com/docs/guides/auth/auth-email-templates .
+
+
+### Reliability repairs — 2026-09-17
+
+Echo context now preserves the newest eligible messages within the existing 24,000-character cap, and always passes complete JSON. Model, pricing constants, invitation rules and budget limits are unchanged.
+
+New clients request incremental drawing segments over SSE. Segments contain accepted points, board generation and revision only; gaps recover from an authenticated snapshot. Older open clients retain full-snapshot compatibility. Snapshot construction reads state once, and the game timer no longer parses the entire state three times per tick. The one-minute SSE reauthentication boundary remains; brief reconnects have a 1.5-second visual grace period to avoid presence flicker.
+
+The existing download link is now `Download our archive`: its JSON includes referenced photos, streamed one at a time, and only the requesting account's authorized projection. It is a portable content archive, not an authentication database or an in-app import format.
+
+On startup (after ten seconds), then daily, the production entrypoint creates a SQLite online backup in `DATA_DIR/recovery`, checks database integrity, compresses and encrypts it using AES-256-GCM and a key derived from `SESSION_SECRET`, and verifies a restore before retaining the newest two archives. It includes photos, sealed records, identities and the budget ledger. Backup operations avoid overlapping and check free disk space; a failure preserves existing archives and skips photo cleanup. Existing encrypted data and backups require the same SESSION_SECRET: do not rotate it without a migration.
+
+Photo cleanup tracks the first observation of unreferenced media, waits at least seven days, and runs only after a verified full backup. It scans all saved state (including sealed cases and legacy drafts), messages and jobs, then rechecks current references before removal. Referenced photos are never deleted to satisfy the 150 MB quota. SQLite reuses the freed pages; its file size need not shrink immediately. This also recovers space from abandoned uploads and replaced pictures after the grace period.
+
+These recovery archives are on the same persistent disk: they help recover from an application error, but do not protect against complete loss of that disk. Off-disk copies and the provider's snapshot retention still require verification in the existing Render workspace. No paid storage or external transfer was configured.
+
+Recovery is an operator action, not a public API:
+
+```sh
+# With the original SESSION_SECRET already set securely in the environment:
+node backup.mjs restore /secure/path/archive.opbackup /secure/path/new-restored.sqlite
+```
+
+The destination must not exist; the command authenticates/decompresses the archive and checks SQLite integrity before creating it. It never replaces the live database. Before an actual recovery, stop writes, keep the current database, reconcile the AI budget ledger with any newer usage (restoring an old backup must not reset spent credit), and revoke restored sessions. Then switch databases in a controlled maintenance window. No production restore has been performed by this repair.
+
+Validation includes long-context reproduction, encrypted recovery with photos/WAL/hidden state/budgets, wrong-key and overwrite rejection, privacy-filtered photo export, cleanup grace/reference races, incremental drawing duplicates and gap recovery, plus the existing test suite. Phone interaction, actual notification timing and live deploy verification remain separate checks.

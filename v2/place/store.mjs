@@ -14,6 +14,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,actor TEXT NOT NULL,scope TEXT NOT NULL,status TEXT NOT NULL,body TEXT NOT NULL,createdAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS budget(key TEXT PRIMARY KEY,used INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS photos(id TEXT PRIMARY KEY,mime TEXT NOT NULL,bytes BLOB NOT NULL,createdAt TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS photo_orphans(id TEXT PRIMARY KEY,since INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS photo_owners(id TEXT PRIMARY KEY,owner TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS identities(name TEXT PRIMARY KEY,uid TEXT UNIQUE NOT NULL);
       CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY,expires INTEGER NOT NULL);
@@ -30,7 +31,7 @@ export class Store {
   once(actor,id,payload,fn){check(typeof id==='string'&&/^[a-f0-9-]{36}$/.test(id),'Missing action ID.');const digest=hash(JSON.stringify(payload));return this.tx(()=>{const old=this.db.prepare('SELECT * FROM receipts WHERE id=?').get(id);if(old){check(old.actor===actor&&old.digest===digest,'Action ID already used.',409);return JSON.parse(old.result);}const result=fn()??{ok:true};this.db.prepare('INSERT INTO receipts VALUES(?,?,?,?)').run(id,actor,digest,JSON.stringify(result));return result;});}
   message(m){this.db.prepare('INSERT INTO messages VALUES(?,?,?,?,?,?,?,?)').run(m.id,m.author,m.text,m.image??null,m.reply??null,m.aiAllowed?1:0,m.status??'sent',new Date().toISOString());}
   messages(before){return this.db.prepare('SELECT * FROM (SELECT rowid AS sequence,*,(SELECT at FROM message_reads WHERE message=messages.id) AS readAt FROM messages WHERE rowid < ? ORDER BY rowid DESC LIMIT 60) ORDER BY sequence').all(Number(before)||Number.MAX_SAFE_INTEGER);}
-  snapshot(who){return {...project(this.state(),who),messages:this.messages(),jobs:this.db.prepare("SELECT id,actor,scope,status FROM jobs WHERE status='running' AND (scope='shared' OR actor=?)").all(who)};}
+  snapshot(who,state=this.state()){return {...project(state,who),messages:this.messages(),jobs:this.db.prepare("SELECT id,actor,scope,status FROM jobs WHERE status='running' AND (scope='shared' OR actor=?)").all(who)};}
   reserve(actor,scope,body){
     const keys=[new Date().toISOString().slice(0,7),'lifetime'];const caps=[4_000_000,Number(process.env.AI_LIFETIME_USD??'3')*1_000_000];
     check(Number.isFinite(caps[1])&&caps[1]>=0&&caps[1]<=100_000_000,'Invalid AI budget configuration.',503);
@@ -50,4 +51,5 @@ export class Store {
   status(id,status){this.db.prepare('UPDATE jobs SET status=? WHERE id=?').run(status,id);}
   close(){this.db.close();}
 }
+
 

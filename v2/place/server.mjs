@@ -1,3 +1,7 @@
+import {exportArchive} from './export.mjs';
+import {echoContext} from './context.mjs';
+import {startMaintenance} from './backup.mjs';
+import {strokeEvent} from './draw.mjs';
 import {accountRoutes,identify,bindSession} from './account.mjs';
 import {recordReads} from './reads.mjs';
 import {PushNotifications} from './push.mjs';
@@ -51,9 +55,11 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   }
   const send=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};
   async function body(req,max=8*1024*1024){let size=0,chunks=[];for await(const c of req){size+=c.length;check(size<=max,'This attachment is too large.',413);chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString());}catch{throw new Fault('Invalid request.');}}
-  function snapshot(who){const s=store.snapshot(who);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.items=s.items.map(i=>({...i,comments:(i.comments??[]).map(c=>running.has(c.id)?{...c,text:running.get(c.id).text}:c)}));s.who=who;s.draw=drawView(store.state(),who);s.court=courtView(store.state(),who);s.personal=personalSnapshot(store.state(),who);s.crown=crownSnapshot(store.state(),who);s.ocho=ochoSnapshot(store.state(),who);s.domino=dominoSnapshot(store.state(),who);s.media=store.state().media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
+  function snapshot(who){const saved=store.state(),s=store.snapshot(who,saved);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.items=s.items.map(i=>({...i,comments:(i.comments??[]).map(c=>running.has(c.id)?{...c,text:running.get(c.id).text}:c)}));s.who=who;s.draw=drawView(saved,who);s.court=courtView(saved,who);s.personal=personalSnapshot(saved,who);s.crown=crownSnapshot(saved,who);s.ocho=ochoSnapshot(saved,who);s.domino=dominoSnapshot(saved,who);s.media=saved.media??null;s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
     s.proposals=store.db.prepare("SELECT id,actor,scope,body FROM jobs WHERE status='done' ORDER BY createdAt DESC LIMIT 20").all().flatMap(j=>{const b=JSON.parse(j.body);return j.scope==='shared'&&j.actor===who&&!b.accepted?(b.proposals??[]).flatMap((p,index)=>[...(b.acceptedIndices??[]),...(b.dismissedIndices??[])].includes(index)||p.type!=='item'?[]:[{job:j.id,index,type:p.type,title:p.title,count:p.questions?.length,itemType:p.itemType}]):[];});return s;}
   function emit(event,data,who){for(const [res,meta] of streams){if(!who||meta.who===who)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);}}
+  let presenceTimer=null;
+  function publishPresence(delayed=false){clearTimeout(presenceTimer);const publish=()=>emit('presence',{online:[...new Set([...streams.values()].map(v=>v.who))]});if(delayed){presenceTimer=setTimeout(publish,1500);presenceTimer.unref();}else publish();}
   function refresh(actor){try{notifications.scan(actor);}catch{console.error('Notification update failed.');}for(const [res,meta]of streams)res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}
   function cancel(who,all=false){for(const [id,job]of running)if(all&&job.scope==='shared'||job.actor===who){store.status(id,'cancelled');job.controller.abort();}}
   function saveWallReply(post,id,value,status){const s=store.state(),item=s.items.find(i=>i.id===post),c=item?.comments?.find(c=>c.id===id);if(!c)return;c.text=value;c.status=status;if(status!=='streaming')item.revision++;store.save(s);}
@@ -114,7 +120,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
     }catch{if(store.job(id)?.status==='running')store.status(id,controller.signal.aborted?'interrupted':'failed');}
     finally{clearTimeout(timer);running.delete(id);store.tx(()=>{const s=store.state();courtFailure(s,b.caseId,id);store.save(s);if(store.job(id)?.status==='running')store.status(id,'interrupted');store.db.prepare("UPDATE jobs SET body='{}' WHERE id=?").run(id);});refresh();}
   }
-  function context(s){const msgs=store.db.prepare('SELECT author,text FROM (SELECT rowid AS seq,author,text FROM messages WHERE aiAllowed=1 AND status=\'sent\' ORDER BY rowid DESC LIMIT 50) ORDER BY seq').all();return JSON.stringify({messages:msgs,space:s.items.filter(i=>i.aiAllowed).slice(0,30).map(({type,title,done,approvals,steps})=>({type,title,done,approvals,steps})),activity:s.activity?{owner:s.activity.owner,target:s.activity.target,status:s.activity.status,index:s.activity.index,answers:s.activity.answers}:null}).slice(0,24000);}
+  function context(s){const msgs=store.db.prepare('SELECT author,text FROM (SELECT rowid AS seq,author,text FROM messages WHERE aiAllowed=1 AND status=\'sent\' ORDER BY rowid DESC LIMIT 50) ORDER BY seq').all();return echoContext(msgs,s);}
   function photoData(id){if(!id)return null;const p=store.db.prepare('SELECT mime,bytes FROM photos WHERE id=?').get(id);check(p,'Photo not found.',404);return `data:${p.mime};base64,${Buffer.from(p.bytes).toString('base64')}`;}
   const accountHandler=accountRoutes({store,origin,sb,auth,body,send,limit,seal,open,issue,notifications,testing,clearCache:()=>cache.clear(),closeOthers:(who,sid)=>{for(const [r,m]of streams)if(m.who===who&&m.sid!==sid){r.write('event: session-ended\ndata: {}\n\n');r.end();}}});
   async function route(req,res){Object.entries(security).forEach(([k,v])=>res.setHeader(k,v));const url=new URL(req.url,origin),path=url.pathname;if(url.searchParams.has('code'))res.setHeader('Referrer-Policy','no-referrer');
@@ -151,8 +157,8 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(path.startsWith('/api/messages/')&&req.method==='GET'){const m=store.db.prepare('SELECT rowid AS sequence,*,(SELECT at FROM message_reads WHERE message=messages.id) AS readAt FROM messages WHERE id=?').get(path.split('/').pop());check(m,'The original message is unavailable.',404);return send(res,200,m);}
       if(path==='/api/history'&&req.method==='GET')return send(res,200,store.messages(url.searchParams.get('before')));
       if(path==='/api/events'&&req.method==='GET'){
-        res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive','X-Accel-Buffering':'no'});res.write(`retry: 250\n\nevent: snapshot\ndata: ${JSON.stringify(snapshot(who))}\n\n`);streams.set(res,{who,sid:req.sessionId});emit('presence',{online:[...new Set([...streams.values()].map(v=>v.who))]});
-        const beat=setInterval(()=>res.write(': keepalive\n\n'),15000);const expiry=setTimeout(()=>res.end(),60000);res.on('close',()=>{clearInterval(beat);clearTimeout(expiry);streams.delete(res);emit('presence',{online:[...new Set([...streams.values()].map(v=>v.who))]});});return;
+        res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive','X-Accel-Buffering':'no'});res.write(`retry: 250\n\nevent: snapshot\ndata: ${JSON.stringify(snapshot(who))}\n\n`);streams.set(res,{who,sid:req.sessionId,segments:url.searchParams.get('draw')==='segments'});publishPresence();
+        const beat=setInterval(()=>res.write(': keepalive\n\n'),15000);const expiry=setTimeout(()=>res.end(),60000);res.on('close',()=>{clearInterval(beat);clearTimeout(expiry);streams.delete(res);publishPresence(true);});return;
       }
       if(path.startsWith('/api/photos/')&&req.method==='GET'){const id=path.split('/').pop(),p=store.db.prepare('SELECT * FROM photos WHERE id=?').get(id);check(p,'Photo not found.',404);res.writeHead(200,{'Content-Type':p.mime,'Content-Length':p.bytes.length});return res.end(Buffer.from(p.bytes));}
       if(path==='/api/photos'&&req.method==='POST'){
@@ -167,7 +173,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
           const s=store.state();const data={...(p.data??{})};
           if(p.type?.startsWith('draw.')){
             if(p.type==='draw.prepare'){check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);check(!s.pauses.length||data.once===true,'Echo is paused. Choose Ask Echo once.',409);const m=drawState(s).match;check(m?.id===data.id&&m.status==='preparing'&&!m.pending,'Match changed or Echo is already preparing.',409);const id=store.reserve(who,'shared',{purpose:'draw',matchId:m.id,context:{language:m.language,difficulty:m.difficulty}});m.pending=id;m.error=null;s.version++;store.save(s);return {job:id};}
-            const pending=s.draw?.match?.pending;const result=drawChange(s,who,p.type,data);store.save(s);if(pending&&!s.draw.match.pending){store.status(pending,'cancelled');running.get(pending)?.controller.abort();}return result;
+            const pending=s.draw?.match?.pending;const result=drawChange(s,who,p.type,data);store.save(s);if(pending&&!s.draw.match.pending){store.status(pending,'cancelled');running.get(pending)?.controller.abort();}return p.type==='draw.stroke'?{...result,segment:strokeEvent(s,data)}:result;
           }
           if(p.type?.startsWith('court.')){
             if(p.type==='court.ask'){check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);check(!s.pauses.length||data.once===true,'Echo is paused. Choose Ask Echo once.',409);const c=courtCase(s,data.id);check(c.revision===data.revision,'This case changed. Review it and try again.',409);const context=courtRequest(c);const id=store.reserve(who,'shared',{purpose:'court',caseId:c.id,context});c.pending=id;c.error=null;c.revision++;s.version++;store.save(s);return {job:id};}
@@ -222,24 +228,26 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
           }
           if(['quiz.launch'].includes(p.type))data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);store.save(s);return {ok:true};
         });
-        send(res,200,result);refresh(who);if(result.job)setImmediate(()=>run(result.job));return;
+        send(res,200,result);if(p.type==='draw.stroke'&&result.segment){for(const [stream,meta] of streams)stream.write(meta.segments?`event: draw-segment\ndata: ${JSON.stringify(result.segment)}\n\n`:`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}else refresh(who);if(result.job)setImmediate(()=>run(result.job));return;
       }
-      if(path==='/api/export'&&req.method==='GET'){res.setHeader('Content-Disposition','attachment; filename="our-place-backup.json"');return send(res,200,{...snapshot(who),messages:store.db.prepare('SELECT * FROM messages ORDER BY rowid').all(),note:'Shared chat. Download photos separately. Keep this file private.'});}
+      if(path==='/api/export'&&req.method==='GET')return exportArchive(store,snapshot(who),res);
       throw new Fault('Not found.',404);
     }
     check(req.method==='GET','Method not allowed.',405);const files={'/account.js':['account.js','text/javascript'],'/reads.js':['reads.js','text/javascript'],'/sw.js':['sw.js','text/javascript'],'/notifications.js':['notifications.js','text/javascript'],'/draw.js':['draw.js','text/javascript'],'/draw.css':['draw.css','text/css'],'/court-export.js':['court-export.js','text/javascript'],'/court-print.css':['court-print.css','text/css'],'/court.js':['court.js','text/javascript'],'/court.css':['court.css','text/css'],'/personal.js':['personal.js','text/javascript'],'/personal.css':['personal.css','text/css'],'/crown.js':['crown.js','text/javascript'],'/crown.css':['crown.css','text/css'],'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
   const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
-  const dominoTimer=setInterval(()=>{try{if(!drawDue(store.state())&&!dominoDue(store.state())&&!ochoDue(store.state()))return;const changed=store.tx(()=>{const s=store.state();const a=drawTick(s),d=dominoTick(s),o=ochoTick(s);if(!d&&!o&&!a)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
+  const dominoTimer=setInterval(()=>{try{const current=store.state();if(!drawDue(current)&&!dominoDue(current)&&!ochoDue(current))return;const changed=store.tx(()=>{const s=store.state();const a=drawTick(s),d=dominoTick(s),o=ochoTick(s);if(!d&&!o&&!a)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
   const pushTimer=setInterval(()=>notifications.drain().catch(()=>console.error('Notification delivery failed.')),250);pushTimer.unref();
-  server.on('close',()=>{clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
+  server.on('close',()=>{clearTimeout(presenceTimer);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});
   check(process.env.SUPABASE_PUBLISHABLE_KEY&&process.env.MAHMOUD_EMAIL&&process.env.SAFY_EMAIL,'Configure the V2 publishable key and both invited email addresses.',503);check(process.env.MAHMOUD_EMAIL.toLowerCase()!==process.env.SAFY_EMAIL.toLowerCase(),'Use two different invited accounts.',503);
   const store=new Store(join(dir,'our-place.sqlite'));const server=createApp({store,origin:resolveOrigin(),secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>console.log('Our Place server ready.'));
   if(process.env.YOUTUBE_API_KEY)youtubeService().resolve('M7lc1UVf-VE').then(()=>console.log('YouTube connection verified')).catch(()=>console.error('YouTube connection check failed; verify the configured key and API restrictions.'));
-  process.on('SIGTERM',()=>server.close(()=>{store.close();process.exit(0);}));
+  const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET);
+  process.on('SIGTERM',()=>{stopMaintenance().then(()=>server.close(()=>{store.close();process.exit(0);}));});
 }
+
 
 
