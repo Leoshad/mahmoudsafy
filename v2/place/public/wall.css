@@ -106,3 +106,35 @@
 #our-place-trial .wall-reaction-choices button{font-size:23px;min-width:44px}
 #our-place-trial .wall-reaction-choices button[aria-pressed=true]{background:#513345}
 #our-place-trial .wall-reaction-names{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:#d5bdcb;padding:10px 0}
+/* Two familiar actions; reactions float above Like rather than changing the feed. */
+#our-place-trial .wall-social-summary{display:flex;justify-content:space-between;align-items:center;min-height:36px;margin-top:18px;color:#bfaeb9}
+#our-place-trial .wall-social-summary button{padding:4px 0;min-height:36px;font-size:12px;border:0;background:transparent;color:inherit}
+#our-place-trial .wall-post-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;padding-top:6px}
+#our-place-trial .wall-post-actions>button,#our-place-trial .wall-like-wrap>button{width:100%;min-height:46px;border-radius:9px}
+#our-place-trial .wall-post-actions .wall-liked{background:transparent;color:#efb1cd}
+#our-place-trial .wall-like-wrap{position:relative;min-width:0}
+#our-place-trial .wall-reaction-popover{position:absolute;z-index:20;bottom:100%;left:0;display:flex;gap:0;padding:7px 4px;background:#352935;border:1px solid #735469;border-radius:30px;box-shadow:0 8px 28px #0008;white-space:nowrap}
+#our-place-trial .wall-reaction-popover[hidden]{display:none}
+#our-place-trial .wall-reaction-popover button{font-size:23px;width:42px;min-width:42px;min-height:44px;padding:3px;border:0;background:transparent;border-radius:50%}
+#our-place-trial .wall-reaction-popover button:hover,#our-place-trial .wall-reaction-popover button:focus-visible{background:#58404f;transform:translateY(-3px)}
+#our-place-trial .wall-reaction-popover button[aria-pressed=true]{background:#58404f}
+#our-place-trial .wall-comment-sheet{box-sizing:border-box;position:fixed;inset:auto 0 var(--sheet-bottom,0);margin:0 auto;width:min(620px,100%);max-width:100%;height:min(82dvh,var(--sheet-height,calc(100dvh - 12px)));max-height:var(--sheet-height,calc(100dvh - 12px));padding:0;overflow:hidden;color:#eee6e9;background:#211a24;border:1px solid #644758;border-bottom:0;border-radius:22px 22px 0 0;box-shadow:0 -12px 50px #0006}
+#our-place-trial .wall-comment-sheet[open]{display:flex;flex-direction:column}
+#our-place-trial .wall-comment-sheet::backdrop{background:#08050bab}
+#our-place-trial .wall-sheet-head{position:relative;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;padding:20px 18px 4px;touch-action:none}
+#our-place-trial .wall-sheet-handle{position:absolute;width:38px;height:4px;background:#806577;border-radius:6px;top:9px;left:calc(50% - 19px)}
+#our-place-trial .wall-sheet-head h3{font-size:18px;margin:0}
+#our-place-trial .wall-sheet-head button{width:44px;min-height:44px;font-size:25px;background:transparent;border:0;padding:4px}
+#our-place-trial .wall-invite{align-self:flex-start;margin:0 18px 10px;min-height:40px;padding:6px 12px;font-size:12px;background:transparent;color:#d1b078;border-color:#66543b;border-radius:20px;flex-shrink:0}
+#our-place-trial .wall-invite[aria-pressed=true]{background:#3e3222}
+#our-place-trial .wall-thread-list{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:2px 18px 18px}
+#our-place-trial .wall-thread-list .wall-comment{margin:10px 0;padding:12px 14px;line-height:1.6}
+#our-place-trial .wall-thread-empty{text-align:center;color:#bfaeb9;font-size:14px;padding:30px 10px}
+#our-place-trial .wall-sheet-composer{display:flex;align-items:flex-end;gap:10px;padding:12px 14px max(12px,env(safe-area-inset-bottom));margin:0;border-top:1px solid #4a3543;background:#211a24;flex-shrink:0}
+#our-place-trial .wall-sheet-composer textarea{box-sizing:border-box;flex:1;min-width:0;min-height:46px;max-height:110px;resize:none;font-size:16px;line-height:1.4;margin:0;border-radius:22px;padding:11px 14px}
+#our-place-trial .wall-sheet-composer button{min-height:46px;border:0;background:transparent;color:#d1b078;padding:8px;font-weight:600}
+#our-place-trial .wall-thread-error{margin:0;padding:0 18px 10px;color:#f1b8c6;font-size:13px;flex-shrink:0}
+#our-place-trial .wall-thread-error:empty{display:none}
+@media(max-width:350px){#our-place-trial .wall-reaction-popover button{width:37px;min-width:37px;font-size:21px}}
+@media(prefers-reduced-motion:reduce){#our-place-trial .wall-reaction-popover button:hover{transform:none}}
+#our-place-trial .wall-like-wrap>button{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:pan-y}
