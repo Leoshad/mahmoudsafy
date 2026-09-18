@@ -224,7 +224,7 @@ function render(){
   for(const name of g.players){const group=make('div',undefined,evidence,'domino-result-hand');make('strong',name+' · '+totals[name]+' pips',group);const row=make('div',undefined,group,'domino-result-tiles');row.setAttribute('aria-label',name+' remaining tiles');const tiles=g.result.hands?.[name];if(tiles?.length)for(const tile of tiles)piece(tile,row);else make('span',tiles?'No tiles left':'Tile details unavailable',row,'domino-result-empty');}
   make('p',g.status==='complete'?'Match saved in your history.':g.result.points+' points this round. Keep playing to '+g.target+'.',card,'domino-result-note');
   const next=make('div',undefined,card,'domino-result-actions');
-  btn(g.status==='complete'?'New match':g.mode==='solo'?'Next round':'Invite to next round',next,()=>g.status==='complete'?command('create',{mode:g.mode,difficulty:g.difficulty,target:g.target,turnSeconds:g.turnSeconds},null):command('rematch'),'primary').disabled=busy;
+  btn(g.status==='complete'?'New match':'Next round',next,()=>command('rematch'),'primary').disabled=busy;
   btn('Back',next,()=>closeGame());
  }else{
   const controls=make('div',undefined,actions,'domino-actions');

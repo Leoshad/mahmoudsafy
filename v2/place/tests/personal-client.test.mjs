@@ -14,7 +14,7 @@ function setup(){
   querySelector(q){return walk(this).slice(1).find(n=>n.tag===q||q.startsWith('.')&&n.className.split(' ').includes(q.slice(1)))??null;}
  }
  const body=new Node('body'),account=new Node('span');account.textContent='Mahmoud';body.append(account);const nodes=new Map([['#account > span',account]]);for(const q of ['#space .wall-heading','#pinned']){const n=new Node();nodes.set(q,n);body.append(n);}
- const doc={body,createElement:t=>new Node(t),querySelector:q=>nodes.get(q)??walk(body).find(n=>n.id===q.slice(1))??null,querySelectorAll:q=>q==='#account > span'?[account]:[],listeners:{},addEventListener(k,f){this.listeners[k]=f;}};
+ const doc={body,createElement:t=>new Node(t),querySelector:q=>nodes.get(q)??walk(body).find(n=>n.id===q.slice(1))??null,querySelectorAll:q=>q==='#account > span'?[account]:q==='[data-avatar-name]'?walk(body).filter(n=>n.dataset.avatarName):[],listeners:{},addEventListener(k,f){this.listeners[k]=f;}};
  const c={document:doc,Intl,Date};c.window=c;vm.createContext(c);vm.runInContext(readFileSync(new URL('../public/personal.js',import.meta.url),'utf8'),c);const s=initial();let who='Mahmoud';const sync=async()=>c.OurPersonal.sync({who,personal:personalSnapshot(s,who),crown:{holder:'Mahmoud',totals:{Mahmoud:9,Safy:7},revision:0},serverNow:Date.now()});c.OurPersonal.init({command:async(t,d)=>personalChange(s,who,t,d),sync,info(){}});sync();
  return {ui:c.OurPersonal,s,doc,sync,setWho:n=>{who=n;},modal:()=>walk(body).find(n=>n.tag==='dialog'&&n.open)};
 }
@@ -26,4 +26,12 @@ test('profile edit keeps typed bio during live updates and shows saved bio only 
 });
 test('Our Dates creates an occasion, opens personal reminders and prevents partner edit controls',async()=>{
  const c=setup();c.ui.open('Mahmoud');button(c.modal(),'View Our Dates').onclick();button(c.modal(),'＋ Add an occasion').onclick();const form=c.modal().querySelector('form');input(form,'Occasion').value='Anniversary dinner';input(form,'Date').value='2027-09-14';input(form,'Private reminder note · only you').value='Buy flowers';await form.onsubmit({preventDefault(){}});assert.equal(c.s.personal.dates.length,1);assert.ok(c.modal().textContent.includes('Anniversary dinner'));button(c.modal(),'Open').onclick();assert.equal(input(c.modal(),'Private reminder note · only you').value,'Buy flowers');assert.ok(button(c.modal(),'Edit occasion'));c.ui.reset();c.setWho('Safy');await c.sync();c.ui.open('Safy');button(c.modal(),'Open').onclick();assert.equal(input(c.modal(),'Private reminder note · only you').value,'');assert.equal(button(c.modal(),'Edit occasion'),undefined);c.ui.reset();assert.equal(c.modal(),undefined);
+});
+
+
+test('wall and comment avatars share profile photo and refresh together',async()=>{
+ const c=setup(),nodes=['wall-avatar','wall-comment-avatar'].map(cls=>{const n=c.doc.createElement('span');n.className=cls;n.dataset.avatarName='Mahmoud';c.doc.body.append(n);return n;});
+ c.s.personal={profiles:{Mahmoud:{photo:'photo-first'}},dates:[],preferences:{Mahmoud:{},Safy:{}},read:{Mahmoud:[],Safy:[]}};await c.sync();for(const n of nodes)assert.equal(n.querySelector('img').src,'/api/photos/photo-first');
+ c.s.personal.profiles.Mahmoud.photo='photo-updated';await c.sync();for(const n of nodes)assert.equal(n.querySelector('img').src,'/api/photos/photo-updated');
+ c.s.personal.profiles.Mahmoud.photo=null;await c.sync();for(const n of nodes){assert.equal(n.querySelector('img'),null);assert.equal(n.textContent,'M');}
 });

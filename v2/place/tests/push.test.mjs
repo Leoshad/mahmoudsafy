@@ -89,3 +89,12 @@ test('notification test is delayed and restricted to the requesting registered d
  push.test('Mahmoud','Mahmoud',mine.endpoint);advance(4000);await push.drain();assert.equal(sent.length,0);
  advance(1001);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].sub.endpoint,mine.endpoint);assert.equal(sent[0].body.kind,'test');
 });
+
+
+for(const owner of ['Mahmoud','Safy'])test('court invitation reaches partner device despite another active device: '+owner,async t=>{
+ const {push,store,sent,advance}=fixture(t),other=owner==='Mahmoud'?'Safy':'Mahmoud';
+ push.subscribe(other,other,subscription(other));push.presence(other,other,{client:randomUUID(),visible:true});
+ const state=store.state();state.court={cases:[{id:'invite-case',owner,stage:'invited',round:1,questions:[]}]};store.save(state);
+ push.scan(owner);advance(400);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].body.owner,other);assert.equal(sent[0].body.target.caseId,'invite-case');assert.equal(sent[0].body.kind,'invitation');assert.ok(sent[0].options.TTL>36000);
+ push.scan(owner);await push.drain();assert.equal(sent.length,1);
+});

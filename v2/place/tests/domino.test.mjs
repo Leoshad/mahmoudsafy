@@ -46,7 +46,7 @@ test('blocked score, empty-hand win, both-end orientations, and illegal draw/pas
  act(s,'Mahmoud','play',{tile:'1-2',side:'left'});assert.equal(g.chain[0].a,1);
  act(s,'Safy','play',{tile:'3-4',side:'right'});assert.equal(g.chain.at(-1).b,4);
  act(s,'Mahmoud','pass');act(s,'Safy','pass');assert.equal(g.result.reason,'blocked');assert.equal(g.result.winner,'Safy');assert.equal(g.result.points,11);
- act(s,'Safy','rematch');assert.equal(g.status,'waiting');assert.equal(g.hands.Mahmoud,undefined);act(s,'Mahmoud','accept');
+ act(s,'Safy','rematch');assert.equal(g.status,'active');assert.equal(g.hands.Mahmoud.length,7);
  g.chain=[];g.hands={Mahmoud:[{id:'1-1',a:1,b:1}],Safy:[{id:'4-6',a:4,b:6}]};g.turn='Mahmoud';
  act(s,'Mahmoud','play',{tile:'1-1',side:'right'});assert.equal(g.result.winner,'Mahmoud');assert.equal(g.result.points,10);
 });
@@ -94,11 +94,11 @@ test('50/100 match targets archive one win, survive persistence, and separate so
  act(s,'Mahmoud','play',{tile:'1-1',side:'right'});
  assert.equal(g.status,'complete');assert.equal(g.matchWinner,'Mahmoud');assert.equal(s.competition.totals.Mahmoud,1);assert.equal(s.competition.holder,'Mahmoud');
  assert.equal(s.domino.records.shared.wins.Mahmoud,1);assert.equal(s.domino.records.shared.history[0].scores.Mahmoud,56);
- assert.throws(()=>act(s,'Mahmoud','rematch'),/Finish/);dominoTick(s,Date.now()+5000);
+ act(s,'Mahmoud','rematch');assert.equal(s.domino.shared.status,'active');assert.notEqual(s.domino.shared.id,g.id);dominoTick(s,Date.now()+5000);
  assert.equal(s.domino.records.shared.history.length,1);
  const store=new Store(':memory:');store.save(s);const recovered=store.state();store.close();
  assert.equal(dominoSnapshot(recovered,'Safy').records.shared.wins.Mahmoud,1);
- act(s,'Mahmoud','create',{mode:'shared',target:100});g=s.domino.shared;assert.equal(g.target,100);assert.equal(g.scores.Mahmoud,0);
+ act(s,'Mahmoud','leave');act(s,'Mahmoud','create',{mode:'shared',target:100});g=s.domino.shared;assert.equal(g.target,100);assert.equal(g.scores.Mahmoud,0);
  dominoChange(s,'Mahmoud','domino.create',{mode:'solo',difficulty:'easy',target:50});const solo=s.domino.solo.Mahmoud;
  solo.scores.Mahmoud=49;solo.hands={Mahmoud:[{id:'1-1',a:1,b:1}],Computer:[{id:'3-4',a:3,b:4}]};
  act(s,'Mahmoud','play',{tile:'1-1',side:'right'},solo);
@@ -165,3 +165,4 @@ test('draw exhaustion enables pass and blocked ties award no points; revealed re
  g.chain=[{id:'6-6',a:6,b:6}];g.hands={Mahmoud:[{id:'0-0',a:0,b:0}],Safy:[{id:'0-2',a:0,b:2}]};g.stock=[{id:'1-1',a:1,b:1}];g.turn='Mahmoud';act(s,'Mahmoud','draw');assert.equal(g.stock.length,0);assert.equal(dominoSnapshot(s,'Mahmoud').shared.canPass,true);
  act(s,'Mahmoud','pass');act(s,'Safy','pass');assert.equal(g.result.winner,null);assert.equal(g.result.points,0);assert.deepEqual(g.scores,{Mahmoud:0,Safy:0});assert.deepEqual(dominoSnapshot(s,'Mahmoud').shared.result.hands.Safy,[{id:'0-2',a:0,b:2}]);g.hands.Safy[0].a=5;assert.equal(g.result.hands.Safy[0].a,0);
 });
+

@@ -193,14 +193,14 @@ for(const mode of ['solo','shared'])for(const fullscreen of [false,true])test(`n
  const records=JSON.stringify(dominoSnapshot(state,'Mahmoud').records);
  await click(all(a.get('#domino-game')).find(e=>e.textContent==='New match'));
  const next=mode==='solo'?state.domino.solo.Mahmoud:state.domino.shared;
- assert.notEqual(next.id,g.id);assert.equal(next.status,mode==='solo'?'active':'waiting');
+ assert.notEqual(next.id,g.id);assert.equal(next.status,'active');
  assert.equal(next.target,100);assert.equal(next.turnSeconds,30);assert.equal(next.round,1);
  assert.ok(Object.values(next.scores).every(n=>n===0));assert.equal(next.difficulty,g.difficulty);
  assert.equal(a.get('#domino-panel').hidden,false);assert.equal(a.get('#domino-open').hidden,true);
  assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),fullscreen);
  assert.equal(JSON.stringify(dominoSnapshot(state,'Mahmoud').records),records);
  if(mode==='shared'){
-  dominoChange(state,'Safy','domino.accept',{game:next.id,revision:next.revision});a.sync();
+  a.sync();
   assert.equal(next.status,'active');assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),fullscreen);
  }
 });

@@ -44,7 +44,7 @@ export class PushNotifications{
  this.enqueue({key,to:who,kind:'test',subscriptionId:digest(endpoint),body:'Your test notification arrived.',target:{tab:'space'}});
  }
  enqueue(e){if(!this.mark(e.key))return;const topic=digest(e.to+':'+(e.kind==='message'?'messages':(e.kind==='test'?e.key:JSON.stringify(e.target)))).slice(0,24),id=e.to+':'+topic;
- const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,kind:e.kind,deviceOnly:['daily','test'].includes(e.kind),subscriptionId:e.subscriptionId,quiet:!!e.quiet,tag:topic,createdAt:this.now(),expires:this.now()+(e.kind==='daily'?12*3600000:120000)};
+ const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,kind:e.kind,deviceOnly:['daily','test','invitation'].includes(e.kind),subscriptionId:e.subscriptionId,quiet:!!e.quiet,tag:topic,createdAt:this.now(),expires:this.now()+(['daily','invitation'].includes(e.kind)?12*3600000:120000)};
  this.db.prepare(`INSERT INTO push_queue(id,owner,topic,body,due,expires) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=CASE WHEN json_extract(excluded.body,'$.quiet')=1 AND json_extract(push_queue.body,'$.quiet')=0 THEN push_queue.body ELSE excluded.body END,expires=excluded.expires`).run(id,e.to,topic,JSON.stringify(body),this.now()+(e.kind==='test'?5000:300),body.expires);
  }
  scan(actor){const current=this.store.state();for(const e of attentionEvents(this.previous,current,actor))this.enqueue(e);this.previous=current;
@@ -68,3 +68,4 @@ export class PushNotifications{
   this.db.prepare("DELETE FROM push_seen WHERE created<? AND id NOT LIKE 'message:%'").run(this.now()-7*86400000);
  }finally{this.busy=false;}}
 }
+

@@ -6,7 +6,7 @@ import {randomUUID} from 'node:crypto';
 import {initial} from '../domain.mjs';
 import {courtChange,courtView} from '../court.mjs';
 const walk=n=>[n,...n.children.flatMap(walk)];
-function client(s){
+function client(s,who='Mahmoud'){
  class Node{
   constructor(tag='div'){this.tag=tag;this.children=[];this.dataset={};this.className='';this.value='';this.ownText='';this.scrollTop=0;this.scrollHeight=200;this.clientHeight=200;this.classList={add:c=>this.className+=' '+c,toggle:(c,v)=>{const all=new Set(this.className.split(' '));if(v)all.add(c);else all.delete(c);this.className=[...all].join(' ');}};}
   set textContent(v){this.ownText=v;this.children=[];}get textContent(){return this.ownText+this.children.map(n=>n.textContent).join('');}
@@ -14,7 +14,7 @@ function client(s){
   setAttribute(k,v){this[k]=v;}querySelectorAll(q){return walk(this).slice(1).filter(n=>n.tag===q||q.startsWith('.')&&n.className.split(' ').includes(q.slice(1)));}querySelector(q){return this.querySelectorAll(q)[0]??null;}showModal(){this.open=true;}close(){this.open=false;}
  }
  const body=new Node('body'),together=new Node(),space=new Node(),crown=new Node('button'),heading=new Node();body.append(together,space);together.append(crown);space.append(heading);crown.id='crown-summary';const document={body,createElement:t=>new Node(t),querySelector:q=>q==='#space .wall-heading'?heading:walk(body).find(n=>n.id===q.slice(1))??null};const storage=new Map(),ctx={document,Intl,Date,crypto:{randomUUID},localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(readFileSync(new URL('../public/court.js',import.meta.url),'utf8'),ctx);let reveals=[],errors=[];
- const sync=async()=>ctx.OurCourt.sync({who:'Mahmoud',court:courtView(s,'Mahmoud'),personal:{profiles:{Mahmoud:{},Safy:{}}},messages:[],pauses:[]});ctx.OurCourt.init({goto(){},revealPanel:id=>reveals.push(id),info:e=>errors.push(e),command:async(type,data)=>courtChange(s,'Mahmoud',type,data),sync});sync();return {ui:ctx.OurCourt,doc:document,sync,reveals,errors,panel:()=>document.querySelector('#court-panel'),modal:()=>walk(body).find(n=>n.tag==='dialog'&&n.open)};
+ const sync=async()=>ctx.OurCourt.sync({who,court:courtView(s,who),personal:{profiles:{Mahmoud:{},Safy:{}}},messages:[],pauses:[]});ctx.OurCourt.init({goto(){},revealPanel:id=>reveals.push(id),info:e=>errors.push(e),command:async(type,data)=>courtChange(s,who,type,data),sync});sync();return {ui:ctx.OurCourt,doc:document,sync,reveals,errors,panel:()=>document.querySelector('#court-panel'),modal:()=>walk(body).find(n=>n.tag==='dialog'&&n.open)};
 }
 const button=(n,t)=>walk(n).find(n=>n.tag==='button'&&n.textContent===t);
 test('court opens maximized, preserves typed account across sizing and partner updates, then saves it',async()=>{
@@ -22,4 +22,14 @@ test('court opens maximized, preserves typed account across sizing and partner u
 });
 test('case file presents current status, record and download actions without creating duplicate cases',async()=>{
  const s=initial();courtChange(s,'Mahmoud','court.create',{title:'Case title',issue:'Case issue'});const ui=client(s);await ui.doc.querySelector('#court-open').onclick();await button(ui.panel(),'Case record').onclick();assert.ok(ui.modal().textContent.includes('Waiting for Safy'));assert.ok(walk(ui.modal()).some(n=>n.tag==='button'&&n.textContent==='Download record'));assert.ok(walk(ui.modal()).some(n=>n.tag==='button'&&n.textContent==='Print / Save PDF'));assert.equal(s.court.cases.length,1);
+});
+
+
+for(const owner of ['Mahmoud','Safy'])test('court invitation visible and opens correct case from '+owner,async()=>{
+ const s=initial(),other=owner==='Mahmoud'?'Safy':'Mahmoud';
+ const {id}=courtChange(s,owner,'court.create',{title:'A shared question',issue:'Let us explain both sides.'});
+ const ui=client(s,other),banner=ui.doc.querySelector('#court-invitations');assert.equal(banner.hidden,false);
+ await button(banner,'Review invitation').onclick();assert.equal(ui.panel().hidden,false);assert.ok(ui.panel().textContent.includes('A shared question'));
+ await button(ui.panel(),'Accept session').onclick();assert.equal(s.court.cases[0].stage,'statements');assert.equal(banner.hidden,true);
+ const sender=client(s,owner);assert.equal(sender.doc.querySelector('#court-invitations').hidden,true);
 });

@@ -26,7 +26,7 @@ export function attentionEvents(before,after,actor){
  const media=after.media,prior=before.media;if(media?.invitation?.id!==prior?.invitation?.id&&media?.invitation)add('media:'+media.invitation.id,media.invitation.to,media.owner+' invited you to Watch & Listen.',{tab:'together',game:'media'});
  if(media&&prior?.invitation&&!media.invitation&&media.participants?.length===2)add('media:accepted:'+media.id,media.owner,'Your Watch & Listen invitation was accepted.',{tab:'together',game:'media'});
  for(const c of after.court?.cases??[]){const old=before.court?.cases?.find(x=>x.id===c.id),target={tab:'together',game:'court',caseId:c.id};
-  if(c.stage==='invited'&&(!old||old.round!==c.round))add('court:invite:'+c.id+':'+c.round,other(c.owner),c.owner+' invited you to Echo’s Court.',target);
+  if(c.stage==='invited'&&(!old||old.round!==c.round))add('court:invite:'+c.id+':'+c.round,other(c.owner),c.owner+' invited you to Echo’s Court.',target,'invitation');
   if(old?.stage==='invited'&&c.stage==='statements')add('court:accept:'+c.id+':'+c.round,c.owner,'Your Echo’s Court invitation was accepted.',target);
   for(const q of c.questions??[])if(!old?.questions?.some(x=>x.id===q.id)&&!q.answer)add('court:q:'+q.id,q.target,'Echo has a question for you in Court.',target,'echo');
   if(['review','decided'].includes(c.stage)&&old?.stage!==c.stage)both('court:'+c.id+':'+c.round+':'+c.stage,'Echo’s Court has an update for you to review.',target);
@@ -37,3 +37,4 @@ export function attentionEvents(before,after,actor){
  }
  return out;
 }
+
