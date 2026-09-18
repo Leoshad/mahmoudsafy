@@ -13,6 +13,9 @@ test('client opens, creates a race, sends joystick controls and resumes input se
  stage.onpointerdown({...touch,pointerId:23,clientX:100});assert.equal(vm.runInNewContext('pointer',sandbox),22);
  const beforeJump=vm.runInNewContext('jump',sandbox);stage.onpointermove({...touch,clientX:640,clientY:200});assert.equal(vm.runInNewContext('jump',sandbox),beforeJump+1);
  stage.onpointermove({...touch,clientX:640,clientY:190});assert.equal(vm.runInNewContext('jump',sandbox),beforeJump+1);
+ stage.onpointermove({...touch,clientX:640,clientY:202});assert.equal(vm.runInNewContext('jump',sandbox),beforeJump+1);
+ stage.onpointermove({...touch,clientX:640,clientY:180});assert.equal(vm.runInNewContext('jump',sandbox),beforeJump+2,'fresh flick repeats without returning to joystick center');
+ stage.onpointermove({...touch,clientX:640,clientY:178});stage.onpointermove({...touch,clientX:640,clientY:181});assert.equal(vm.runInNewContext('jump',sandbox),beforeJump+2,'held finger and tiny jitter do not repeat');
  stage.onpointercancel(touch);assert.equal(vm.runInNewContext('dir',sandbox),0);assert.equal(stick.style.position,'');
  stage.onpointerdown({...touch,pointerId:24,clientX:200});stage.onpointermove({...touch,pointerId:24,clientX:160});assert.equal(vm.runInNewContext('dir',sandbox),-1);stage.onlostpointercapture({pointerId:24});assert.equal(vm.runInNewContext('pointer',sandbox),null);
  sandbox.window.OurRace.reset();launch.onclick();await flush();stick.onpointerdown(event);await flush();const next=document.getElementById('race-stick');next.onpointerdown(event);await flush();assert.equal(m.inputs[0].dir,1);assert.ok(m.inputs[0].seq>3);

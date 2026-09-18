@@ -26,3 +26,20 @@ test('computer cannot start before the human submits gameplay frames',()=>{
  for(let n=0;n<50;n++){now+=17;s.tick();}assert.equal(m.frames[1],0);assert.equal(m.runners[1].x,70);
  s.input('Mahmoud',{mode:'solo',id,seq:1,dir:1,jump:0,frames:[{n:1,dir:1,jump:0}]});for(let n=0;n<10;n++){now+=17;s.tick();}assert.equal(m.frames[1],1);assert.equal(m.runners[1].x,m.runners[0].x);
 });
+
+test('jump requested 150ms before landing fires once, without automatic repeat or mid-air jump',()=>{
+ const c={parts:[],finish:2000},p=runner();p.y=50;p.ground=false;p.vy=150;
+ const probe=structuredClone(p);let landing=0;while(!probe.ground)step(c,probe,{dir:0,jump:0},++landing*DT);
+ let launches=0,previousVy=p.vy;
+ for(let n=1;n<landing+100;n++){
+  step(c,p,{dir:0,jump:n>=landing-9?1:0},n*DT);
+  if(previousVy>=0&&p.vy<0){launches++;assert.ok(n>=landing,'no mid-air jump');assert.ok(n<=landing+1,'jump immediately after landing');}
+  previousVy=p.vy;
+ }
+ assert.equal(launches,1);assert.equal(p.ground,true);
+});
+test('an old airborne jump request expires instead of jumping much later',()=>{
+ const p=runner(),c={parts:[],finish:2000};p.y=-100;p.ground=false;p.vy=0;
+ for(let n=1;n<120;n++){step(c,p,{dir:0,jump:1},n*DT);assert.ok(p.vy>=0);}
+ assert.equal(p.ground,true);
+});

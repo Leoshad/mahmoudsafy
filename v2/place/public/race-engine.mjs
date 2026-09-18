@@ -11,7 +11,7 @@ export function resetRunner(p){p.x=p.checkpoint;p.y=FLOOR;p.vx=p.vy=0;p.ground=t
 export function step(c,p,input,t,dt=DT){
  if(p.respawn>0){p.respawn=Math.max(0,p.respawn-dt);p.jumpSeen=input.jump;return;}
  const surfaces=platforms(c,t,p),old=platforms(c,t-dt,p);if(p.on?.startsWith('move')){const a=surfaces.find(s=>s.id===p.on),b=old.find(s=>s.id===p.on);if(a&&b)p.x+=a.x-b.x;}
- const jump=input.jump>p.jumpSeen;p.jumpSeen=input.jump;p.coyote=p.ground?.09:Math.max(0,(p.coyote||0)-dt);p.buffer=jump?.1:Math.max(0,(p.buffer||0)-dt);p.boost=Math.max(0,(p.boost||0)-dt);if(p.ground&&c.parts.some(q=>q.type===5&&p.x>=q.a-65&&p.x<q.a))p.boost=.85;
+ const jump=input.jump>p.jumpSeen;p.jumpSeen=input.jump;p.coyote=p.ground?.09:Math.max(0,(p.coyote||0)-dt);p.buffer=jump?.2:Math.max(0,(p.buffer||0)-dt);p.boost=Math.max(0,(p.boost||0)-dt);if(p.ground&&c.parts.some(q=>q.type===5&&p.x>=q.a-65&&p.x<q.a))p.boost=.85;
  if(p.buffer>0&&p.coyote>0){p.vy=-JUMP;p.buffer=0;p.coyote=0;p.ground=false;p.on=null;}
  p.vx=Math.max(-1,Math.min(1,input.dir||0))*SPEED*(p.boost>0?1.5:1);
  const prev=p.y;p.x=Math.max(10,p.x+p.vx*dt);p.vy+=GRAVITY*dt;p.y+=p.vy*dt;p.ground=false;p.on=null;
