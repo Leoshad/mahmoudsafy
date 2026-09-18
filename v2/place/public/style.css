@@ -328,5 +328,7 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial #together :is(#journey-open,#ocho-open,#domino-open,#race-open,#draw-open) strong{display:block;font:400 25px/1.2 Georgia,serif;color:#eee8e9;margin:0}
 #our-place-trial #together :is(#journey-open,#ocho-open,#domino-open,#race-open,#draw-open) small{display:block;font:400 12px/1.5 system-ui,sans-serif;margin:6px 0 0;min-height:36px;color:#c2bbb8}
 #our-place-trial #together :is(#journey-open,#ocho-open,#domino-open,#race-open,#draw-open)>.activity-card-icon{display:block;flex:0 0 40px;width:40px;height:44px;font-size:inherit;color:#d1b078}
-#our-place-trial #together #journey-open>.activity-card-icon{color:#d89caa}
+#our-place-trial #together #journey-open>.activity-card-icon{color:#d1b078}
 #our-place-trial #together .activity-card-icon svg{display:block;width:100%;height:100%}
+
+#our-place-trial #together :is(#journey-open,#race-open){background:linear-gradient(125deg,#27322d,#181b1c);border-color:#6f806d}
