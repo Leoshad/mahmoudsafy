@@ -156,7 +156,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(path.startsWith('/api/race/')){
         limit('race:'+who,1800);const mode=url.searchParams.get('mode');
         if(path==='/api/race/state'&&req.method==='GET'){check(['solo','together'].includes(mode),'Choose a race mode.');return send(res,200,race.view(race.get(who,mode),who));}
-        if(req.method==='POST'){const d=await body(req,2000);if(path==='/api/race/action'){const result=race.action(who,d);saveRaces();return send(res,200,result);}if(path==='/api/race/input')return send(res,200,race.input(who,d));}
+        if(req.method==='POST'){const d=await body(req,5000);if(path==='/api/race/action'){const result=race.action(who,d);saveRaces();return send(res,200,result);}if(path==='/api/race/input')return send(res,200,race.input(who,d));}
         throw new Fault('Not found.',404);
       }
       if(path==='/api/journey/play'&&req.method==='GET'){

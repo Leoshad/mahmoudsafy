@@ -13,7 +13,7 @@ export class RaceService{
  else check(false,'Unknown race action.');}
  return this.view(m,who);
  }
- input(who,d){check(['solo','together'].includes(d.mode),'Choose a race mode.');const m=this.get(who,d.mode);check(m&&m.id===d.id,'This race changed.',409);const i=m.players.indexOf(who);check(i>=0,'Not your race.',403);check(Number.isInteger(d.seq)&&d.seq>=0&&Number.isInteger(d.jump)&&d.jump>=0&&d.jump<=1000000&&[-1,0,1].includes(d.dir),'Invalid control input.');const commands=d.frames??[];check(Array.isArray(commands)&&commands.length<=30,'Invalid input batch.');for(const f of commands)check(Number.isInteger(f.n)&&f.n>0&&[-1,0,1].includes(f.dir)&&Number.isInteger(f.jump)&&f.jump>=0&&f.jump<=1000000,'Invalid frame.');
+ input(who,d){check(['solo','together'].includes(d.mode),'Choose a race mode.');const m=this.get(who,d.mode);check(m&&m.id===d.id,'This race changed.',409);const i=m.players.indexOf(who);check(i>=0,'Not your race.',403);check(Number.isInteger(d.seq)&&d.seq>=0&&Number.isInteger(d.jump)&&d.jump>=0&&d.jump<=1000000&&[-1,0,1].includes(d.dir),'Invalid control input.');const commands=d.frames??[];check(Array.isArray(commands)&&commands.length<=90,'Invalid input batch.');for(const f of commands)check(Number.isInteger(f.n)&&f.n>0&&[-1,0,1].includes(f.dir)&&Number.isInteger(f.jump)&&f.jump>=0&&f.jump<=1000000,'Invalid frame.');
  const now=this.now();m.seen[i]=now;m.updated=now;
  if(d.seq>m.inputs[i].seq){m.inputs[i]={dir:d.dir,jump:d.jump,seq:d.seq};if(m.status==='racing')for(const f of commands){if(f.n<=m.frames[i])continue;if(f.n!==m.frames[i]+1||f.n>Math.floor(m.t/DT)+18)break;step(m.course,m.runners[i],f,f.n*DT);m.frames[i]=f.n;if(m.runners[i].x>=m.course.finish){m.finished[i]??=f.n;break;}}}
  this.resolve(m);return this.view(m,who);}

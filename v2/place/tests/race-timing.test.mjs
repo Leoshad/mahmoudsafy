@@ -8,12 +8,12 @@ for(const latency of [100,350])test(`input replay agrees exactly under ${latency
  let local=runner(),pending=[],input={dir:1,jump:0},seq=0,flight=null,responses=0;
  for(let frame=1;frame<=1100;frame++){
   now+=DT*1000;service.tick();if(m.status!=='racing')break;
-  input=botInput(m.course,local,frame*DT,input);const command={n:frame,...input};pending.push(command);step(m.course,local,command,frame*DT);
+  input=botInput(m.course,local,frame*DT,input);const command={n:frame,...input};pending.push(command);assert.ok(pending.length<120,'network backlog must not stall local movement');step(m.course,local,command,frame*DT);
   if(flight&&now>=flight.deliver){
    if(!flight.response){flight.response=structuredClone(service.input('Mahmoud',flight.data));flight.deliver=now+latency+(frame%3)*15;}
    else {const snapshot=flight.response.match,ack=snapshot.frames[0];pending=pending.filter(f=>f.n>ack);const replay=structuredClone(snapshot.runners[0]);for(const f of pending)step(m.course,replay,f,f.n*DT);assert.deepEqual(replay,local,`correction at frame ${frame}`);responses++;flight=null;}
   }
-  if(!flight&&frame%6===0)flight={deliver:now+latency,data:{mode:'solo',id,seq:++seq,dir:input.dir,jump:input.jump,frames:pending.slice(0,30)}};
+  if(!flight&&frame%6===0)flight={deliver:now+latency,data:{mode:'solo',id,seq:++seq,dir:input.dir,jump:input.jump,frames:pending.slice(0,90)}};
  }
  assert.ok(responses>10);assert.ok(m.frames[0]>200);
 });
