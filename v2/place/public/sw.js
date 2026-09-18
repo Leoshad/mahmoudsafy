@@ -8,16 +8,21 @@ function destination(target){
  if(['ocho','domino','draw','media','court'].includes(target.game))clean.game=target.game;
  return '/?notice='+encodeURIComponent(JSON.stringify(clean));
 }
+async function receipt(data,result){
+ if(!data?.tag)return;
+ try{await fetch('/api/notifications/receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:data.tag,result}),signal:AbortSignal.timeout(3000)});}catch{}
+}
 self.addEventListener('push',event=>event.waitUntil((async()=>{
  let data;try{data=event.data.json();}catch{return;}
- if(!data||!['Mahmoud','Safy'].includes(data.owner)||!Number.isFinite(data.expires)||data.expires<Date.now())return;
+ if(!data||!['Mahmoud','Safy'].includes(data.owner)||!Number.isFinite(data.expires))return;
+ if(data.expires<Date.now()){await receipt(data,'expired');return;}
  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
- if(windows.some(w=>w.visibilityState==='visible'))return;
- // Also check account and other foreground devices immediately before displaying.
- try{const r=await fetch('/api/notifications',{cache:'no-store',signal:AbortSignal.timeout(4000)});if(r.status===401)return;if(r.ok){const status=await r.json();if(status.who!==data.owner||status.visible)return;}}catch{}
+ if(windows.some(w=>w.visibilityState==='visible')){await receipt(data,'foreground');return;}
+ // Verify account. Daily posts suppress only foreground windows on this device.
+ try{const r=await fetch('/api/notifications',{cache:'no-store',signal:AbortSignal.timeout(4000)});if(r.status===401)return;if(r.ok){const status=await r.json();if(status.who!==data.owner){await receipt(data,'wrong-account');return;}if(!data.deviceOnly&&status.visible){await receipt(data,'foreground');return;}}}catch{}
  const options={body:String(data.body||'You have an update.').slice(0,180),icon:'/icon-192.png',tag:String(data.tag||'our-place').slice(0,64),renotify:false,data:{url:destination(data.target)}};
  if(data.quiet)options.silent=true;else options.vibrate=[180];
- await self.registration.showNotification('Our Place',options);
+ try{await self.registration.showNotification('Our Place',options);await receipt(data,'shown');}catch{await receipt(data,'display-failed');}
 })()));
 self.addEventListener('notificationclick',event=>{
  event.notification.close();event.waitUntil((async()=>{

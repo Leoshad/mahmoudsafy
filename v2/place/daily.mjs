@@ -36,7 +36,7 @@ export class DailyWall{
    catch(e){record('skipped',e.status===429?'Echo budget limit reached.':'Echo is unavailable.');this.refresh();continue;}
    const controller=new AbortController();this.active.set(id,{controller,kind:'daily',revision:cfg.revision});const timer=setTimeout(()=>controller.abort(),90000);timer.unref();
    try{
-    const recent=s.items.filter(x=>x.daily).slice(0,30),choices=slot.id==='morning'?morningKinds:nightKinds,available=choices.filter(x=>!recent.filter(p=>p.daily.slot===slot.id).slice(0,2).some(p=>p.daily.variant===x)),variant=available[randomInt(available.length)];
+    const recent=s.items.filter(x=>x.daily).slice(0,30),choices=slot.id==='morning'?morningKinds:nightKinds,available=choices.filter(x=>!recent.filter(p=>p.daily.slot===slot.id).slice(0,choices.length-1).some(p=>p.daily.variant===x)),variant=available[randomInt(available.length)];
     const result=await this.generate({kind:slot.id,variant,history:recent.map(x=>x.title.slice(0,700)),now:this.now(),signal:controller.signal});
     store.tx(()=>{store.settle(id,result.usage);const current=store.state();if(controller.signal.aborted||store.job(id).status!=='running'||current.daily.revision!==cfg.revision||!current.daily.enabled||current.pauses.length){store.status(id,'cancelled');store.db.prepare("UPDATE echo_daily_runs SET status='cancelled',detail='Settings changed or Echo was paused.' WHERE key=?").run(slot.key);return;}
      const value=result.value;if(value&&current.items.length<500&&!current.items.some(x=>x.daily&&x.title===value.title)){
