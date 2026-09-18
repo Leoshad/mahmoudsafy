@@ -21,3 +21,25 @@ test('morning formats cycle without repeating until the other formats have appea
  for(let day=0;day<morningKinds.length+1;day++){f.set(base+3600000+day*86400000);await f.wall.tick();}
  assert.equal(picked.length,morningKinds.length+1);assert.equal(new Set(picked.slice(0,morningKinds.length)).size,morningKinds.length);assert.equal(picked.at(-1),picked[0]);f.close();
 });
+
+
+test('night retries once then publishes sourced reserve exactly once and keeps notification consent',async()=>{
+ let calls=0;const f=fixture(async()=>{calls++;const e=new Error('No sources');e.usage=usage;throw e;});
+ const s=f.store.state();s.daily.notifications=true;f.store.save(s);f.set(Date.parse('2026-09-17T19:00:00Z'));
+ await f.wall.tick();await f.wall.tick();assert.equal(calls,2);assert.equal(f.store.state().items.length,1);
+ const p=f.store.state().items[0];assert.ok(p.sources.length);assert.equal(p.daily.notify,true);assert.equal(f.wall.view().runs[0].status,'posted');f.close();
+});
+test('second attempt may succeed with a different topic',async()=>{
+ const variants=[];const f=fixture(async a=>{variants.push(a.variant);if(variants.length===1)return {value:null,usage};return {value:{title:'A verified and original replacement.',sources:[]},usage};});
+ f.set(Date.parse('2026-09-17T19:00:00Z'));await f.wall.tick();assert.equal(variants.length,2);assert.notEqual(variants[0],variants[1]);assert.equal(f.store.state().items[0].title,'A verified and original replacement.');f.close();
+});
+test('failed night recovers after grace without AI calls, duplication or changing budget',async()=>{
+ const f=fixture(async()=>{throw Error('must not call');});f.set(Date.parse('2026-09-17T20:30:00Z'));
+ f.store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?)').run('2026-09-17:night','failed',null,'No verified sources',new Date(base).toISOString());
+ await f.wall.tick();await f.wall.tick();assert.equal(f.store.state().items.length,1);assert.equal(f.wall.view().runs[0].status,'posted');assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM jobs').get().n,0);f.close();
+});
+test('paused Echo blocks recovery and old news is never replaced with evergreen content',async()=>{
+ const f=fixture();f.set(Date.parse('2026-09-17T20:30:00Z'));const s=f.store.state();s.pauses=['Mahmoud'];f.store.save(s);
+ for(const id of ['night','afternoon'])f.store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?)').run('2026-09-17:'+id,'failed',null,'No sources',new Date(base).toISOString());
+ await f.wall.tick();assert.equal(f.store.state().items.length,0);s.pauses=[];f.store.save(s);await f.wall.tick();assert.equal(f.store.state().items.length,1);assert.equal(f.store.state().items[0].daily.slot,'night');f.close();
+});

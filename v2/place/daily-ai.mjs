@@ -38,5 +38,6 @@ export async function dailyGenerate({kind,variant,history=[],post,signal,now=Dat
  check(response.ok,'Echo could not connect for this post. The slot was skipped.',503);const r=await response.json();
  const usage={...r.usage,web_search_calls:(r.output??[]).filter(x=>x.type==='web_search_call').length};
  if(reaction){check(r.status==='completed','Echo could not finish.',503);const value=(r.output??[]).filter(x=>x.type==='message').flatMap(x=>x.content??[]).filter(x=>x.type==='output_text').map(x=>x.text).join('\n').trim();return {value:value==='SKIP'?null:value.slice(0,1500),usage};}
- return {value:parseDaily(r,kind,now),usage};
+ try{return {value:parseDaily(r,kind,now),usage};}catch(e){e.usage=usage;throw e;}
 }
+
