@@ -319,3 +319,14 @@ body{margin:0;background:#0b0b0e}
 :is(body,#our-place-trial) .game-dialog[open]{animation:game-dialog-in .18s ease-out}
 @keyframes game-dialog-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){:is(body,#our-place-trial) .game-dialog[open]{animation:none}}
+
+
+/* Only the five activity launch cards share this geometry. Crown, media and court keep their styles. */
+#our-place-trial #together :is(#journey-open,#ocho-open,#domino-open,#race-open,#draw-open){box-sizing:border-box;display:flex;align-items:center;gap:16px;width:100%;min-height:108px;margin:18px 0;padding:20px 22px;border-width:1px;border-style:solid;border-radius:16px;text-align:left;color:#eee8e9}
+#our-place-trial #together :is(#journey-open,#ocho-open,#domino-open,#race-open,#draw-open)[hidden]{display:none}
+#our-place-trial #together :is(#journey-open,#ocho-open,#domino-open,#race-open,#draw-open)>span:last-child{min-width:0;flex:1}
+#our-place-trial #together :is(#journey-open,#ocho-open,#domino-open,#race-open,#draw-open) strong{display:block;font:400 25px/1.2 Georgia,serif;color:#eee8e9;margin:0}
+#our-place-trial #together :is(#journey-open,#ocho-open,#domino-open,#race-open,#draw-open) small{display:block;font:400 12px/1.5 system-ui,sans-serif;margin:6px 0 0;min-height:36px;color:#c2bbb8}
+#our-place-trial #together :is(#journey-open,#ocho-open,#domino-open,#race-open,#draw-open)>.activity-card-icon{display:block;flex:0 0 40px;width:40px;height:44px;font-size:inherit;color:#d1b078}
+#our-place-trial #together #journey-open>.activity-card-icon{color:#d89caa}
+#our-place-trial #together .activity-card-icon svg{display:block;width:100%;height:100%}
