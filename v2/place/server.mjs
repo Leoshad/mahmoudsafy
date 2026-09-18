@@ -1,3 +1,4 @@
+import {RaceService} from './race.mjs';
 import {DailyWall,updateDaily} from './daily.mjs';
 import {exportArchive} from './export.mjs';
 import {echoContext} from './context.mjs';
@@ -37,6 +38,10 @@ const security={
 export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtAI=judge,drawAI=drawingWords,testing=false,mediaFetch=fetch,pushSend,dailyAI}={}){
   check(typeof secret==='string'&&secret.length>=32,'SESSION_SECRET must have at least 32 characters.',503);
   check(origin&&(!origin.includes('oiwxwogdfjgrapigiqrw')),'A separate V2 APP_ORIGIN is required.',503);
+  store.db.exec('CREATE TABLE IF NOT EXISTS race_results(id TEXT PRIMARY KEY,body TEXT NOT NULL,created INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS race_sessions(id TEXT PRIMARY KEY,body TEXT NOT NULL)');
+  const race=new RaceService({onResult:result=>{store.db.prepare('INSERT OR IGNORE INTO race_results(id,body,created) VALUES(?,?,?)').run(result.id,JSON.stringify(result),Date.now());store.db.prepare('DELETE FROM race_results WHERE id NOT IN (SELECT id FROM race_results ORDER BY created DESC LIMIT 100)').run();}});
+  for(const row of store.db.prepare('SELECT * FROM race_sessions').all()){try{const m=JSON.parse(row.body);m.seen=m.players.map(()=>0);m.inputs.forEach(i=>i.dir=0);m.last=Date.now();m.acc=0;if(['racing','countdown','paused'].includes(m.status)){m.status='paused';m.pausedAt=Date.now();m.reason='Reconnecting — waiting for both players.';}race.matches.set(row.id,m);}catch{console.error('Could not restore a race.');}}
+  function saveRaces(){store.tx(()=>{store.db.prepare('DELETE FROM race_sessions').run();for(const [id,m]of race.matches)store.db.prepare('INSERT INTO race_sessions VALUES(?,?)').run(id,JSON.stringify(m));});}
   const notifications=new PushNotifications(store,{secret,origin,...(pushSend?{send:pushSend}:{})});
   const daily=new DailyWall(store,{refresh,...(dailyAI?{generate:dailyAI}:{})});
   const key=Buffer.from(hash(secret),'hex'),cookieName=testing?'ms_place':'__Host-ms_place';
@@ -148,6 +153,12 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         else throw new Fault('Not found.',404);
         return send(res,200,{ok:true});
       }
+      if(path.startsWith('/api/race/')){
+        limit('race:'+who,1800);const mode=url.searchParams.get('mode');
+        if(path==='/api/race/state'&&req.method==='GET'){check(['solo','together'].includes(mode),'Choose a race mode.');return send(res,200,race.view(race.get(who,mode),who));}
+        if(req.method==='POST'){const d=await body(req,2000);if(path==='/api/race/action'){const result=race.action(who,d);saveRaces();return send(res,200,result);}if(path==='/api/race/input')return send(res,200,race.input(who,d));}
+        throw new Fault('Not found.',404);
+      }
       if(path==='/api/journey/play'&&req.method==='GET'){
  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-src 'self' about:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
  res.setHeader('Content-Type','text/html; charset=utf-8');return res.end(readFileSync(join(here,'public','journey.html'),'utf8').replace('__JOURNEY_PROGRESS__',JSON.stringify(journeyView(store.state(),who))));
@@ -240,13 +251,15 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(path==='/api/export'&&req.method==='GET')return exportArchive(store,snapshot(who),res);
       throw new Fault('Not found.',404);
     }
-    check(req.method==='GET','Method not allowed.',405);const files={'/game-ui.js':['game-ui.js','text/javascript'],'/account.js':['account.js','text/javascript'],'/reads.js':['reads.js','text/javascript'],'/sw.js':['sw.js','text/javascript'],'/notifications.js':['notifications.js','text/javascript'],'/draw.js':['draw.js','text/javascript'],'/draw.css':['draw.css','text/css'],'/court-export.js':['court-export.js','text/javascript'],'/court-print.css':['court-print.css','text/css'],'/court.js':['court.js','text/javascript'],'/court.css':['court.css','text/css'],'/personal.js':['personal.js','text/javascript'],'/personal.css':['personal.css','text/css'],'/crown.js':['crown.js','text/javascript'],'/crown.css':['crown.css','text/css'],'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
+    check(req.method==='GET','Method not allowed.',405);const files={'/race.js':['race.js','text/javascript'],'/race-engine.mjs':['race-engine.mjs','text/javascript'],'/race.css':['race.css','text/css'],'/game-ui.js':['game-ui.js','text/javascript'],'/account.js':['account.js','text/javascript'],'/reads.js':['reads.js','text/javascript'],'/sw.js':['sw.js','text/javascript'],'/notifications.js':['notifications.js','text/javascript'],'/draw.js':['draw.js','text/javascript'],'/draw.css':['draw.css','text/css'],'/court-export.js':['court-export.js','text/javascript'],'/court-print.css':['court-print.css','text/css'],'/court.js':['court.js','text/javascript'],'/court.css':['court.css','text/css'],'/personal.js':['personal.js','text/javascript'],'/personal.css':['personal.css','text/css'],'/crown.js':['crown.js','text/javascript'],'/crown.css':['crown.css','text/css'],'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
   const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   const dominoTimer=setInterval(()=>{try{const current=store.state();if(!drawDue(current)&&!dominoDue(current)&&!ochoDue(current))return;const changed=store.tx(()=>{const s=store.state();const a=drawTick(s),d=dominoTick(s),o=ochoTick(s);if(!d&&!o&&!a)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
+  const raceSaveTimer=setInterval(()=>{if(race.matches.size)try{saveRaces();}catch{console.error('Race save failed.');}},2000);raceSaveTimer.unref();
+  const raceTimer=setInterval(()=>{try{race.tick();}catch{console.error('Race update failed.');}},16);raceTimer.unref();
   const pushTimer=setInterval(()=>notifications.drain().catch(()=>console.error('Notification delivery failed.')),250);pushTimer.unref();
   const dailyTimer=setInterval(()=>daily.tick().catch(()=>console.error('Daily Echo update failed.')),15000);dailyTimer.unref();
-  server.on('close',()=>{clearInterval(dailyTimer);daily.stop();clearTimeout(presenceTimer);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
+  server.on('close',()=>{clearInterval(raceTimer);clearInterval(raceSaveTimer);saveRaces();clearInterval(dailyTimer);daily.stop();clearTimeout(presenceTimer);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});
@@ -256,6 +269,7 @@ if(process.argv[1]===fileURLToPath(import.meta.url)){
   const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET);
   process.on('SIGTERM',()=>{stopMaintenance().then(()=>server.close(()=>{store.close();process.exit(0);}));});
 }
+
 
 
 
