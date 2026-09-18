@@ -4,7 +4,7 @@ let host,who=null,games={},mode='solo',opened=false,busy=false,picked=null,signa
 const game=()=>games[mode];
 let fullView=true,clockOffset=0;
 function updateClock(){const g=game(),e=view?.clock;if(!e)return;e.hidden=!(g?.status==='active'&&!g.paused&&g.turnSeconds);if(e.hidden)return;const seconds=Math.max(0,Math.ceil((g.turnDeadline-(Date.now()+clockOffset))/1000));e.textContent=seconds+'s';e.classList.toggle('clock-low',seconds<=5);e.setAttribute('aria-label',g.turn+' has '+seconds+' seconds remaining');}
-function focused(){return opened&&fullView&&['active','finished','complete'].includes(game()?.status);}
+function focused(){return opened&&fullView&&['waiting','active','finished','complete'].includes(game()?.status);}
 let soundOn=true,audioContext=null;
 const heardMoves=new Map(),shownResults=new Set();
 try{soundOn=localStorage.getItem('our-place:domino:sound')!=='off';}catch{}
@@ -224,7 +224,7 @@ function render(){
   for(const name of g.players){const group=make('div',undefined,evidence,'domino-result-hand');make('strong',name+' · '+totals[name]+' pips',group);const row=make('div',undefined,group,'domino-result-tiles');row.setAttribute('aria-label',name+' remaining tiles');const tiles=g.result.hands?.[name];if(tiles?.length)for(const tile of tiles)piece(tile,row);else make('span',tiles?'No tiles left':'Tile details unavailable',row,'domino-result-empty');}
   make('p',g.status==='complete'?'Match saved in your history.':g.result.points+' points this round. Keep playing to '+g.target+'.',card,'domino-result-note');
   const next=make('div',undefined,card,'domino-result-actions');
-  btn(g.status==='complete'?'New match':g.mode==='solo'?'Next round':'Invite to next round',next,()=>command(g.status==='complete'?'leave':'rematch'),'primary').disabled=busy;
+  btn(g.status==='complete'?'New match':g.mode==='solo'?'Next round':'Invite to next round',next,()=>g.status==='complete'?command('create',{mode:g.mode,difficulty:g.difficulty,target:g.target,turnSeconds:g.turnSeconds},null):command('rematch'),'primary').disabled=busy;
   btn('Back',next,()=>closeGame());
  }else{
   const controls=make('div',undefined,actions,'domino-actions');
@@ -263,4 +263,5 @@ window.OurDomino={init,sync(s){
  if(Number.isFinite(s.serverNow))clockOffset=s.serverNow-Date.now();version=s.version;hearMoves(s.domino??{});games=s.domino??{};if(picked&&!game()?.legal.some(m=>m.tile===picked))picked=null;render();
 },reset(){drawSeen.clear();heardMoves.clear();shownResults.clear();boardObserver?.disconnect();historySignature='';view=null;$('#domino-records').replaceChildren();$('#domino-history-list').replaceChildren();who=null;games={};version=-1;signature='';opened=false;picked=null;$('#domino-game').replaceChildren();$('#domino-invitation').hidden=true;$('#domino-error').textContent='';show();}};
 })();
+
 

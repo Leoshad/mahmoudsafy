@@ -176,3 +176,31 @@ test('result shows awarded points, both hands and a one-time entrance without ch
  let card=all(a.get('#domino-game')).find(e=>e.className==='domino-result');assert.ok(all(card).some(e=>e.textContent==='Mahmoud · +11 points'));assert.ok(all(card).some(e=>e.textContent==='Blocked round · 12 − 1 = 11 points'));assert.equal(all(card).filter(e=>e.className==='domino-piece').length,2);assert.ok(card.classList.contains('domino-result-enter'));
  g.revision++;state.version++;a.sync();card=all(a.get('#domino-game')).find(e=>e.className==='domino-result');assert.equal(card.classList.contains('domino-result-enter'),false);assert.equal(g.scores.Mahmoud,11);
 });
+
+
+for(const mode of ['solo','shared'])for(const fullscreen of [false,true])test(`new ${mode} match stays in Dominoes (fullscreen=${fullscreen})`,async()=>{
+ const state=initial(),clients=[],a=client('Mahmoud',state,clients);
+ await click(a.get('#domino-open'));
+ if(mode==='shared')await click(a.get('#domino-shared-tab'));
+ a.get('#domino-target').value='100';a.get('#domino-timer').value='30';
+ await click(a.get('#domino-start'));
+ const g=mode==='solo'?state.domino.solo.Mahmoud:state.domino.shared;
+ if(mode==='shared')dominoChange(state,'Safy','domino.accept',{game:g.id,revision:g.revision});
+ g.status='complete';g.matchWinner='Mahmoud';g.scores={Mahmoud:100,[g.players[1]]:0};
+ g.result={winner:'Mahmoud',points:10,reason:'empty',totals:{Mahmoud:0,[g.players[1]]:10}};
+ state.version++;a.sync();
+ if(fullscreen)await click(all(a.get('#domino-game')).find(e=>e.textContent==='Full screen'));
+ const records=JSON.stringify(dominoSnapshot(state,'Mahmoud').records);
+ await click(all(a.get('#domino-game')).find(e=>e.textContent==='New match'));
+ const next=mode==='solo'?state.domino.solo.Mahmoud:state.domino.shared;
+ assert.notEqual(next.id,g.id);assert.equal(next.status,mode==='solo'?'active':'waiting');
+ assert.equal(next.target,100);assert.equal(next.turnSeconds,30);assert.equal(next.round,1);
+ assert.ok(Object.values(next.scores).every(n=>n===0));assert.equal(next.difficulty,g.difficulty);
+ assert.equal(a.get('#domino-panel').hidden,false);assert.equal(a.get('#domino-open').hidden,true);
+ assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),fullscreen);
+ assert.equal(JSON.stringify(dominoSnapshot(state,'Mahmoud').records),records);
+ if(mode==='shared'){
+  dominoChange(state,'Safy','domino.accept',{game:next.id,revision:next.revision});a.sync();
+  assert.equal(next.status,'active');assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),fullscreen);
+ }
+});
