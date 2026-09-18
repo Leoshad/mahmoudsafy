@@ -26,7 +26,7 @@ export class RaceService{
  if(m.status==='paused'){m.status='countdown';m.starts=now+2000;m.reason=null;m.last=now;}
  if(m.status==='countdown'){if(now<m.starts){m.last=now;continue;}m.status='racing';m.last=now;}
  m.acc+=Math.min(.1,Math.max(0,(now-m.last)/1000));m.last=now;
- while(m.acc>=DT&&m.status==='racing'){m.acc-=DT;m.t+=DT;for(let i=0;i<m.players.length;i++){if(m.players[i]!=='Computer'||m.finished[i]!==null)continue;const target=Math.min(Math.floor(m.t/DT),Math.max(...m.frames)+6);if(m.frames[i]<target){const frame=m.frames[i]+1;m.inputs[i]={...botInput(m.course,m.runners[i],frame*DT,m.inputs[i]),seq:0};step(m.course,m.runners[i],m.inputs[i],frame*DT);m.frames[i]=frame;if(m.runners[i].x>=m.course.finish)m.finished[i]=frame;}}
+ while(m.acc>=DT&&m.status==='racing'){m.acc-=DT;m.t+=DT;for(let i=0;i<m.players.length;i++){if(m.players[i]!=='Computer'||m.finished[i]!==null)continue;const target=Math.min(Math.floor(m.t/DT),Math.max(...m.frames.filter((_,j)=>m.players[j]!=='Computer')));if(m.frames[i]<target){const frame=m.frames[i]+1;m.inputs[i]={...botInput(m.course,m.runners[i],frame*DT,m.inputs[i]),seq:0};step(m.course,m.runners[i],m.inputs[i],frame*DT);m.frames[i]=frame;if(m.runners[i].x>=m.course.finish)m.finished[i]=frame;}}
  this.resolve(m);
  if(m.t>600){m.status='cancelled';m.reason='Time to try a fresh course. No winner or forfeit.';}}
  }}

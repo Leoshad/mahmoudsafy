@@ -21,3 +21,8 @@ test('frame validation rejects skips, fast forwarding and duplicates without adv
  let now=10000;const service=new RaceService({now:()=>now}),id=service.action('Mahmoud',{mode:'solo',action:'create'}).match.id,m=service.get('Mahmoud','solo');m.status='racing';
  const send=(seq,frames)=>service.input('Mahmoud',{mode:'solo',id,seq,dir:1,jump:0,frames});send(1,[{n:2,dir:1,jump:0}]);assert.equal(m.frames[0],0);send(2,[{n:1,dir:1,jump:0}]);const x=m.runners[0].x;send(3,[{n:1,dir:1,jump:0}]);assert.equal(m.runners[0].x,x);send(4,Array.from({length:30},(_,i)=>({n:i+2,dir:1,jump:0})));assert.equal(m.frames[0],18);
 });
+test('computer cannot start before the human submits gameplay frames',()=>{
+ let now=10000;const s=new RaceService({now:()=>now});const id=s.action('Mahmoud',{mode:'solo',action:'create'}).match.id,m=s.get('Mahmoud','solo');m.status='racing';m.seen[0]=now;
+ for(let n=0;n<50;n++){now+=17;s.tick();}assert.equal(m.frames[1],0);assert.equal(m.runners[1].x,70);
+ s.input('Mahmoud',{mode:'solo',id,seq:1,dir:1,jump:0,frames:[{n:1,dir:1,jump:0}]});for(let n=0;n<10;n++){now+=17;s.tick();}assert.equal(m.frames[1],1);assert.equal(m.runners[1].x,m.runners[0].x);
+});
