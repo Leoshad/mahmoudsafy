@@ -349,3 +349,17 @@ body{margin:0;background:#0b0b0e}
 #inbox-bell{position:relative;display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:0}#inbox-bell[hidden],#refresh-place[hidden]{display:none}#inbox-bell small{position:absolute;top:-5px;right:-5px;background:#d7a7bc;color:#181219;border-radius:20px;padding:2px 5px;font:700 11px system-ui}.inbox-dialog{background:#211923;color:#eee5eb;border:1px solid #78596a;border-radius:20px;width:min(480px,calc(100vw - 24px));max-height:80dvh;padding:18px;box-sizing:border-box}.inbox-dialog::backdrop{background:#0008}.inbox-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.inbox-head h2{font-size:24px}.inbox-item{display:block;text-align:left;width:100%;padding:14px 12px;margin:8px 0;border:1px solid #443540;border-radius:12px;background:#2a222c;color:inherit}.inbox-item.unread{border-left:3px solid #d3b177;background:#382a35}.inbox-item small{display:block;color:#b6a5b1;margin-top:7px}.inbox-dialog button{min-height:44px}
 #priority-invitations,.photo-lightbox,.inbox-dialog,.chat-reaction-picker{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 #priority-invitations button,.photo-lightbox button,.inbox-dialog button{font:inherit;border:1px solid #705563;border-radius:12px;background:#352833;color:#f0e7ed;cursor:pointer;padding:9px 14px;min-height:42px}.priority-invite-row button:first-of-type{background:#c9ad76!important;color:#19151d!important}#priority-invitations button:disabled{opacity:.55;cursor:wait}.inbox-dialog .inbox-item{text-align:left;width:100%;padding:14px 12px}.inbox-dialog .inbox-item.unread{border-left:3px solid #d3b177;background:#382a35}.photo-lightbox button{font-size:15px}
+/* Preserve the original one-row header; utilities never create a second row. */
+#our-place-trial.signed-in>header{flex-wrap:nowrap;gap:6px;padding:9px 12px}
+#our-place-trial.signed-in>header>div:first-child{min-width:0;flex:1}
+#our-place-trial.signed-in>header .brand{font-size:clamp(22px,5vw,36px);white-space:nowrap}
+#our-place-trial.signed-in .header-actions{flex-wrap:nowrap;gap:5px;flex-shrink:0;margin-left:0}
+#our-place-trial #account{display:flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px}
+#our-place-trial #account>span{max-width:68px;overflow:hidden;text-overflow:ellipsis}
+#our-place-trial :is(#install-app,.sign-out-icon,#inbox-bell){display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;min-width:36px;min-height:36px;padding:0;border-radius:50%}
+#our-place-trial #refresh-place{width:100%;height:auto;font-size:14px;text-align:left;padding:10px 12px}
+#our-place-trial .compose-entry{position:relative}
+#our-place-trial .chat-reactions{display:flex;gap:4px;align-items:center;margin:2px 0 0;min-height:0}
+#our-place-trial .chat-reactions button{width:auto;min-width:28px;min-height:26px;padding:1px 6px;font-size:16px;line-height:24px;border-radius:16px}
+#our-place-trial .chat-reactions .chat-react-trigger{padding:0 4px;background:transparent;border:0}
+@media(max-width:360px){#our-place-trial #account>span{max-width:45px;font-size:11px}#our-place-trial.signed-in>header .brand{font-size:22px}#our-place-trial.signed-in>header{padding-inline:8px}}

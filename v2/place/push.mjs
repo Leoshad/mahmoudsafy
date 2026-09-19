@@ -55,7 +55,7 @@ const topic=digest(e.to+':'+(e.kind==='message'?'messages':(e.kind==='test'?e.ke
  scan(actor){const current=this.store.state();for(const e of attentionEvents(this.previous,current,actor))this.enqueue(e);this.previous=current;
   for(const m of this.store.messages())if(m.status==='sent'&&this.mark('message:'+m.id)){
    const recipients=m.author==='Echo'?names:names.filter(n=>n!==m.author);
-   for(const to of recipients)this.enqueue({key:'message:'+m.id+':'+to,to,body:m.author==='Echo'?'Echo has replied in your chat.':m.author+' sent you '+(m.image?'a photo.':'a message.'),kind:m.author==='Echo'?'echo':'message',target:{tab:'chat',message:m.id}});
+   for(const to of recipients)this.enqueue({key:'message:'+m.id+':'+to,to,body:m.author==='Echo'?'Echo has replied in your chat.':new RegExp('(^|\\s)@'+to+'\\b','i').test(m.text||'')?m.author+' mentioned you in chat.':m.author+' sent you '+(m.image?'a photo.':'a message.'),kind:m.author==='Echo'?'echo':'message',target:{tab:'chat',message:m.id}});
   }
  }
  async drain(){if(this.busy||this.stopped)return;this.busy=true;try{
