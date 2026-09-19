@@ -51,9 +51,10 @@ export function youtubeService({key=()=>process.env.YOUTUBE_API_KEY,fetcher=fetc
   return r.json();
  }
  async function cached(k,fn){const old=cache.get(k);if(old&&old.until>Date.now())return old.data;const data=await fn();if(cache.size>=60)cache.delete(cache.keys().next().value);cache.set(k,{data,until:Date.now()+600000});return data;}
- async function details(ids){if(!ids.length)return [];const data=await request('videos',{part:'snippet,contentDetails,status',id:ids.join(',')});return (data.items??[]).filter(v=>v.status?.embeddable&&v.status?.privacyStatus==='public'&&v.snippet?.liveBroadcastContent==='none'&&seconds(v.contentDetails?.duration)>0&&seconds(v.contentDetails?.duration)<=86400).map(v=>track({videoId:v.id,title:v.snippet.title.slice(0,300),channel:v.snippet.channelTitle,duration:seconds(v.contentDetails.duration)}));}
+ async function details(ids,regions=[]){if(!ids.length)return [];const data=await request('videos',{part:'snippet,contentDetails,status',id:ids.join(',')});return (data.items??[]).filter(v=>v.status?.embeddable&&v.status?.privacyStatus==='public'&&regions.every(region=>!v.contentDetails?.regionRestriction?.blocked?.includes(region)&&(!v.contentDetails?.regionRestriction?.allowed||v.contentDetails.regionRestriction.allowed.includes(region)))&&v.snippet?.liveBroadcastContent==='none'&&seconds(v.contentDetails?.duration)>0&&seconds(v.contentDetails?.duration)<=86400).map(v=>track({videoId:v.id,title:v.snippet.title.slice(0,300),channel:v.snippet.channelTitle,duration:seconds(v.contentDetails.duration)}));}
  return {
-  async resolve(value){const id=videoId(value);return cached('v:'+id,async()=>{const list=await details([id]);need(list.length,'This video is private, live, unavailable, or cannot play here.',404);return list[0];});},
+  async resolve(value,{fresh=false,regions=[]}={}){const id=videoId(value),load=async()=>{const list=await details([id],regions);need(list.length,'This video is private, live, unavailable, or cannot play here.',404);return list[0];};return fresh?load():cached('v:'+id+':'+regions.join(','),load);},
   async search(query){need(typeof query==='string'&&query.trim().length>=2&&query.length<=100,'Enter a song, video, or artist name (2–100 characters).');const q=query.trim();return cached('q:'+q.toLowerCase(),async()=>{reserve();const data=await request('search',{part:'snippet',q,type:'video',videoEmbeddable:'true',videoSyndicated:'true',maxResults:'8'});return details((data.items??[]).map(v=>v.id?.videoId).filter(Boolean));});}
  };
 }
+

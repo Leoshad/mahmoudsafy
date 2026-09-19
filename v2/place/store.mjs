@@ -45,7 +45,7 @@ export class Store {
   settle(id,usage){
     if(!usage||!Number.isInteger(usage.input_tokens)||!Number.isInteger(usage.output_tokens)||usage.input_tokens<0||usage.output_tokens<0)return;
     const b=JSON.parse(this.job(id).body);if(!b.budgetKeys)return;
-    const searches=b.searchBudget?Math.max(0,Number.isInteger(usage.web_search_calls)?usage.web_search_calls:2):0;
+    const searches=Math.max(0,Number.isInteger(usage.web_search_calls)?usage.web_search_calls:b.searchBudget?2:0);
     const cost=Math.max(100,Math.ceil((usage.input_tokens*.2+usage.output_tokens*1.2+searches*10000)*1.25));
     for(const k of b.budgetKeys)this.db.prepare('UPDATE budget SET used=MAX(0,used+?) WHERE key=?').run(cost-(b.reservedCharge??50000),k);
   }

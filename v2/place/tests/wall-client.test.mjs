@@ -23,12 +23,17 @@ function client(s){
  const nodes=new Map(),$=q=>{if(!nodes.has(q))nodes.set(q,new Node());return nodes.get(q);};doc={querySelector:$,createElement:t=>new Node(t),activeElement:null};
  const el=(t,text,p,cls)=>{const n=new Node(t);n.textContent=text??'';n.className=cls??'';p?.append(n);return n;};const failures=[],btn=(t,p,fn,cls)=>{const n=el('button',t,p,cls);n.onclick=async()=>{try{await fn();}catch(e){failures.push(e);}};return n;};
  let wall,filter='All',tab='',commands=[];
- const context={setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),document:doc,structuredClone,Intl,Date,crypto:{randomUUID},history:{back:()=>tab='space',replaceState(){}}};context.window=context;vm.createContext(context);vm.runInContext(readFileSync(new URL('../public/wall.js',import.meta.url),'utf8'),context);
+ const context={setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),document:doc,URL,structuredClone,Intl,Date,crypto:{randomUUID},history:{back:()=>tab='space',replaceState(){}}};context.window=context;vm.createContext(context);vm.runInContext(readFileSync(new URL('../public/wall.js',import.meta.url),'utf8'),context);
  wall=context.OurWall({getState:()=>({...s,who:'Mahmoud'}),api:async()=>({}),command:async(type,data,id)=>{commands.push({type,data,id});if(type==='item.ask'){const item=s.items.find(i=>i.id===data.id);item.comments??=[];item.comments.push({id:randomUUID(),by:'Mahmoud',text:data.question,to:'Echo'},{id:'echo-test',by:'Echo',text:'',status:'streaming'});item.revision++;}else change(s,'Mahmoud',type,data);},sync:async()=>wall.paint(),goto:t=>tab=t,info(){},error:e=>failures.push(e),el,btn,categories:['Idea','Photo','Plan','Agreement'],getFilter:()=>filter,setFilter:v=>filter=v,openSource(){}});
  return {$,wall,failures,commands,timers,tab:()=>tab,doc};
 }
 const sheet=c=>c.$('#our-place-trial').querySelector('.wall-comment-sheet');
 const button=(root,text)=>walk(root).find(n=>n.tag==='button'&&n.textContent===text);
+test('both direct recommendation links in Echo comments are clickable without interpreting human markup',async()=>{
+ const s=initial();change(s,'Safy','item.save',{type:'Idea',title:'Watch something'});s.items[0].comments=[{id:'links',by:'Echo',text:'[First](https://example.com/first)\n\n[Second](https://example.com/second)',status:'sent'},{id:'human',by:'Safy',text:'[literal](https://example.com/literal)',status:'sent'}];
+ const c=client(s);c.wall.paint();await button(c.$('#items').children[0],'Comment').onclick();
+ const links=sheet(c).querySelectorAll('a');assert.equal(links.length,2);assert.deepEqual(links.map(a=>a.href),['https://example.com/first','https://example.com/second']);for(const a of links){assert.equal(a.target,'_blank');assert.equal(a.rel,'noopener noreferrer');}
+});
 test('wall preserves typed comment and open thread during a partner update, then sends once',async()=>{
  const s=initial();change(s,'Safy','item.save',{type:'Idea',title:'Visit together'});const c=client(s);c.wall.paint();const card=c.$('#items').children[0];
  await button(card,'Comment').onclick();const textarea=sheet(c).querySelector('textarea');textarea.value='I would love that';textarea.oninput();textarea.focus();
@@ -124,4 +129,3 @@ test('Echo comments render bold safely for existing replies and split streaming 
  c.wall.delta({post:s.items[0].id,id:'stream-bold',text:'ld** and <img src=x onerror=alert(1)>'});assert.equal(body('stream-bold').querySelector('strong').textContent,'bold');assert.equal(body('stream-bold').querySelectorAll('img').length,0);assert.ok(walk(body('stream-bold')).some(n=>n.textContent.includes('<img')));
  s.items[0].comments[2].status='sent';c.wall.paint();assert.equal(body('stream-bold').querySelector('strong').textContent,'bold');assert.equal(s.items[0].comments[0].text,'يعني **تعرف معنى الكلام** و **تختبر بناءه**.');
 });
-

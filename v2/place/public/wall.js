@@ -39,10 +39,22 @@ window.OurWall=function({getState,api,command,sync,goto,info,error,el,btn,catego
  function renderComment(body,c){
   const value=c.text||(c.status==='streaming'?'Echo is thinking…':'');
   body.replaceChildren();body.textContent='';
-  if(c.by!=='Echo'||!value.includes('**')){body.textContent=value;return;}
+  if(c.by!=='Echo'){body.textContent=value;return;}
+  function linked(root,text){
+   const pattern=/\[([^\]\n]+)\]\((https?:\/\/[^\s()]+)\)|(https?:\/\/[^\s<>"\u0000-\u001f]+)/gi;let at=0;
+   for(const m of text.matchAll(pattern)){
+    if(m.index>at)el('span',text.slice(at,m.index),root);
+    let href=m[2]||m[3],tail='';if(!m[2]){const end=href.match(/[.,!?;:،؛؟\])}]+$/);if(end){tail=end[0];href=href.slice(0,-tail.length);}}
+    let safe=false;try{const u=new URL(href);safe=['https:','http:'].includes(u.protocol)&&!u.username&&!u.password;}catch{}
+    if(safe){const a=el('a',m[1]||href,root,'message-link');a.href=href;a.target='_blank';a.rel='noopener noreferrer';if(tail)el('span',tail,root);}else el('span',m[0],root);
+    at=m.index+m[0].length;
+   }
+   if(!at)root.textContent=text;else if(at<text.length)el('span',text.slice(at),root);
+  }
+  if(!value.includes('**')){linked(body,value);return;}
   const pattern=c.status==='streaming'?/\*\*(.+?)(?:\*\*|$)/gs:/\*\*(.+?)\*\*/gs;let at=0;
-  for(const match of value.matchAll(pattern)){if(match.index>at)el('span',value.slice(at,match.index),body);el('strong',match[1],body);at=match.index+match[0].length;}
-  if(at<value.length)el('span',value.slice(at),body);
+  for(const match of value.matchAll(pattern)){if(match.index>at)linked(el('span','',body),value.slice(at,match.index));linked(el('strong','',body),match[1]);at=match.index+match[0].length;}
+  if(at<value.length)linked(el('span','',body),value.slice(at));
  }
  function paintThread(){if(!threadId)return;const post=latest(threadId);if(!post){sheet.close();return;}const sig=JSON.stringify([post.comments,post.echoComments,getState().pauses]);if(sig===threadSignature)return;threadSignature=sig;
   sheetTitle.textContent='Comments'+(post.comments?.length?' · '+post.comments.length:'');invite.textContent=post.echoComments?'✦ Echo is here':'✦ Invite Echo';invite.setAttribute('aria-pressed',String(!!post.echoComments));invite.title=post.echoComments?'Remove Echo from this conversation':'Let Echo read this post and join its comments';
@@ -142,4 +154,3 @@ window.OurWall=function({getState,api,command,sync,goto,info,error,el,btn,catego
  $('#item-form').onsubmit=async e=>{e.preventDefault();if(uploading)return;const b=$('#wall-publish');if(b.disabled)return;b.disabled=true;try{const type=$('#item-type').value,title=$('#item-text').value;if(!title.trim()&&!photos.length)throw Error('Write something or add a photo.');if(type==='Photo'&&!photos.length)throw Error('Add a photo for this moment.');const remaining=[...(editing.steps??[])];const steps=$('#wall-steps').value.split('\n').map(t=>t.trim()).filter(Boolean).map(text=>{const index=remaining.findIndex(s=>s.text===text);return index>=0?remaining.splice(index,1)[0]:{text,done:false};});const payload={id:editing.id,revision:editing.revision,source:editing.source,type,title,images:photos,image:photos[0]??null,steps,aiAllowed:$('#item-ai').checked},key=JSON.stringify(payload);if(postRequest?.key!==key)postRequest={key,id:crypto.randomUUID()};await command('item.save',payload,postRequest.id);await sync();setFilter('All');$('#space-search').value='';goto('space',true);history.replaceState({placeTab:'space'},'');info('Saved to your wall.');}catch(err){error(err);}finally{b.disabled=false;}};
  return {paint,edit,delta(d){const post=latest(d.post),c=post?.comments?.find(c=>c.id===d.id);if(c)c.text+=d.text;if(threadId===d.post){const body=[...threadList.querySelectorAll('[data-comment]')].find(n=>n.dataset.comment===d.id);if(body)renderComment(body,c??{by:'Echo',text:d.text,status:'streaming'});}},reset(){sheet.close();reactionDialog.close();threadId=null;searchDialog.close();settingsDialog.close();dailySignature='';deleteId=null;deletion.close();epoch++;cards.clear();drafts.clear();editing={};photos=[];viewer.close();full.removeAttribute('src');}};
 };
-

@@ -73,7 +73,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   async function run(id){
     const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body);if(b.purpose==='activity')return runActivity(id);if(b.purpose==='draw')return runDraw(id);if(b.purpose==='court')return runCourt(id);const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),45000);running.set(id,{controller,actor:j.actor,scope:j.scope,wallItem:b.wallItem,text:''});let output='',lastSave=0;const started=Date.now();let first=null;
     try{
-      const {proposals,usage}=await ai({actor:j.actor,prompt:b.prompt,context:b.context,image:b.image,purpose:b.purpose,signal:controller.signal,onText:delta=>{
+      const {proposals,usage}=await ai({actor:j.actor,prompt:b.prompt,context:b.context,image:b.image,purpose:b.purpose,youtube,signal:controller.signal,onText:delta=>{
         if(store.job(id).status!=='running'||controller.signal.aborted)return;if(first===null)first=Date.now()-started;output+=delta;running.get(id).text=output;
         if(b.wallItem){emit('wall-delta',{post:b.wallItem,id,text:delta});if(Date.now()-lastSave>300){saveWallReply(b.wallItem,id,output,'streaming');lastSave=Date.now();}}
         else if(j.scope==='shared'){emit('delta',{id,text:delta});if(Date.now()-lastSave>300){store.db.prepare('UPDATE messages SET text=? WHERE id=?').run(output,id);lastSave=Date.now();}}
