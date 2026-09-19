@@ -11,6 +11,7 @@ export function unusedPhotos(store, now = Date.now()) {
   const used = referencedPhotoIds(store.state());
   for (const row of store.db.prepare('SELECT image FROM messages WHERE image IS NOT NULL').iterate()) used.add(row.image);
   for (const row of store.db.prepare('SELECT body FROM jobs').iterate()) referencedPhotoIds(JSON.parse(row.body), used);
+  if(store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='shared_files'").get())for(const row of store.db.prepare('SELECT photo FROM shared_files WHERE photo IS NOT NULL').iterate())used.add(row.photo);
   const candidates=[];
   for (const p of store.db.prepare('SELECT id FROM photos').all()) {
     if (used.has(p.id)) { store.db.prepare('DELETE FROM photo_orphans WHERE id=?').run(p.id); continue; }
@@ -34,3 +35,4 @@ export function reclaimPhotos(store, backedUpIds, now = Date.now()) {
   });
   return removed;
 }
+
