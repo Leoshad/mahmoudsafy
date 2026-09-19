@@ -1,0 +1,11 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {echoLanguage,correctSafy} from '../language.mjs';
+import {Store} from '../store.mjs';
+import {recordDeliveries,recordReads} from '../reads.mjs';
+import {respond} from '../ai.mjs';
+for(const text of ['Hi Safy','ازيك يا صافي','ezayek ya Safy','Never reply in Arabic','متردش بالعربي'])test('English stays default: '+text,()=>assert.equal(echoLanguage(text),'English'));
+for(const text of ['Please respond in Arabic','رد بالعربي','اشرح بالمصري','بالعربي لو سمحت'])test('explicit Arabic: '+text,()=>assert.equal(echoLanguage(text),'Arabic'));
+test('Safy spelling correction leaves unrelated Arabic words and Latin names alone',()=>{assert.deepEqual(correctSafy({text:'يا صفي، صافي في فصل صفي. Safy',x:['صفي']}),{text:'يا صافي، صافي في فصل صافي. Safy',x:['صافي']});assert.equal(correctSafy('وصفية تصفية Safy'),'وصفية تصفية Safy');});
+for(const who of ['Mahmoud','Safy'])test('delivery is acknowledged only by the recipient, stays distinct from read: '+who,()=>{const s=new Store(':memory:'),other=who==='Mahmoud'?'Safy':'Mahmoud';try{s.message({id:'m',author:who,text:'Hey'});s.message({id:'e',author:'Echo',text:'Hi'});assert.equal(s.messages()[0].deliveredAt,null);assert.deepEqual(recordDeliveries(s,who,['m']).ids,[]);assert.deepEqual(recordDeliveries(s,other,['e','missing']).ids,[]);assert.deepEqual(recordDeliveries(s,other,['m','m']).ids,['m']);assert.ok(s.messages()[0].deliveredAt);assert.equal(s.messages()[0].readAt,null);assert.deepEqual(recordDeliveries(s,other,['m']).ids,[]);recordReads(s,other,['m']);assert.ok(s.snapshot(who).messages[0].readAt);assert.throws(()=>recordDeliveries(s,'Echo',['m']));}finally{s.close();}});
+test('Safy name correction survives split streamed Arabic tokens',async()=>{process.env.OPENAI_API_KEY='test-only';let text='';await respond({actor:'Mahmoud',prompt:'رد بالعربي',context:'',onText:t=>text+=t,fetcher:async()=>new Response([{type:'response.output_text.delta',delta:'اهلا ص'},{type:'response.output_text.delta',delta:'في يا ص'},{type:'response.output_text.delta',delta:'في'},{type:'response.completed',response:{output:[],usage:{input_tokens:1,output_tokens:1}}}].map(e=>'data: '+JSON.stringify(e)+'\n\n').join(''))});assert.equal(text,'اهلا صافي يا صافي');});

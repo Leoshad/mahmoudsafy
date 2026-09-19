@@ -1,3 +1,4 @@
+import {echoLanguage} from './language.mjs';
 import {randomUUID} from 'node:crypto';
 import {check,text,names} from './domain.mjs';
 const other=n=>names.find(x=>x!==n),stamp=()=>new Date().toISOString();
@@ -29,7 +30,7 @@ export function courtRequest(c){
  check(['investigation','ready'].includes(c.stage),'Complete the current step first.',409);check(!c.questions.some(q=>!q.answer),'Answer the current question first.',409);
  const counts=Object.fromEntries(names.map(n=>[n,c.questions.filter(q=>q.target===n&&q.answer).length]));
  const canReview=names.every(n=>counts[n]>=1),mustReview=names.every(n=>counts[n]>=3);
- return {stage:c.stage,counts,canReview,mustReview,allowedTargets:names.filter(n=>counts[n]===Math.min(...Object.values(counts))),language:/[\u0600-\u06ff]/u.test([...c.records].reverse().find(r=>r.by!=='Echo'&&['statement','answer','correction','evidence','opened','appeal'].includes(r.kind))?.text||'')?'Arabic':'English',title:c.title,issue:c.issue,records:c.records,previousVerdicts:c.history.map(h=>({round:h.round,verdict:h.verdict})),review:c.review};
+ return {stage:c.stage,counts,canReview,mustReview,allowedTargets:names.filter(n=>counts[n]===Math.min(...Object.values(counts))),language:echoLanguage([...c.records].reverse().find(r=>r.by!=='Echo'&&['statement','answer','correction','evidence','opened','appeal'].includes(r.kind))?.text||''),title:c.title,issue:c.issue,records:c.records,previousVerdicts:c.history.map(h=>({round:h.round,verdict:h.verdict})),review:c.review};
 }
 const list=(v,max=10)=>{check(Array.isArray(v)&&v.length<=max,'Echo returned an invalid list.',502);return v.map(x=>text(x,1800));};
 export function courtApply(s,id,job,result){

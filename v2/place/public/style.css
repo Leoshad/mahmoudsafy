@@ -363,3 +363,32 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial .chat-reactions button{width:auto;min-width:28px;min-height:26px;padding:1px 6px;font-size:16px;line-height:24px;border-radius:16px}
 #our-place-trial .chat-reactions .chat-react-trigger{padding:0 4px;background:transparent;border:0}
 @media(max-width:360px){#our-place-trial #account>span{max-width:45px;font-size:11px}#our-place-trial.signed-in>header .brand{font-size:22px}#our-place-trial.signed-in>header{padding-inline:8px}}
+/* Compact conversation layout; deliberately scoped to the chat feed. */
+#our-place-trial #feed .message{position:relative;align-items:flex-end;gap:7px;margin:12px 0 0;padding:0 0 3px}
+#our-place-trial #feed .message.grouped{margin-top:3px}
+#our-place-trial #feed .message>.avatar{flex:0 0 25px;width:25px;height:25px;min-width:25px;min-height:25px;padding:0;font-size:12px;margin-bottom:3px}
+#our-place-trial #feed .message.grouped>.avatar,#our-place-trial #feed .message.mine>.avatar{visibility:hidden}
+#our-place-trial #feed .message-column{position:relative;display:flex;flex-direction:column;align-items:flex-start;min-width:0;max-width:calc(100% - 55px)}
+#our-place-trial #feed .mine .message-column{align-items:flex-end}
+#our-place-trial #feed .bubble{position:relative;flex:none;width:fit-content;max-width:100%;min-width:0;padding:8px 12px;border-radius:17px;line-height:1.45}
+#our-place-trial #feed .bubble p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+#our-place-trial #feed .bubble p:empty{display:none}
+#our-place-trial #feed .bubble>img{width:280px;max-width:100%;height:auto;max-height:320px;margin:0;border-radius:10px}
+#our-place-trial #feed .message-meta{display:none;align-items:center;font-size:10px;gap:8px;color:#baaab7;padding:0 5px 4px}
+#our-place-trial #feed .message-selected .message-meta{display:flex}
+#our-place-trial #feed .message-footer{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:4px;min-height:0;font-size:10px}
+#our-place-trial #feed .status{display:inline-grid;place-items:center;font-size:10px;line-height:14px;margin:3px 2px 0;color:#b7a6b4}
+#our-place-trial #feed .status[aria-label="Sent"],#our-place-trial #feed .status.delivered{width:13px;height:13px;border:1px solid #a58b9c;border-radius:50%}
+#our-place-trial #feed .status.delivered{background:#a58b9c;color:#211923}
+#our-place-trial #feed .status.read-receipt{width:16px;height:16px;border:0;border-radius:50%;background:#483342;color:#e1b4ca;font:600 10px/16px system-ui;overflow:hidden}
+#our-place-trial #feed .read-receipt img{display:block;width:16px;height:16px;object-fit:cover;border-radius:50%}
+#our-place-trial #feed .message-actions{display:none;margin:0;border:0;padding:0}
+#our-place-trial #feed .message-selected .message-actions,#our-place-trial #feed .message-actions[open],#our-place-trial #feed .message:focus-within .message-actions{display:block}
+#our-place-trial #feed .message-actions summary{padding:0 6px;min-height:24px;line-height:24px}
+#our-place-trial #feed .message-actions[open]{display:flex;flex-wrap:wrap;gap:4px;max-width:280px;margin-top:4px;padding:6px;border:1px solid #614658;border-radius:12px;background:#251d28}
+#our-place-trial #feed .message-actions button{font-size:12px;padding:6px 9px;min-height:34px}
+#our-place-trial #feed .chat-reactions{position:absolute;bottom:-16px;right:5px;display:flex;gap:3px;margin:0;z-index:1}
+#our-place-trial #feed .chat-reactions:empty{display:none}
+#our-place-trial #feed .chat-reactions button{margin:0;min-height:23px;min-width:25px;padding:0 5px;line-height:21px;font-size:15px;background:#352735;border:1px solid #74586a;border-radius:15px;box-shadow:0 2px 4px #0004}
+#our-place-trial #feed .has-reactions .bubble{margin-bottom:16px}
+@media(hover:hover){#our-place-trial #feed .message:hover .message-actions{display:block}}

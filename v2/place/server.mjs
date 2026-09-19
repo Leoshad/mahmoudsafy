@@ -5,7 +5,7 @@ import {echoContext} from './context.mjs';
 import {startMaintenance} from './backup.mjs';
 import {strokeEvent} from './draw.mjs';
 import {accountRoutes,identify,bindSession} from './account.mjs';
-import {recordReads} from './reads.mjs';
+import {recordReads,recordDeliveries} from './reads.mjs';
 import {PushNotifications} from './push.mjs';
 import {drawState,drawView,drawChange,drawApply,drawFailure,drawDue,drawTick} from './draw.mjs';
 import {drawingWords} from './draw-ai.mjs';
@@ -168,9 +168,10 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(path==='/api/media/search'&&req.method==='GET'){limit('youtube:'+who,12);return send(res,200,{items:await youtube.search(url.searchParams.get('q'))});}
       if(path==='/api/media/resolve'&&req.method==='GET'){limit('youtube:'+who,12);return send(res,200,{track:await youtube.resolve(url.searchParams.get('url'))});}
       if(path.startsWith('/api/court/')&&req.method==='GET'){const id=path.slice('/api/court/'.length);const c=courtView(store.state(),who).cases.find(c=>c.id===id);check(c,'Case not found.',404);res.setHeader('Content-Security-Policy',`default-src 'none'; style-src 'unsafe-inline'; img-src data:; script-src 'sha256-${createHash('sha256').update(COURT_PRINT_SCRIPT).digest('base64')}'; base-uri 'none'; frame-ancestors 'self'`);if(url.searchParams.get('download')==='1')res.setHeader('Content-Disposition',`attachment; filename="court-case-${c.number}.html"`);res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});const images={};for(const r of [...c.records,...c.history.flatMap(h=>h.records)]){const image=r.image||r.source?.image;if(image&&!images[image])images[image]=photoData(image);}return res.end(courtDocument(c,who,images));}
+      if(path==='/api/delivered'&&req.method==='POST'){const result=recordDeliveries(store,who,(await body(req,12000)).ids);if(result.ids.length)emit('delivered',result);return send(res,200,result);}
       if(path==='/api/read'&&req.method==='POST'){const result=recordReads(store,who,(await body(req,12000)).ids);if(result.ids.length)emit('read',result);return send(res,200,result);}
       if(path==='/api/state'&&req.method==='GET')return send(res,200,snapshot(who));
-      if(path.startsWith('/api/messages/')&&req.method==='GET'){const m=store.db.prepare('SELECT rowid AS sequence,*,(SELECT at FROM message_reads WHERE message=messages.id) AS readAt FROM messages WHERE id=?').get(path.split('/').pop());check(m,'The original message is unavailable.',404);return send(res,200,m);}
+      if(path.startsWith('/api/messages/')&&req.method==='GET'){const m=store.db.prepare('SELECT rowid AS sequence,*,(SELECT at FROM message_reads WHERE message=messages.id) AS readAt,(SELECT at FROM message_deliveries WHERE message=messages.id) AS deliveredAt FROM messages WHERE id=?').get(path.split('/').pop());check(m,'The original message is unavailable.',404);return send(res,200,m);}
       if(path==='/api/history'&&req.method==='GET')return send(res,200,store.messages(url.searchParams.get('before')));
       if(path==='/api/events'&&req.method==='GET'){
         res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive','X-Accel-Buffering':'no'});res.write(`retry: 250\n\nevent: snapshot\ndata: ${JSON.stringify(snapshot(who))}\n\n`);streams.set(res,{who,sid:req.sessionId,segments:url.searchParams.get('draw')==='segments'});publishPresence();
