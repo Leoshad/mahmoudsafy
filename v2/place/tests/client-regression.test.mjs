@@ -6,12 +6,12 @@ const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 const delivery=source.slice(source.indexOf('async function deliver(m,'),source.indexOf("$('#composer').onsubmit"));
 function harness({failMessage=false,failAI=false,failSync=false}={}){
  const calls=[],notices=[],pending=new Map();
- const ctx=vm.createContext({pending,state:{who:'Mahmoud'},sessionEpoch:0,delivering:new Set(),saveOutbox:()=>true,removeOutbox(){},paintFeed(){},info:t=>notices.push(t),crypto:{randomUUID:()=> 'stable-ai-request'},command:async(type,data,id)=>{calls.push({type,id});if(type==='message'&&failMessage)throw Error('Offline');if(type==='ai.ask'&&failAI)throw Error('AI unavailable');},sync:async()=>{if(failSync)throw Error('Snapshot timeout');}});
+ const ctx=vm.createContext({pending,state:{who:'Mahmoud'},sessionEpoch:0,delivering:new Set(),saveOutbox:()=>true,removeOutbox(){},paintFeed(){},info(){},error:e=>notices.push(e.message||e),crypto:{randomUUID:()=> 'stable-ai-request'},command:async(type,data,id)=>{calls.push({type,id});if(type==='message'&&failMessage)throw Error('Offline');if(type==='ai.ask'&&failAI)throw Error('AI unavailable');},sync:async()=>{if(failSync)throw Error('Snapshot timeout');}});
  vm.runInContext(delivery+';this.deliver=deliver',ctx);return {ctx,calls,notices};
 }
 test('confirmed chat stays sent when the following state refresh fails; no retry affordance',async()=>{
  const h=harness({failSync:true}),m={author:'Mahmoud',id:'message',text:'hello',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);
- assert.equal(m.status,'sent');assert.equal(h.calls.filter(x=>x.type==='ai.ask').length,1);assert.match(h.notices[0],/Message sent/);
+ assert.equal(m.status,'sent');assert.equal(h.calls.filter(x=>x.type==='ai.ask').length,1);assert.equal(h.notices.length,0);
 });
 test('a failed human message stays retryable and never calls AI',async()=>{
  const h=harness({failMessage:true}),m={author:'Mahmoud',id:'message',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);
