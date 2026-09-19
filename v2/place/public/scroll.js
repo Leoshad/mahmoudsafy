@@ -1,6 +1,6 @@
 const PlaceScroll={
- hold(root){
-  const mark=this.capture(root);mark.end=false;let stopped=false,timer,frame,observer;
+ hold(root,saved){
+  const mark=saved?{...saved}:this.capture(root);mark.end=false;let stopped=false,timer,frame,observer;
   const restore=()=>{if(!stopped&&root.isConnected&&root.getClientRects().length)this.restore(root,mark);};
   const stop=()=>{stopped=true;clearTimeout(timer);cancelAnimationFrame(frame);observer?.disconnect();root.removeEventListener('load',restore,true);for(const type of ['pointerdown','touchstart','wheel','keydown'])window.removeEventListener(type,stop,true);};
   for(const type of ['pointerdown','touchstart','wheel','keydown'])window.addEventListener(type,stop,{capture:true,passive:true});
