@@ -200,3 +200,8 @@ Validation: 236 passing Node tests including schedule idempotency, settings race
 - Human sent/delivered ticks have no circle. Seen profile markers remain unchanged.
 - A reserved writing-hand slot between the two presence names indicates the partner's typing without shifting controls on appearance. Only a boolean goes over authenticated, origin-checked SSE; no draft content is shared or stored. Input is throttled, stops on send/blur/hidden/tab change, idles out after two seconds, and remote indicators expire after 4.5 seconds if a stop signal is lost.
 - Manual refresh success uses the existing pull indicator with a one-second checkmark, never a permanent footer success message. Errors keep the existing visible notice.
+
+### Room-bar grouping and refresh position (2026-09-19)
+- Treat each person, presence dot, crown and reserved typing slot as one group. Use even spacing between the complete groups, Echo, reminders and Menu; keep the same colors, controls and ordering.
+- Manual refresh captures an exact message anchor before fetching and retains it through late image/layout changes for up to ten seconds. Any new pointer/touch/wheel/keyboard interaction releases this hold immediately. Even near the bottom, manual refresh must not jump to new messages. Normal live-message follow behavior is unchanged.
+- Disable native browser vertical overscroll refresh; use the existing in-app pull refresh to avoid losing chat position in a page reload.

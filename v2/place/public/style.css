@@ -407,3 +407,12 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial .typing-hand.is-typing{opacity:1;animation:writing-hand .65s ease-in-out infinite alternate}
 @keyframes writing-hand{from{transform:rotate(-8deg) translateY(0)}to{transform:rotate(6deg) translateY(-1px)}}
 @media(prefers-reduced-motion:reduce){#our-place-trial .typing-hand.is-typing{animation:none}}
+
+/* Equal spacing between complete room-bar groups; typing slots never resize. */
+#our-place-trial .room-bar{justify-content:space-between;gap:4px}
+#our-place-trial .room-bar #presence{display:contents}
+#our-place-trial .room-bar .presence-group{display:inline-flex;align-items:center;gap:3px;flex-shrink:0;font-size:12px}
+#our-place-trial .room-bar .presence-group .person{display:inline-flex;align-items:center;gap:4px}
+@media(max-width:380px){#our-place-trial .room-bar .presence-group{font-size:11px;gap:2px}#our-place-trial .room-bar .typing-hand{width:12px;flex-basis:12px;font-size:12px}}
+/* The app supplies pull-to-refresh without triggering a browser reload. */
+html,body{overscroll-behavior-y:none}

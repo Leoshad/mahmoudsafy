@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';
+test('manual refresh keeps exact message offset through late image sizing and yields to user input',()=>{
+ let y=240,resize,raf;const events=new Map(),loads=new Map(),root={isConnected:true,scrollTop:220,scrollHeight:1400,clientHeight:400,getClientRects:()=>[{}],getBoundingClientRect:()=>({top:0}),querySelector:()=>({}),querySelectorAll:()=>[row],addEventListener:(t,f)=>loads.set(t,f),removeEventListener:t=>loads.delete(t)};const row={dataset:{message:'anchor'},getBoundingClientRect:()=>({top:y-root.scrollTop,bottom:y-root.scrollTop+200})};
+ const c={window:{addEventListener:(t,f)=>events.set(t,f),removeEventListener:t=>events.delete(t)},setTimeout:()=>1,clearTimeout(){},requestAnimationFrame:f=>(raf=f,1),cancelAnimationFrame(){},ResizeObserver:class{constructor(f){resize=f;}observe(){}disconnect(){}}};vm.createContext(c);vm.runInContext(readFileSync(new URL('../public/scroll.js',import.meta.url),'utf8')+';this.scroll=PlaceScroll',c);
+ const hold=c.scroll.hold(root);y+=300;hold.restore();assert.equal(root.scrollTop,520);y+=150;loads.get('load')();assert.equal(root.scrollTop,670);y+=60;resize();assert.equal(root.scrollTop,730);raf();assert.equal(root.scrollTop,730);
+ events.get('touchstart')();root.scrollTop=100;y+=50;resize();assert.equal(root.scrollTop,100);assert.equal(loads.size,0);
+});
+test('manual refresh near the bottom does not jump to new messages',()=>{
+ const root={scrollTop:590,scrollHeight:1000,clientHeight:400,isConnected:true,getClientRects:()=>[{}],getBoundingClientRect:()=>({top:0}),querySelectorAll:()=>[],addEventListener(){},removeEventListener(){}};const c={window:{addEventListener(){},removeEventListener(){}},setTimeout:()=>1,clearTimeout(){},requestAnimationFrame:()=>1,cancelAnimationFrame(){}};vm.createContext(c);vm.runInContext(readFileSync(new URL('../public/scroll.js',import.meta.url),'utf8')+';this.scroll=PlaceScroll',c);const hold=c.scroll.hold(root);root.scrollHeight=1500;hold.restore();assert.equal(root.scrollTop,590);hold.stop();
+});
