@@ -16,7 +16,7 @@ export function publicActivity(a,who){
   // Solutions and future questions never leave the server, even for the author after launch.
   return {...visible,total:qs.length,max:qs.filter(q=>q.correct>=0).length,current:a.status==='active'?{q:qs[a.index].q,options:qs[a.index].options}:null};
 }
-export function project(s,who){return {version:s.version,pauses:s.pauses,activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items,wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
+export function project(s,who){return {version:s.version,messageReactions:s.messageReactions??{},pauses:s.pauses,activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items,wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
 export function change(s,who,type,p={}){
   check(names.includes(who),'Not invited.',403);
   s.activities??=s.activity?[s.activity]:[];
@@ -31,7 +31,10 @@ export function change(s,who,type,p={}){
     }
     case 'echo.invite': check(typeof p.value==='boolean','Choose on or off.');if(p.value)check(!s.pauses.length,'Echo is paused. Resume permissions first.',409);s.echoInvited=p.value;for(const a of s.activities)a.reactionsPaused=!p.value;break;
     case 'item.delete': {const i=s.items.find(i=>i.id===p.id);check(i&&i.revision===p.revision,'This item changed. Refresh before deleting.',409);s.items=s.items.filter(i=>i.id!==p.id);break;}
-    case 'message.pin': {
+    case 'message.react': {
+ check(typeof p.id==='string'&&p.id.length<=80,'Choose a message.');check(p.value===null||['❤️','😂','😮','😢','🔥','👏'].includes(p.value),'Choose a supported reaction.');s.messageReactions??={};const reactions={...s.messageReactions[p.id]};delete reactions[who];if(p.value)reactions[who]=p.value;if(Object.keys(reactions).length)s.messageReactions[p.id]=reactions;else delete s.messageReactions[p.id];break;
+ }
+ case 'message.pin': {
       check(typeof p.id==='string'&&typeof p.value==='boolean','Invalid pin.');
       s.pins??=[];
       if(p.value&&!s.pins.some(x=>x.id===p.id)){check(s.pins.length<10,'Unpin a message first. You can keep 10 pinned messages.');s.pins.push({id:p.id,text:text(p.text,4000),author:text(p.author,40),by:who});}
@@ -92,3 +95,4 @@ function archive(s,a,who){
  const summary=a.feedback?.findLast(f=>f.final&&f.status==='sent')?.text;
  s.items.unshift({id,type:'Result',title:[`${a.title||'Round'} · ${a.host||a.owner} → ${a.target}`,a.status==='completed'?'Completed':'Ended early',...a.answers.map(v=>v.q+' → '+v.answer),...(max?[`${a.score} / ${max} points`]:[]),...(summary?['Echo: '+summary]:[])].join('\n'),by:who,source:a.id,status:a.status,done:a.status==='completed',approvals:[],revision:1,aiAllowed:false,createdAt:new Date().toISOString()});a.sharedPost=id;
 }
+

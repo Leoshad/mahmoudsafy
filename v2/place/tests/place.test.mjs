@@ -247,7 +247,7 @@ test('live ten-question round saves every answer and shares once',()=>{
 test('provider offers live surprises without a private preparation tool',async()=>{
  process.env.OPENAI_API_KEY='test-only';
  const result=await respond({actor:'Mahmoud',prompt:'Surprise us',context:'',onText(){},fetcher:async(_url,opts)=>{
- const body=JSON.parse(opts.body);assert.match(body.instructions,/Use English by default/);assert.match(body.instructions,/Private preparation has been removed/);
+ const body=JSON.parse(opts.body);assert.match(body.instructions,/Reply in English/);assert.match(body.instructions,/Private preparation has been removed/);
  assert.equal(body.tools.some(t=>t.name==='start_quiz'),true);assert.equal(body.tools.some(t=>t.name==='prepare_quiz'),false);
  return new Response('data: '+JSON.stringify({type:'response.completed',response:{usage:{input_tokens:1,output_tokens:1},output:[{type:'function_call',name:'start_quiz',arguments:JSON.stringify({title:'Round',questions:quiz,target:'Safy'})}]}})+'\n\n');
  }});assert.equal(result.proposals[0].type,'start');
@@ -284,3 +284,4 @@ test('activity reactions have no action tools and bounded output',async()=>{
  return new Response('data: '+JSON.stringify({type:'response.completed',response:{output:[],usage:{input_tokens:1,output_tokens:1}}})+'\n\n');
  }});
 });
+

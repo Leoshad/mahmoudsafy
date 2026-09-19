@@ -4,7 +4,7 @@ const other=n=>names.find(x=>x!==n),stamp=()=>new Date().toISOString();
 const record=(c,by,kind,value,extra={})=>{const r={id:randomUUID(),by,kind,text:value,at:stamp(),...extra};c.records.push(r);return r;};
 export function courtCase(s,id){const c=s.court?.cases.find(c=>c.id===id);check(c,'Case not found.',404);return c;}
 const heard=c=>names.every(n=>c.statements[n]);
-export function courtView(s,who){return {cases:(s.court?.cases??[]).map(c=>{const v=structuredClone(c);v.submitted=names.filter(n=>c.statements[n]);if(!heard(c)){v.statements=Object.fromEntries(Object.entries(v.statements).filter(([n])=>n===who));v.records=v.records.filter(r=>r.kind!=='statement'||r.by===who);}return v;})};}
+export function courtView(s,who){return {cases:(s.court?.cases??[]).map(c=>{const v=structuredClone(c);v.submitted=names.filter(n=>c.statements[n]);return v;})};}
 export function courtChange(s,who,type,d){
  check(names.includes(who),'Not allowed.',403);s.court??={cases:[]};
  if(type==='court.create'){check(s.court.cases.length<100,'The case archive has reached 100 cases.');const c={id:randomUUID(),number:s.court.cases.length+1,title:text(d.title,100),issue:text(d.issue,1500),language:d.language==='Arabic'?'Arabic':'English',owner:who,stage:'invited',revision:1,round:1,createdAt:stamp(),updatedAt:stamp(),consent:[who],pauses:[],statements:{},records:[],questions:[],approvals:[],review:null,verdict:null,history:[],pending:null,error:null};record(c,who,'opened',c.issue);s.court.cases.unshift(c);s.version++;return {id:c.id};}
@@ -29,7 +29,7 @@ export function courtRequest(c){
  check(['investigation','ready'].includes(c.stage),'Complete the current step first.',409);check(!c.questions.some(q=>!q.answer),'Answer the current question first.',409);
  const counts=Object.fromEntries(names.map(n=>[n,c.questions.filter(q=>q.target===n&&q.answer).length]));
  const canReview=names.every(n=>counts[n]>=1),mustReview=names.every(n=>counts[n]>=3);
- return {stage:c.stage,counts,canReview,mustReview,allowedTargets:names.filter(n=>counts[n]===Math.min(...Object.values(counts))),language:c.language,title:c.title,issue:c.issue,records:c.records,previousVerdicts:c.history.map(h=>({round:h.round,verdict:h.verdict})),review:c.review};
+ return {stage:c.stage,counts,canReview,mustReview,allowedTargets:names.filter(n=>counts[n]===Math.min(...Object.values(counts))),language:/[\u0600-\u06ff]/u.test([...c.records].reverse().find(r=>r.by!=='Echo'&&['statement','answer','correction','evidence','opened','appeal'].includes(r.kind))?.text||'')?'Arabic':'English',title:c.title,issue:c.issue,records:c.records,previousVerdicts:c.history.map(h=>({round:h.round,verdict:h.verdict})),review:c.review};
 }
 const list=(v,max=10)=>{check(Array.isArray(v)&&v.length<=max,'Echo returned an invalid list.',502);return v.map(x=>text(x,1800));};
 export function courtApply(s,id,job,result){
@@ -48,3 +48,4 @@ export function courtApply(s,id,job,result){
  c.pending=null;c.error=null;c.updatedAt=stamp();c.revision++;s.version++;return true;
 }
 export function courtFailure(s,id,job){const c=s.court?.cases.find(c=>c.id===id);if(c?.pending===job){c.pending=null;c.error='Echo could not finish. Your case is saved. You can retry this step.';c.revision++;s.version++;}}
+

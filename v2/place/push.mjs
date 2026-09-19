@@ -16,6 +16,7 @@ export class PushNotifications{
   this.db.exec(`CREATE TABLE IF NOT EXISTS push_meta(id INTEGER PRIMARY KEY,body TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS push_subscriptions(id TEXT PRIMARY KEY,owner TEXT NOT NULL,session TEXT NOT NULL,body TEXT NOT NULL,created INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS push_presence(client TEXT PRIMARY KEY,owner TEXT NOT NULL,session TEXT NOT NULL,visible INTEGER NOT NULL,updated INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS notification_inbox(id TEXT PRIMARY KEY,owner TEXT NOT NULL,body TEXT NOT NULL,created INTEGER NOT NULL,readAt INTEGER);
  CREATE TABLE IF NOT EXISTS push_seen(id TEXT PRIMARY KEY,created INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS push_queue(id TEXT PRIMARY KEY,owner TEXT NOT NULL,topic TEXT NOT NULL,body TEXT NOT NULL,due INTEGER NOT NULL,expires INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0);`);
   if(!this.db.prepare('PRAGMA table_info(push_presence)').all().some(c=>c.name==='sequence'))this.db.exec('ALTER TABLE push_presence ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0');
@@ -43,7 +44,11 @@ export class PushNotifications{
  const key='test:'+randomBytes(12).toString('hex');
  this.enqueue({key,to:who,kind:'test',subscriptionId:digest(endpoint),body:'Your test notification arrived.',target:{tab:'space'}});
  }
- enqueue(e){if(!this.mark(e.key))return;const topic=digest(e.to+':'+(e.kind==='message'?'messages':(e.kind==='test'?e.key:JSON.stringify(e.target)))).slice(0,24),id=e.to+':'+topic;
+ inbox(who){return this.db.prepare('SELECT id,body,created,readAt FROM notification_inbox WHERE owner=? ORDER BY created DESC LIMIT 100').all(who).map(r=>({...JSON.parse(r.body),id:r.id,created:r.created,readAt:r.readAt}));}
+ readInbox(who,id){check(typeof id==='string'&&id.length<=300,'Choose a notification.');this.db.prepare('UPDATE notification_inbox SET readAt=? WHERE owner=? AND id=?').run(this.now(),who,id);}
+ enqueue(e){if(!this.mark(e.key))return;
+ if(['wall','daily','invitation'].includes(e.kind)||/invited you|mentioned you/.test(e.body)){this.db.prepare('INSERT OR IGNORE INTO notification_inbox VALUES(?,?,?,?,NULL)').run(e.key,e.to,JSON.stringify({body:e.body,target:e.target}),this.now());this.db.prepare('DELETE FROM notification_inbox WHERE owner=? AND id NOT IN (SELECT id FROM notification_inbox WHERE owner=? ORDER BY created DESC LIMIT 100)').run(e.to,e.to);}
+const topic=digest(e.to+':'+(e.kind==='message'?'messages':(e.kind==='test'?e.key:JSON.stringify(e.target)))).slice(0,24),id=e.to+':'+topic;
  const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,kind:e.kind,deviceOnly:['daily','test','invitation'].includes(e.kind),subscriptionId:e.subscriptionId,quiet:!!e.quiet,tag:topic,createdAt:this.now(),expires:this.now()+(['daily','invitation'].includes(e.kind)?12*3600000:120000)};
  this.db.prepare(`INSERT INTO push_queue(id,owner,topic,body,due,expires) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=CASE WHEN json_extract(excluded.body,'$.quiet')=1 AND json_extract(push_queue.body,'$.quiet')=0 THEN push_queue.body ELSE excluded.body END,expires=excluded.expires`).run(id,e.to,topic,JSON.stringify(body),this.now()+(e.kind==='test'?5000:300),body.expires);
  }
