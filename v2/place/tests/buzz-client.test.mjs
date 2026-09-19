@@ -11,7 +11,7 @@ test('sad and missing-you choices send, render distinct artwork and remember the
  const f=fixture();
  for(const [index,kind,icon,artClass]of [[5,'sad','😔','buzz-tear'],[6,'miss','🥺','buzz-held-heart']]){
   await f.picker.children[index].onclick();assert.equal(f.calls.at(-1).kind,kind);assert.equal(f.trigger.textContent,icon);
-  const overlay=f.body.children.at(-1);assert.equal(overlay.className,'buzz-overlay buzz-'+kind);assert.match(overlay.children[0].innerHTML,new RegExp(artClass));
+  const overlay=f.body.children.at(-1);assert.equal(overlay.className,'buzz-overlay buzz-'+kind);assert.match(overlay.children[0].innerHTML,new RegExp(artClass));assert.equal(overlay.children[1].textContent,kind==='miss'?'I miss you…':'Feeling sad…');
  }
  f.buzz.reset();f.buzz.sync({who:'Mahmoud'});assert.equal(f.trigger.textContent,'🥺');
  await f.trigger.onclick();assert.equal(f.calls.at(-1).kind,'miss');

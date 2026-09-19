@@ -53,3 +53,8 @@
 @keyframes buzz-embrace{0%,15%{transform:scaleX(1.12)}60%,100%{transform:scaleX(.97)}}
 @keyframes buzz-come-close{0%{opacity:0;transform:translate(var(--reach),var(--rise)) scale(.65)}20%{opacity:.8}80%{opacity:.7}100%{opacity:0;transform:translate(0,20px) scale(.35)}}
 @media(prefers-reduced-motion:reduce){.buzz-need::before,.buzz-sad::before,.buzz-miss::before,.buzz-need .buzz-caption,.buzz-sad .buzz-caption,.buzz-miss .buzz-caption,.buzz-tear,.buzz-tear-glint,.buzz-longing-heart,.buzz-held-heart,.buzz-hug-left,.buzz-hug-right{animation:none!important}.buzz-sad .buzz-particle,.buzz-miss .buzz-particle{display:none}}
+
+/* Feeling captions belong to the animation, without a notification pill. */
+.buzz-sad .buzz-caption,.buzz-miss .buzz-caption{background:none;border:0;border-radius:0;padding:8px 18px;font:italic 500 clamp(25px,7vw,32px)/1.2 Georgia,serif;text-align:center;text-shadow:0 2px 4px #130d18,0 0 12px #130d18;letter-spacing:.02em}
+.buzz-miss .buzz-caption{color:#ffd0e2}
+.buzz-sad .buzz-caption{color:#c7e2f7}
