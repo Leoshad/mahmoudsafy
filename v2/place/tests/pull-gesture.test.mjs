@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';
+const source=readFileSync(new URL('../public/comfort.js',import.meta.url),'utf8');
+function fixture(inTimeline=false){const handlers={};let count=0;const body={},chat={},timeline={scrollTop:350},parent={scrollTop:120,scrollHeight:1200,clientHeight:800,parentElement:body},target={parentElement:parent,closest:q=>q==='#chat'?chat:q==='#timeline'&&inTimeline?timeline:null};const c={state:{},refreshButton:{disabled:false},document:{body,addEventListener:(t,f)=>handlers[t]=f},refresh:()=>count++};vm.createContext(c);vm.runInContext(source.slice(source.indexOf('let pull=null;'),source.indexOf('\nfunction setupInbox')).replace(/}\s*$/,''),c);return {handlers,target,timeline,count:()=>count};}
+function gesture(c,dx=0,dy=110){c.handlers.touchstart({target:c.target,touches:[{clientX:20,clientY:20}]});c.handlers.touchmove({touches:[{clientX:20+dx,clientY:20+dy}],cancelable:true,preventDefault(){}});c.handlers.touchend();}
+test('pull on chat header refreshes even when outer shell has scrolled',()=>{const c=fixture();gesture(c);assert.equal(c.count(),1);});
+test('scrolling old chat messages is not stolen by refresh',()=>{const c=fixture(true);gesture(c);assert.equal(c.count(),0);c.timeline.scrollTop=0;gesture(c);assert.equal(c.count(),1);});
+test('short or horizontal pulls do not refresh',()=>{const c=fixture();gesture(c,0,40);gesture(c,60,110);assert.equal(c.count(),0);});
