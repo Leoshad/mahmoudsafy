@@ -416,3 +416,10 @@ body{margin:0;background:#0b0b0e}
 @media(max-width:380px){#our-place-trial .room-bar .presence-group{font-size:11px;gap:2px}#our-place-trial .room-bar .typing-hand{width:12px;flex-basis:12px;font-size:12px}}
 /* Let the browser provide its native pull-to-refresh indicator and gesture. */
 html,body{overscroll-behavior-y:auto}
+
+/* Chat hold opens our actions, without native text selection/callout. */
+#our-place-trial #feed .message .bubble{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.chat-reaction-picker{max-width:calc(100vw - 16px);box-sizing:border-box}
+.chat-reaction-picker button{flex:0 1 44px;min-width:0}
+.chat-reaction-picker .chat-copy{color:#d6b777;display:grid;place-items:center}
+.chat-reaction-picker .chat-copy:disabled{opacity:.35}
