@@ -169,7 +169,7 @@ async function deliver(m,automatic=false){
    if(m.confirmed){removeOutbox(who,m.id);return true;}
    m.status='failed-local';m.autoRetry=!e.status||e.status>=500||e.status===401||e.status===408||e.status===429;
    m.attempts=(m.attempts||0)+1;m.retryAt=Date.now()+Math.min(30000,1000*2**Math.min(m.attempts,5));saveOutbox(m);
-   if(current()){paintFeed();if(!automatic&&!m.autoRetry)error(e);}
+   if(current()){paintFeed();if(!m.autoRetry&&(!automatic||m.attempts===1))error(e);}
    return false;
   }
   removeOutbox(who,m.id);m.status='sent';m.autoRetry=false;

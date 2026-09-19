@@ -53,3 +53,5 @@ test('Echo emphasis renders safely without stars while human text stays literal'
  ctx.renderMessageText(p,{author:'Safy',text:'Keep **my stars**'});assert.equal(p.textContent,'Keep **my stars**');
 });
 
+
+test('a permanent send rejection surfaces once even through the automatic outbox',async()=>{const h=harness();h.ctx.command=async()=>{throw Object.assign(new Error('Message is too long.'),{status:400});};const m={author:'Mahmoud',id:'blocked',payload:{text:'hello'}};await h.ctx.deliver(m,true);assert.equal(m.status,'failed-local');assert.equal(h.notices[0],'Message is too long.');await h.ctx.deliver(m,true);assert.equal(h.notices.length,1);});
