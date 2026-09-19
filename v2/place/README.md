@@ -193,3 +193,5 @@ Validation: 236 passing Node tests including schedule idempotency, settings race
 - Check each changed shared behavior from both account perspectives; run the chat layout regression tests before publishing chat changes.
 - Automated render/structure tests are not physical mobile visual validation. Report which checks actually ran and any remaining device verification.
 - Keep changes scoped to the user's approved request; update these rules when the user explicitly changes the agreement.
+
+- Echo alone uses a small circular gold profile badge inside the bubble, top left, with the reply starting beside it (not on a new line below). Preserve Echo's existing column position, bubble colors and shared reaction/action behavior. Human avatars remain outside. The badge opens Echo's profile and survives streamed text updates.

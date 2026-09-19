@@ -15,3 +15,11 @@ for(const who of ['Mahmoud','Safy'])test('both authors retain avatars on own, re
  const css=readFileSync(new URL('../public/style.css',import.meta.url),'utf8');
  for(const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g))if(rule[1].includes('.avatar'))assert.doesNotMatch(rule[2],/visibility\s*:\s*hidden|display\s*:\s*none|opacity\s*:\s*0(?:\D|$)/,'avatar must not be hidden by '+rule[1]);
 });
+
+for(const who of ['Mahmoud','Safy'])test('Echo badge is inside its bubble and keeps profile action across text updates: '+who,()=>{
+ const c=fixture(who);let opened=0;c.context.openEchoProfile=()=>opened++;
+ c.context.state.messages=[{id:'echo',author:'Echo',text:'Hello',status:'streaming',sequence:1,createdAt:1760000000000}];c.paint();
+ let row=c.feed.children.find(n=>n.dataset.message==='echo'),bubble=row.querySelector('.bubble'),badge=bubble.querySelector('.echo-inline-badge');
+ assert.ok(badge);assert.equal(row.children.some(n=>n.className.split(' ').includes('avatar')),false);assert.equal(bubble.children[0],badge);assert.equal(bubble.children[1].textContent,'Hello');assert.equal(badge['aria-label'],'About Echo');badge.onclick();assert.equal(opened,1);
+ c.context.state.messages[0].text='Hello again';c.context.state.messages[0].status='sent';c.paint();row=c.feed.children.find(n=>n.dataset.message==='echo');bubble=row.querySelector('.bubble');assert.ok(bubble.querySelector('.echo-inline-badge'));assert.equal(bubble.children[1].textContent,'Hello again');assert.notEqual(row.querySelector('.message-actions').parent,bubble);assert.ok(walk(row).some(n=>n.textContent==='React'));
+});
