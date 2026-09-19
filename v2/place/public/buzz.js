@@ -1,13 +1,13 @@
 (()=>{'use strict';
 const kinds={electric:['⚡','Buzz'],love:['❤️','Love'],kiss:['💋','Kiss'],angry:['😡','Grrr!'],need:['🔔','I need you']};
-let api,info,who=null,pending=false,until=0,timer=null,layer=null,audio=null,queue=[],seen=new Set(),epoch=0,shake=null,lastKind="electric",pressTimer=null,pressOrigin=null,suppressClick=false;
+let api,info,who=null,waiting=null,lastSequence=0,timer=null,layer=null,audio=null,queue=[],seen=new Set(),epoch=0,shake=null,lastKind="electric",pressTimer=null,pressOrigin=null,suppressClick=false;
 const trigger=document.querySelector('#buzz-trigger'),picker=document.createElement('div');picker.id='buzz-picker';picker.hidden=true;picker.setAttribute('role','dialog');picker.setAttribute('aria-label','Choose a Buzz');document.body.append(picker);
 function setting(key){try{return localStorage.getItem('our-place:buzz:'+key)!=='off';}catch{return true;}}
 function close(){clearTimeout(pressTimer);picker.hidden=true;trigger.setAttribute('aria-expanded','false');}
 function unlock(){try{audio??=new (window.AudioContext||window.webkitAudioContext)();audio.resume().catch(()=>{});}catch{}}
 function sound(kind){if(!setting('sound')||audio?.state!=='running')return;try{const start=audio.currentTime;[0,.17].forEach((offset,i)=>{const o=audio.createOscillator(),g=audio.createGain();o.type=kind==='electric'?'sawtooth':'sine';o.frequency.value=kind==='need'?880-i*220:kind==='angry'?160:kind==='kiss'?620:520+i*180;g.gain.setValueAtTime(0,start+offset);g.gain.linearRampToValueAtTime(.055,start+offset+.02);g.gain.exponentialRampToValueAtTime(.001,start+offset+.3);o.connect(g);g.connect(audio.destination);o.start(start+offset);o.stop(start+offset+.32);});}catch{}}
 function remember(kind){lastKind=kind;trigger.textContent=kinds[kind][0];trigger.title=kinds[kind][1]+' · hold to choose';trigger.setAttribute('aria-label','Send '+kinds[kind][1]+'; hold to choose');try{localStorage.setItem('our-place:buzz:last:'+who,kind);}catch{}}
-async function send(kind){if(pending||!who)return;if(Date.now()<until){info('Wait a moment before your next Buzz.');return;}remember(kind);unlock();pending=true;const current=epoch;close();try{const result=await api('buzz',{id:crypto.randomUUID(),kind});if(epoch!==current)return;until=Date.now()+10000;info(kinds[kind][1]+' sent to '+result.event.to+' '+kinds[kind][0]);}catch(e){if(epoch===current)info(e.message||'Buzz could not be sent.');}finally{if(epoch===current)pending=false;}}
+async function send(kind){if(!who)return;remember(kind);unlock();const current=epoch;close();try{const result=await api('buzz',{id:crypto.randomUUID(),kind});if(epoch!==current)return;receive(result.event);info(kinds[kind][1]+' sent to '+result.event.to+' '+kinds[kind][0]);}catch(e){if(epoch===current)info(e.message||'Buzz could not be sent.');}}
 for(const [kind,[icon,label]]of Object.entries(kinds)){const b=document.createElement('button');b.type='button';b.textContent=icon;b.title=label;b.setAttribute('aria-label',label);b.onclick=()=>send(kind);picker.append(b);}
 for(const [key,title]of [['sound','Sound'],['vibration','Vibration']]){const label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.checked=setting(key);input.onchange=()=>{try{localStorage.setItem('our-place:buzz:'+key,input.checked?'on':'off');}catch{}if(input.checked)unlock();};label.append(input,document.createTextNode(title));picker.append(label);}
 function openPicker(){unlock();picker.hidden=false;trigger.setAttribute('aria-expanded','true');const r=trigger.getBoundingClientRect();picker.style.left=Math.max(8,Math.min(r.left,innerWidth-picker.offsetWidth-8))+'px';picker.style.top=Math.min(innerHeight-picker.offsetHeight-8,r.bottom+8)+'px';}
@@ -19,7 +19,7 @@ trigger.addEventListener('contextmenu',e=>{e.preventDefault();clearTimeout(press
 trigger.addEventListener('keydown',e=>{if(e.key==='ArrowDown'){e.preventDefault();openPicker();picker.querySelector('button')?.focus();}});
 document.addEventListener('pointerdown',e=>{unlock();if(!picker.contains(e.target)&&!trigger.contains(e.target))close();},{passive:true});
 document.addEventListener('keydown',e=>{unlock();if(e.key==='Escape')close();});window.addEventListener('resize',close);
-function showNext(){if(layer||!queue.length||!who)return;const event=queue.shift();if(document.hidden||Date.now()-event.at>10000){showNext();return;}const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;layer=document.createElement('div');layer.className='buzz-overlay buzz-'+event.kind;layer.setAttribute('role','status');layer.setAttribute('aria-label',kinds[event.kind][1]+' from '+event.from);
+function showNext(){if(layer||!queue.length||!who)return;const event=queue.shift();if(document.hidden){showNext();return;}const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;layer=document.createElement('div');layer.className='buzz-overlay buzz-'+event.kind;layer.setAttribute('role','status');layer.setAttribute('aria-label',kinds[event.kind][1]+' from '+event.from);
  const art=document.createElement('div');art.className='buzz-art';
  if(event.kind==='need'){art.innerHTML='<svg viewBox="0 0 200 200" aria-hidden="true"><defs><linearGradient id="buzz-pink" x2="1" y2="1"><stop stop-color="#ffd2e6"/><stop offset=".45" stop-color="#ec76ae"/><stop offset="1" stop-color="#9f3568"/></linearGradient></defs><path fill="url(#buzz-pink)" stroke="#ffd6e9" stroke-width="2" d="M90 34V24a10 10 0 0 1 20 0v10c31 5 43 26 43 57v28l16 22q4 11-8 11H39q-12 0-8-11l16-22V91c0-31 12-52 43-57Z"/><path fill="#f49ac2" d="M83 158h34a17 17 0 0 1-34 0"/><text x="100" y="111" text-anchor="middle" fill="#fff4fa" font-size="19" font-family="system-ui">I need you</text></svg>';}
  else if(event.kind==='love')art.innerHTML='<svg viewBox="0 0 200 200" aria-hidden="true"><defs><radialGradient id="buzz-heart"><stop stop-color="#ffd1e4"/><stop offset=".5" stop-color="#f26b9a"/><stop offset="1" stop-color="#ac244f"/></radialGradient></defs><path fill="url(#buzz-heart)" d="M100 176 29 105C-16 56 50 3 100 55c50-52 116 1 71 50Z"/><path d="M46 49q20-12 36 7" fill="none" stroke="#ffe5ef" stroke-width="9" stroke-linecap="round" opacity=".65"/></svg>';
@@ -34,8 +34,17 @@ function showNext(){if(layer||!queue.length||!who)return;const event=queue.shift
  (document.fullscreenElement||document.body).append(layer);if(!reduced&&['electric','angry'].includes(event.kind)){shake=document.querySelector('#app')?.animate([{transform:'translateX(0)'},{transform:'translateX(-4px)'},{transform:'translateX(4px)'},{transform:'translateX(0)'}],{duration:180,iterations:2});}sound(event.kind);if(!reduced&&setting('vibration'))try{navigator.vibrate?.(event.kind==='angry'?[90,70,90]:[80,50,60]);}catch{}
  timer=setTimeout(()=>{layer?.remove();layer=null;showNext();},event.kind==='need'?3200:2400);
 }
-function receive(event){if(!who||event.to!==who||!Object.hasOwn(kinds,event.kind)||seen.has(event.id)||!Number.isFinite(event.at)||Date.now()-event.at>10000)return;seen.add(event.id);if(seen.size>200)seen.delete(seen.values().next().value);if(document.hidden)return;queue.push(event);showNext();}
-function reset(){shake?.cancel();epoch++;who=null;pending=false;until=0;close();queue=[];seen.clear();clearTimeout(timer);layer?.remove();layer=null;}
-document.addEventListener('visibilitychange',()=>{if(document.hidden){close();queue=[];clearTimeout(timer);layer?.remove();layer=null;}});
-window.OurBuzz={init(options){({api,info}=options);},sync(state){if(who&&who!==state.who)reset();if(who!==state.who){who=state.who;let saved;try{saved=localStorage.getItem("our-place:buzz:last:"+who);}catch{}remember(Object.hasOwn(kinds,saved)?saved:"electric");}},receive,close,reset};
+function acknowledge(event){if(event.to===who)api('buzz/ack',{id:event.id}).catch(()=>{});}
+function receive(event){if(!who||!event||!(event.to===who||event.from===who)||!Object.hasOwn(kinds,event.kind)||!Number.isFinite(event.at))return;
+ if(document.hidden){if(event.to===who&&(!waiting||(event.sequence??0)>=(waiting.sequence??0)))waiting=event;return;}
+ let saved;try{saved=localStorage.getItem('our-place:buzz:seen:'+who);}catch{}
+ if(seen.has(event.id)||saved===event.id){acknowledge(event);return;}
+ if(event.sequence&&event.sequence<lastSequence){acknowledge(event);return;}
+ lastSequence=Math.max(lastSequence,event.sequence??0);seen.add(event.id);if(seen.size>200)seen.delete(seen.values().next().value);
+ clearTimeout(timer);shake?.cancel();layer?.remove();layer=null;queue=[event];showNext();waiting=null;
+ try{localStorage.setItem('our-place:buzz:seen:'+who,event.id);}catch{}acknowledge(event);
+}
+function reset(){shake?.cancel();epoch++;who=null;waiting=null;lastSequence=0;close();queue=[];seen.clear();clearTimeout(timer);layer?.remove();layer=null;}
+document.addEventListener('visibilitychange',()=>{if(document.hidden){close();queue=[];clearTimeout(timer);layer?.remove();layer=null;}else if(waiting)receive(waiting);});
+window.OurBuzz={init(options){({api,info}=options);},sync(state){if(who&&who!==state.who)reset();if(who!==state.who){who=state.who;let saved;try{saved=localStorage.getItem("our-place:buzz:last:"+who);}catch{}remember(Object.hasOwn(kinds,saved)?saved:"electric");}if(state.pendingBuzz)receive(state.pendingBuzz);},receive,close,reset};
 })();
