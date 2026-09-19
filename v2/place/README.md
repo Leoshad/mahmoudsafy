@@ -199,7 +199,7 @@ Validation: 236 passing Node tests including schedule idempotency, settings race
 ### Typing and refresh feedback (2026-09-19)
 - Human sent/delivered ticks have no circle. Seen profile markers remain unchanged.
 - A reserved writing-hand slot between the two presence names indicates the partner's typing without shifting controls on appearance. Only a boolean goes over authenticated, origin-checked SSE; no draft content is shared or stored. Input is throttled, stops on send/blur/hidden/tab change, idles out after two seconds, and remote indicators expire after 4.5 seconds if a stop signal is lost.
-- Manual refresh success uses the existing pull indicator with a one-second checkmark, never a permanent footer success message. Errors keep the existing visible notice.
+- Manual pull refresh is silent: no pull/release prompt, loading indicator or success checkmark. Errors keep the existing visible notice. Scroll-position preservation remains enabled.
 
 ### Room-bar grouping and refresh position (2026-09-19)
 - Treat each person, presence dot, crown and reserved typing slot as one group. Use even spacing between the complete groups, Echo, reminders and Menu; keep the same colors, controls and ordering.
