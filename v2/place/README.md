@@ -184,3 +184,12 @@ Morning angles rotate away from the previous two: romance, non-graphic adult fli
 Per-post Echo in comments is explicitly opt-in, shares only that post and recent thread, preserves comments when disabled and cancels pending replies. Quiet acknowledgements and rapid back-and-forth are ignored; Echo can choose silence. Busy requests are not queued indefinitely. Explicit Ask Echo also requires the toggle on. Existing Just Us pauses, authentication and budgets remain enforced. Search requests reserve $0.10 inside existing caps and settle token usage plus $0.01/search with the existing 25% margin; unknown/interrupted cost stays reserved. No external worker or new paid service.
 
 Validation: 236 passing Node tests including schedule idempotency, settings races, source/date rejection, budget accounting, HTTP consent and shared configuration. Cloud browser blocked localhost, so no physical phone/visual verification is claimed. Live generated news/content still requires observation of a scheduled post; tests use a mocked provider and do not publish test posts to the couple’s wall.
+
+
+### Shared chat acceptance rules (2026-09-19)
+
+- Mahmoud and Safy both see their own and their partner's profile avatar beside messages, including consecutive messages. Messenger-inspired layout must not hide the sender's avatar.
+- Preserve content-sized bubbles, existing colors, header placement, reactions and separate sent/delivered/seen states when changing avatar styling.
+- Check each changed shared behavior from both account perspectives; run the chat layout regression tests before publishing chat changes.
+- Automated render/structure tests are not physical mobile visual validation. Report which checks actually ran and any remaining device verification.
+- Keep changes scoped to the user's approved request; update these rules when the user explicitly changes the agreement.

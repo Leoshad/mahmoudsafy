@@ -367,7 +367,8 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial #feed .message{position:relative;align-items:flex-end;gap:7px;margin:12px 0 0;padding:0 0 3px}
 #our-place-trial #feed .message.grouped{margin-top:3px}
 #our-place-trial #feed .message>.avatar{flex:0 0 25px;width:25px;height:25px;min-width:25px;min-height:25px;padding:0;font-size:12px;margin-bottom:3px}
-#our-place-trial #feed .message.grouped>.avatar,#our-place-trial #feed .message.mine>.avatar{visibility:hidden}
+/* Both people keep their profile avatar, including their own and consecutive messages. */
+#our-place-trial #feed .message>.avatar{visibility:visible}
 #our-place-trial #feed .message-column{position:relative;display:flex;flex-direction:column;align-items:flex-start;min-width:0;max-width:calc(100% - 55px)}
 #our-place-trial #feed .mine .message-column{align-items:flex-end}
 #our-place-trial #feed .bubble{position:relative;flex:none;width:fit-content;max-width:100%;min-width:0;padding:8px 12px;border-radius:17px;line-height:1.45}
