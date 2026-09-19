@@ -414,5 +414,5 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial .room-bar .presence-group{display:inline-flex;align-items:center;gap:3px;flex-shrink:0;font-size:12px}
 #our-place-trial .room-bar .presence-group .person{display:inline-flex;align-items:center;gap:4px}
 @media(max-width:380px){#our-place-trial .room-bar .presence-group{font-size:11px;gap:2px}#our-place-trial .room-bar .typing-hand{width:12px;flex-basis:12px;font-size:12px}}
-/* The app supplies pull-to-refresh without triggering a browser reload. */
-html,body{overscroll-behavior-y:none}
+/* Let the browser provide its native pull-to-refresh indicator and gesture. */
+html,body{overscroll-behavior-y:auto}
