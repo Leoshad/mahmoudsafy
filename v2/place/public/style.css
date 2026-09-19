@@ -379,8 +379,8 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial #feed .message-selected .message-meta{display:flex}
 #our-place-trial #feed .message-footer{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:4px;min-height:0;font-size:10px}
 #our-place-trial #feed .status{display:inline-grid;place-items:center;font-size:10px;line-height:14px;margin:3px 2px 0;color:#b7a6b4}
-#our-place-trial #feed .status[aria-label="Sent"],#our-place-trial #feed .status.delivered{width:13px;height:13px;border:1px solid #a58b9c;border-radius:50%}
-#our-place-trial #feed .status.delivered{background:#a58b9c;color:#211923}
+#our-place-trial #feed .status[aria-label="Sent"],#our-place-trial #feed .status.delivered{width:13px;height:13px;border:0;border-radius:0}
+#our-place-trial #feed .status.delivered{background:transparent;color:#d1b078}
 #our-place-trial #feed .status.read-receipt{width:16px;height:16px;border:0;border-radius:50%;background:#483342;color:#e1b4ca;font:600 10px/16px system-ui;overflow:hidden}
 #our-place-trial #feed .read-receipt img{display:block;width:16px;height:16px;object-fit:cover;border-radius:50%}
 #our-place-trial #feed .message-actions{display:none;margin:0;border:0;padding:0}
@@ -399,3 +399,11 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial #feed .message.echo .bubble{display:flow-root;width:100%;box-sizing:border-box}
 #our-place-trial #feed .echo-inline-badge{float:left;display:inline-grid;place-items:center;width:25px;height:25px;min-width:25px;min-height:25px;padding:0;margin:0 8px 2px 0;border:1px solid #a88b55;border-radius:50%;background:#45371f;color:#edce96;font:16px/1 system-ui;box-shadow:inset 0 0 0 2px #d1b07812;cursor:pointer}
 #our-place-trial #feed .echo-inline-badge:focus-visible{outline:2px solid #edce96;outline-offset:2px}
+
+/* Reserved writing indicator; activity never changes header geometry. */
+#our-place-trial .room-bar #presence{column-gap:5px;flex-wrap:nowrap;align-items:center}
+#our-place-trial #presence .person{white-space:nowrap}
+#our-place-trial .typing-hand{display:inline-block;flex:0 0 16px;width:16px;height:18px;font-size:14px;line-height:18px;opacity:0;pointer-events:none}
+#our-place-trial .typing-hand.is-typing{opacity:1;animation:writing-hand .65s ease-in-out infinite alternate}
+@keyframes writing-hand{from{transform:rotate(-8deg) translateY(0)}to{transform:rotate(6deg) translateY(-1px)}}
+@media(prefers-reduced-motion:reduce){#our-place-trial .typing-hand.is-typing{animation:none}}

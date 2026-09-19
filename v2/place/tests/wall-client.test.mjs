@@ -45,7 +45,7 @@ test('agreement guidance is conditional and empty photo posts require attachment
 });
 test('tab navigation and browser back restore each scrolling position',()=>{
  const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8'),start=source.indexOf('const tabPositions={};'),end=source.indexOf("history.replaceState({placeTab:'chat'}",start);
- const elements=new Map(),$=id=>{if(!elements.has(id))elements.set(id,{scrollTop:0});return elements.get(id);};const context={$,window:{},document:{querySelectorAll:()=>[]},history:{pushState(){}},paintItems(){},paint(){},activities:()=>[]};
+ const elements=new Map(),$=id=>{if(!elements.has(id))elements.set(id,{scrollTop:0});return elements.get(id);};const context={$,window:{},document:{querySelectorAll:()=>[]},history:{pushState(){}},sendTyping(){},paintItems(){},paint(){},activities:()=>[]};
  vm.createContext(context);vm.runInContext("let tab='space';"+source.slice(start,end)+';this.go=goto;',context);
  $('.shell').scrollTop=650;context.go('editor');assert.equal($('.shell').scrollTop,0);$('.shell').scrollTop=95;context.go('space',true);assert.equal($('.shell').scrollTop,650);
  context.go('together');$('.shell').scrollTop=430;context.go('space');assert.equal($('.shell').scrollTop,650);context.go('together',true);assert.equal($('.shell').scrollTop,430);
@@ -124,3 +124,4 @@ test('Echo comments render bold safely for existing replies and split streaming 
  c.wall.delta({post:s.items[0].id,id:'stream-bold',text:'ld** and <img src=x onerror=alert(1)>'});assert.equal(body('stream-bold').querySelector('strong').textContent,'bold');assert.equal(body('stream-bold').querySelectorAll('img').length,0);assert.ok(walk(body('stream-bold')).some(n=>n.textContent.includes('<img')));
  s.items[0].comments[2].status='sent';c.wall.paint();assert.equal(body('stream-bold').querySelector('strong').textContent,'bold');assert.equal(s.items[0].comments[0].text,'يعني **تعرف معنى الكلام** و **تختبر بناءه**.');
 });
+

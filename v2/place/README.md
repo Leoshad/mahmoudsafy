@@ -195,3 +195,8 @@ Validation: 236 passing Node tests including schedule idempotency, settings race
 - Keep changes scoped to the user's approved request; update these rules when the user explicitly changes the agreement.
 
 - Echo alone uses a small circular gold profile badge inside the bubble, top left, with the reply starting beside it (not on a new line below). Echo bubbles use the full available feed width, matching activity cards regardless of reply length; height remains content-driven. Preserve bubble colors and shared reaction/action behavior. Human avatars remain outside. The badge opens Echo's profile and survives streamed text updates.
+
+### Typing and refresh feedback (2026-09-19)
+- Human sent/delivered ticks have no circle. Seen profile markers remain unchanged.
+- A reserved writing-hand slot between the two presence names indicates the partner's typing without shifting controls on appearance. Only a boolean goes over authenticated, origin-checked SSE; no draft content is shared or stored. Input is throttled, stops on send/blur/hidden/tab change, idles out after two seconds, and remote indicators expire after 4.5 seconds if a stop signal is lost.
+- Manual refresh success uses the existing pull indicator with a one-second checkmark, never a permanent footer success message. Errors keep the existing visible notice.
