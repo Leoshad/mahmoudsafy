@@ -36,7 +36,7 @@ test('native reconnect is allowed; a silent stuck connection is replaced after t
 
 function storage(){const values=new Map();return {get length(){return values.size;},key:i=>[...values.keys()][i],getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)};}
 function outbox(who='Mahmoud',disk=storage(),send=async()=>{}){
- const c={state:{who},sessionEpoch:0,outboxOwner:null,outboxDraining:false,delivering:new Set(),pending:new Map(),localStorage:disk,navigator:{onLine:true},document:{hidden:false},crypto:{randomUUID:()=> 'stable-ai-key'},Date,paintFeed(){},info(){},command:send,sync:async()=>{}};
+ const c={state:{who},sessionEpoch:0,outboxOwner:null,outboxDraining:false,delivering:new Set(),pending:new Map(),localStorage:disk,navigator:{onLine:true},document:{hidden:false},crypto:{randomUUID:()=> 'stable-ai-key'},Date,paintFeed(){},info(){},errors:[],error:e=>c.errors.push(e),command:send,sync:async()=>{}};
  vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function outboxKey('),source.indexOf("$('#composer').onsubmit")),c);return c;
 }
 const message=who=>({id:'a-message',author:who,text:'Keep this message',payload:{text:'Keep this message'},createdAt:'2026-09-19T00:00:00Z',status:'sending',aiId:'one-ai-request'});
@@ -54,6 +54,6 @@ test('concurrent retries send once; realtime acknowledgement wins over a lost HT
  const task=c.deliver(m);await c.deliver(m);assert.equal(calls,1);m.confirmed=true;c.pending.delete(m.id);reject(Error('response lost'));await task;assert.equal(disk.length,0);
 });
 test('offline and permanent failures do not cause automatic resend loops; auth failure remains recoverable',async()=>{
- let calls=0;const c=outbox('Safy',storage(),async()=>{calls++;throw Object.assign(Error('invalid'),{status:400});}),m=message('Safy');c.saveOutbox(m);c.pending.set(m.id,m);c.navigator.onLine=false;await c.drainOutbox();assert.equal(calls,0);c.navigator.onLine=true;await c.drainOutbox();await c.drainOutbox();assert.equal(calls,1);assert.equal(m.autoRetry,false);
+ let calls=0;const c=outbox('Safy',storage(),async()=>{calls++;throw Object.assign(Error('invalid'),{status:400});}),m=message('Safy');c.saveOutbox(m);c.pending.set(m.id,m);c.navigator.onLine=false;await c.drainOutbox();assert.equal(calls,0);c.navigator.onLine=true;await c.drainOutbox();await c.drainOutbox();assert.equal(calls,1);assert.equal(m.autoRetry,false);assert.equal(c.errors.length,1);
  const auth=outbox('Safy',storage(),async()=>{throw Object.assign(Error('Sign in'),{status:401});}),n=message('Safy');await auth.deliver(n);assert.equal(n.autoRetry,true);
 });
