@@ -95,7 +95,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&state&&followupsOpe
 document.addEventListener('pointerdown',e=>{if(state&&followupsOpen&&!e.target.closest('#followups,#pinned,#activity-reminder'))closeFollowups();});
 function renderMessageText(parent,message){
  const value=message.text||(message.status==='streaming'?'Echo is thinking…':'');
- if(message.author!=='Echo'){parent.textContent=value;return;}
  function links(root,text){
   const pattern=/\[([^\]\n]+)\]\(([^\s()]+(?:\([^\s()]*\)[^\s()]*)*)\)|(https?:\/\/[^\s<>"\u0000-\u001f]+)/gi;let cursor=0,match;
   while((match=pattern.exec(text))){
@@ -109,7 +108,7 @@ function renderMessageText(parent,message){
   }
   if(cursor===0)root.textContent=text;else if(cursor<text.length)root.append(document.createTextNode(text.slice(cursor)));
  }
- parent.replaceChildren();const parts=value.split('**');parts.forEach((part,i)=>{if(i%2){const strong=document.createElement('strong');links(strong,part);parent.append(strong);}else{const span=document.createElement('span');links(span,part);parent.append(span);}});
+ parent.replaceChildren();if(message.author!=='Echo'){links(parent,value);return;}const parts=value.split('**');parts.forEach((part,i)=>{if(i%2){const strong=document.createElement('strong');links(strong,part);parent.append(strong);}else{const span=document.createElement('span');links(span,part);parent.append(span);}});
 }
 function paintWallpaper(){const image=state.wallpaper?.image,img=$('#chat-wallpaper');img.hidden=!image;if(image){const url='/api/photos/'+image;if(img.getAttribute('src')!==url)img.src=url;}else img.removeAttribute('src');}
 let backgroundChoice=null,backgroundData=null,backgroundURL=null,backgroundRevision=0,backgroundBusy=false;
