@@ -6,3 +6,13 @@ test('drag cancels press and quick send',()=>{const f=fixture();f.trigger.handle
 
 test('both participants show effects, newest replaces immediately and old snapshots do not replay',()=>{const f=fixture(),first={id:'one',from:'Mahmoud',to:'Safy',kind:'love',at:20000,sequence:1},next={...first,id:'two',kind:'kiss',sequence:2};f.buzz.receive(first);const original=f.body.children.at(-1);assert.equal(original.attrs['aria-label'],'Love from Mahmoud');f.buzz.receive(next);assert.equal(original.removed,true);const latest=f.body.children.at(-1);assert.equal(latest.attrs['aria-label'],'Kiss from Mahmoud');const count=f.body.children.length;f.buzz.receive(first);f.buzz.receive(next);assert.equal(f.body.children.length,count);f.buzz.reset();f.buzz.sync({who:'Safy',pendingBuzz:next});assert.equal(f.body.children.at(-1).attrs['aria-label'],'Kiss from Mahmoud');const n=f.body.children.length;f.buzz.reset();f.buzz.sync({who:'Safy',pendingBuzz:next});assert.equal(f.body.children.length,n);});
 test('rapid sends are accepted without waiting for prior requests',async()=>{const f=fixture();await Promise.all([f.trigger.onclick(),f.trigger.onclick(),f.trigger.onclick()]);assert.equal(f.calls.length,3);});
+
+test('sad and missing-you choices send, render distinct artwork and remember the last selection',async()=>{
+ const f=fixture();
+ for(const [index,kind,icon,artClass]of [[5,'sad','😔','buzz-tear'],[6,'miss','🥺','buzz-held-heart']]){
+  await f.picker.children[index].onclick();assert.equal(f.calls.at(-1).kind,kind);assert.equal(f.trigger.textContent,icon);
+  const overlay=f.body.children.at(-1);assert.equal(overlay.className,'buzz-overlay buzz-'+kind);assert.match(overlay.children[0].innerHTML,new RegExp(artClass));
+ }
+ f.buzz.reset();f.buzz.sync({who:'Mahmoud'});assert.equal(f.trigger.textContent,'🥺');
+ await f.trigger.onclick();assert.equal(f.calls.at(-1).kind,'miss');
+});

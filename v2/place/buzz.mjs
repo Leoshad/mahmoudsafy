@@ -1,5 +1,5 @@
 import {check} from './domain.mjs';
-export const buzzKinds={electric:['⚡','Buzz'],love:['❤️','Love'],kiss:['💋','Kiss'],angry:['😡','Grrr!'],need:['🔔','I need you']};
+export const buzzKinds={electric:['⚡','Buzz'],love:['❤️','Love'],kiss:['💋','Kiss'],angry:['😡','Grrr!'],need:['🔔','I need you'],sad:['😔','Feeling sad'],miss:['🥺','I miss you']};
 export function createBuzz(store,who,id,kind,now=Date.now()){
  check(Object.hasOwn(buzzKinds,kind),'Choose a Buzz effect.');
  const s=store.state();
