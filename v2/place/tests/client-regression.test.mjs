@@ -3,26 +3,26 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
-const delivery=source.slice(source.indexOf('async function deliver(m)'),source.indexOf("$('#composer').onsubmit"));
+const delivery=source.slice(source.indexOf('async function deliver(m,'),source.indexOf("$('#composer').onsubmit"));
 function harness({failMessage=false,failAI=false,failSync=false}={}){
  const calls=[],notices=[],pending=new Map();
- const ctx=vm.createContext({pending,paintFeed(){},info:t=>notices.push(t),crypto:{randomUUID:()=> 'stable-ai-request'},command:async(type,data,id)=>{calls.push({type,id});if(type==='message'&&failMessage)throw Error('Offline');if(type==='ai.ask'&&failAI)throw Error('AI unavailable');},sync:async()=>{if(failSync)throw Error('Snapshot timeout');}});
+ const ctx=vm.createContext({pending,state:{who:'Mahmoud'},sessionEpoch:0,delivering:new Set(),saveOutbox:()=>true,removeOutbox(){},paintFeed(){},info:t=>notices.push(t),crypto:{randomUUID:()=> 'stable-ai-request'},command:async(type,data,id)=>{calls.push({type,id});if(type==='message'&&failMessage)throw Error('Offline');if(type==='ai.ask'&&failAI)throw Error('AI unavailable');},sync:async()=>{if(failSync)throw Error('Snapshot timeout');}});
  vm.runInContext(delivery+';this.deliver=deliver',ctx);return {ctx,calls,notices};
 }
 test('confirmed chat stays sent when the following state refresh fails; no retry affordance',async()=>{
- const h=harness({failSync:true}),m={id:'message',text:'hello',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);
+ const h=harness({failSync:true}),m={author:'Mahmoud',id:'message',text:'hello',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);
  assert.equal(m.status,'sent');assert.equal(h.calls.filter(x=>x.type==='ai.ask').length,1);assert.match(h.notices[0],/Message sent/);
 });
 test('a failed human message stays retryable and never calls AI',async()=>{
- const h=harness({failMessage:true}),m={id:'message',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);
+ const h=harness({failMessage:true}),m={author:'Mahmoud',id:'message',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);
  assert.equal(m.status,'failed-local');assert.equal(h.calls.length,1);
 });
 test('an AI failure cannot relabel a confirmed human message as failed',async()=>{
- const h=harness({failAI:true}),m={id:'message',text:'hello',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);
+ const h=harness({failAI:true}),m={author:'Mahmoud',id:'message',text:'hello',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);
  assert.equal(m.status,'sent');assert.match(h.notices[0],/Message sent/);
 });
 test('repeated delivery uses the same AI idempotency key',async()=>{
- const h=harness(),m={id:'message',text:'hello',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);await h.ctx.deliver(m);
+ const h=harness(),m={author:'Mahmoud',id:'message',text:'hello',payload:{text:'hello'},ask:true};await h.ctx.deliver(m);await h.ctx.deliver(m);
  const ids=h.calls.filter(x=>x.type==='ai.ask').map(x=>x.id);assert.equal(ids.length,2);assert.equal(ids[0],ids[1]);assert.ok(ids[0]);
 });
 test('reading anchor survives prepends and changing content below',()=>{
@@ -52,3 +52,4 @@ test('Echo emphasis renders safely without stars while human text stays literal'
  assert.equal(p.children.map(n=>n.textContent).join(''),'Hello <img onerror=alert(1)> world');
  ctx.renderMessageText(p,{author:'Safy',text:'Keep **my stars**'});assert.equal(p.textContent,'Keep **my stars**');
 });
+
