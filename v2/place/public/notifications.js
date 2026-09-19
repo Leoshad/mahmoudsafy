@@ -23,9 +23,29 @@ enable.onclick=async()=>{
   const permission=await Notification.requestPermission();if(permission!=='granted'){await refresh();return;}
   const r=await ready;if(!r)throw Error('Notifications could not start. Reload Our Place and try again.');
   const config=await request('');const bytes=Uint8Array.from(atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-config.publicKey.length%4)%4)),c=>c.charCodeAt(0));
-  let sub=await r.pushManager.getSubscription();sub=sub||await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes});
-  if(current!==epoch){await sub.unsubscribe();return;}await request('/subscribe',sub.toJSON());bound=who;await refresh();
- }catch(e){status.textContent=e.message;}finally{busy=false;enable.disabled=!supported||Notification.permission==='denied';disable.disabled=false;}
+  let sub=await r.pushManager.getSubscription();
+  // A browser may keep an old subscription after the server-side binding has
+  // disappeared or after the VAPID key changed. Recreate it once before
+  // reporting a push-service failure.
+  if(sub){
+   let registered=false;
+   try{registered=(await request('/status',{endpoint:sub.endpoint})).registered;}catch{}
+   if(!registered){try{await sub.unsubscribe();}catch{}sub=null;}
+  }
+  const subscribe=()=>r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes});
+  try{sub=sub||await subscribe();}
+  catch(first){
+   // Chrome/Android can transiently retain a broken PushManager record.
+   // Clear it and retry once from the same explicit user action.
+   const stale=await r.pushManager.getSubscription().catch(()=>null);
+   if(stale)try{await stale.unsubscribe();}catch{}
+   sub=await subscribe();
+  }
+  if(current!==epoch){await sub.unsubscribe();return;}
+  try{await request('/subscribe',sub.toJSON());}
+  catch(serverError){try{await sub.unsubscribe();}catch{}throw serverError;}
+  bound=who;await refresh();
+ }catch(e){console.error('notification registration',e);status.textContent=(e?.name==='AbortError'||e?.name==='NotAllowedError'||/push service|registration/i.test(e?.message||''))?'Push registration failed. Check your connection, then tap Enable once more. If it still fails, restart the installed Our Place app and try again.':(e.message||'Notifications could not start.');}finally{busy=false;enable.disabled=!supported||Notification.permission==='denied';disable.disabled=false;}
 };
 disable.onclick=async()=>{if(busy)return;busy=true;disable.disabled=true;try{const r=await ready,sub=r&&await r.pushManager.getSubscription();if(sub){await request('/unsubscribe',{endpoint:sub.endpoint});await sub.unsubscribe();}bound=null;await clearShown();await refresh();}catch(e){status.textContent=e.message;}finally{busy=false;disable.disabled=false;}};
 testButton.onclick=async()=>{
