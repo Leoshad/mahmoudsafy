@@ -301,6 +301,7 @@ window.addEventListener('offline',()=>{source?.close();source=null;typingUntil=0
 setInterval(()=>{if(!connectionWanted||document.hidden||navigator.onLine===false)return;if(!state||!source||source.readyState===2||Date.now()-lastEvent>45000)recoverConnection();else drainOutbox();},8000);
 window.OurComfort?.init({refresh:async()=>{saveReading();location.reload();},sync:async()=>{const hold=tab==='chat'?PlaceScroll.hold($('#timeline')):null;try{await sync();if(state&&source?.readyState!==1)connect();}finally{hold?.restore();}},command,api,info});
 const revealPanel=selector=>PlaceScroll.reveal($('.shell'),$(selector));
+window.OurBuzz?.init({api,info});
 window.OurDraw?.init({api,command,sync,goto,revealPanel});window.OurOcho?.init({command,sync,goto,revealPanel});window.OurDomino?.init({command,sync,goto,revealPanel});
 window.OurMedia?.init({api,command,sync,goto,info,revealPanel});window.OurPersonal?.init({api,command,sync,goto,info});window.OurCourt?.init({api,command,sync,goto,info,revealPanel});
 window.readTracker=window.OurReads?.({getState:()=>state,isChat:()=>tab==='chat'&&!$('#chat').hidden,send:ids=>api('read',{ids})});
@@ -320,6 +321,5 @@ window.addEventListener('our-place-notification',event=>{Promise.resolve().then(
  }
 }).catch(error);});
 })();
-
 
 
