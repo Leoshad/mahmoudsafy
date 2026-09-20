@@ -50,7 +50,9 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial .bubble button:hover{border-color:#765767}
 #our-place-trial .bubble img{max-width:100%;max-height:220px;display:block;border-radius:12px;margin:8px 0;object-fit:contain}
 #our-place-trial .status{font-size:11px;color:#baa2b0}
-#our-place-trial .source-highlight{outline:1px solid var(--gold);outline-offset:5px;border-radius:7px}
+#our-place-trial .source-highlight{outline:1px solid var(--gold);outline-offset:5px;border-radius:7px;animation:source-highlight-fade 2.2s ease-out forwards}
+@keyframes source-highlight-fade{0%,65%{outline-color:var(--gold)}100%{outline-color:transparent}}
+@media(prefers-reduced-motion:reduce){#our-place-trial .source-highlight{animation:none}}
 #our-place-trial .streaming::after{content:' ▍';color:var(--gold)}
 #our-place-trial .activity{background:#211a22;border:1px solid #735b4a;border-radius:16px;padding:20px;margin:16px 0}
 #our-place-trial .options{display:grid;gap:8px;margin:16px 0}
