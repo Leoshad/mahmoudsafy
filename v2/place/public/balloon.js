@@ -33,11 +33,11 @@ function start(x,y,id,target){if(mode!=='idle'||document.querySelector('dialog[o
 function move(x,y){if(!gesture)return false;const dx=x-gesture.x,dy=gesture.y-y;if(!gesture.armed){if(Math.hypot(dx,dy)>9){clearTimeout(hold);gesture=null;}return false;}progress=Math.max(0,Math.min(1,dy/Math.min(230,h*.48)));return true;}
 function end(){clearTimeout(hold);if(!gesture)return;const armed=gesture.armed;gesture=null;if(!armed)return;suppressUntil=performance.now()+400;if(progress>=.97)ready();else close();}
 // Capture only after a deliberate stationary hold; ordinary scrolling remains native.
-timeline.addEventListener('touchstart',e=>{if(e.touches.length!==1)return;const t=e.touches[0];start(t.clientX,t.clientY,t.identifier,e.target);},{passive:true});
+timeline.addEventListener('touchstart',e=>{if(e.touches.length!==1){close();return;}const t=e.touches[0];start(t.clientX,t.clientY,t.identifier,e.target);},{passive:true});
 window.addEventListener('touchmove',e=>{if(!gesture)return;if(e.touches.length!==1){close();return;}const t=[...e.touches].find(t=>t.identifier===gesture.id);if(t&&move(t.clientX,t.clientY)){if(e.cancelable)e.preventDefault();e.stopImmediatePropagation();}},{capture:true,passive:false});
 window.addEventListener('touchend',()=>end(),{capture:true,passive:true});window.addEventListener('touchcancel',()=>close(),{passive:true});
 timeline.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button===0)start(e.clientX,e.clientY,e.pointerId,e.target);});window.addEventListener('pointermove',e=>{if(e.pointerType==='mouse')move(e.clientX,e.clientY);});window.addEventListener('pointerup',e=>{if(e.pointerType==='mouse')end();});
-timeline.addEventListener('contextmenu',e=>{if(gesture?.armed)e.preventDefault();});host.addEventListener('click',e=>{if(performance.now()<suppressUntil){e.preventDefault();e.stopPropagation();}},true);
+timeline.addEventListener('contextmenu',e=>{if(gesture?.armed){e.preventDefault();e.stopPropagation();}},{capture:true});host.addEventListener('click',e=>{if(performance.now()<suppressUntil){e.preventDefault();e.stopPropagation();}},true);
 layer.querySelector('.balloon-close').onclick=()=>close();
 pin.addEventListener('pointerdown',e=>{e.preventDefault();pin.setPointerCapture(e.pointerId);pinMoved=false;drag={x:e.clientX,y:e.clientY};unlock();});
 pin.addEventListener('pointermove',e=>{if(!drag||mode!=='ready')return;if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>5)pinMoved=true;pin.style.transform=`translate(${e.clientX-drag.x}px,${e.clientY-drag.y}px)`;const r=canvas.getBoundingClientRect(),b=shape();if(((e.clientX-r.left-b.x)/b.rx)**2+((e.clientY-r.top-b.y)/b.ry)**2<1)pop();});
