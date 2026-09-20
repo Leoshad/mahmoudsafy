@@ -33,7 +33,7 @@
 .profile-frame-ring[data-frame=bad-mood] svg>path:nth-child(2){animation:frame-float 5s ease-in-out infinite}
 .profile-frame-ring[data-frame=bad-mood] svg>path:nth-child(3){animation:frame-rain 4s ease-in-out infinite}
 .profile-frame-ring[data-frame=unwell] svg>g{animation:frame-soft-light 4.5s ease-in-out infinite}
-.profile-frame-ring[data-frame=tired] svg>path:last-child{animation:frame-sleep 5s ease-in-out infinite}
+.profile-frame-ring[data-frame=tired] svg>path:last-child{animation:frame-soft-light 4s ease-in-out infinite}
 .profile-frame-ring[data-frame=space] svg>path:first-child{animation:frame-breathe 6s ease-in-out infinite}
 .profile-frame-ring[data-frame=busy] svg>path:last-child{transform-box:view-box;transform-origin:50px 89px;animation:frame-clock 8s linear infinite}
 .profile-frame-ring[data-frame=busy] svg>path:first-child{animation:frame-soft-light 4s ease-in-out infinite}
