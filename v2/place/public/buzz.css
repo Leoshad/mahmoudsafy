@@ -62,7 +62,7 @@
 .buzz-overlay.buzz-side{animation:none;background:none;contain:layout paint}
 .buzz-side::before{content:"";position:absolute;left:50%;top:50%;width:min(440px,100vw);height:440px;transform:translate(-50%,-50%);background:radial-gradient(ellipse,#e9ae962b,transparent 68%);animation:buzz-need-lifetime 3.5s linear both}
 .buzz-side .buzz-art{filter:none;animation:buzz-need-lifetime 3.5s linear both}
-#buzz-trigger svg,#buzz-picker button svg{width:25px;height:25px;display:block;overflow:visible}
+#buzz-trigger svg,#buzz-picker button svg{width:30px;height:28px;max-width:100%;display:block;overflow:visible}
 .support-pink,.support-gold{transform-box:view-box;transform-origin:100px 100px}
 .buzz-side .support-pink{animation:support-pink 3.5s ease-in-out both}
 .buzz-side .support-gold{animation:support-gold 3.5s ease-in-out both}
@@ -79,3 +79,10 @@
 .buzz-side .buzz-caption{position:relative;z-index:3;margin-top:-48px;padding:12px 20px 20px;max-width:calc(100vw - 32px);box-sizing:border-box;font:italic 500 clamp(23px,6.3vw,29px)/1.3 Georgia,serif;letter-spacing:.01em;color:#ffe5ed;text-shadow:0 2px 6px #130d18,0 0 16px #ed9bbc55}
 .buzz-side .buzz-caption::after{content:"";position:absolute;bottom:7px;left:25%;right:25%;height:1px;background:linear-gradient(90deg,transparent,#e7bd83,#eaa3c2,transparent)}
 @media(prefers-reduced-motion:reduce){.buzz-side::after{animation:none!important}}
+/* A screen-sized warm atmosphere with a responsive, prominent embrace. */
+.buzz-overlay.buzz-side .buzz-art,.preview-effect.buzz-side .buzz-art{width:min(360px,88vw);height:min(360px,88vw)}
+.buzz-side .buzz-art svg{width:100%;height:100%}
+.buzz-side::before{width:120%;height:100%;background:radial-gradient(ellipse at 35% 44%,#ed96b75c,transparent 55%),radial-gradient(ellipse at 68% 48%,#e5c08052,transparent 55%);animation:support-warmth 3.5s ease-in-out both}
+@keyframes support-warmth{0%{opacity:0;transform:translate(-50%,-50%) scale(.65)}35%{opacity:.65}55%,75%{opacity:1;transform:translate(-50%,-50%) scale(1)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.12)}}
+.buzz-side .buzz-caption{margin-top:clamp(-85px,-20vw,-48px);font-size:clamp(25px,7vw,32px)}
+@media(prefers-reduced-motion:reduce){.buzz-side::before{animation:none!important;transform:translate(-50%,-50%)}}
