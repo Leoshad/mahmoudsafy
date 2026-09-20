@@ -86,3 +86,15 @@
 @keyframes frame-hard-pulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.035);opacity:1}}
 .profile-frame-ring:not(.frame-in-view) svg *,.frames-background .profile-frame-ring svg *{animation-play-state:paused!important}
 @media(prefers-reduced-motion:reduce){.profile-frame-ring svg *{animation:none!important}}
+
+/* Match the artwork circle to the avatar at every size. */
+.profile-frame-ring,.personal-photo-large>.profile-frame-ring{inset:0}
+.profile-frame-ring>svg{width:100%;height:100%;overflow:visible}
+/* External rules are compatible with the app's strict style CSP. */
+.frame-hard-heart{color:#ee8ead;opacity:1}
+.frame-miss-left{color:#f2a2c4}.frame-miss-right{color:#b7a0eb}.frame-miss-message{color:#ffe0f0}
+.frame-love-float{color:#eda1bd}
+.frame-love-float:nth-of-type(2){animation-delay:-2s}.frame-love-float:nth-of-type(3){animation-delay:-4s}.frame-love-float:nth-of-type(4){animation-delay:-1s}.frame-love-float:nth-of-type(5){animation-delay:-3s}
+
+/* A quiet continuous rim joins every frame to its portrait. */
+.profile-frame-ring::before{content:"";position:absolute;inset:-.5px;border:1px solid var(--frame-color);border-radius:50%;opacity:.65;box-shadow:0 0 2px color-mix(in srgb,var(--frame-color) 25%,transparent);pointer-events:none}
