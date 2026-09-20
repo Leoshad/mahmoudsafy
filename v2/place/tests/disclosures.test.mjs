@@ -13,3 +13,13 @@ test('daily settings stay open on outside touches and scrolling starts; Escape s
  handlers.pointerdown({target:{inside:'page'}});assert.equal(settings.open,true);
  handlers.keydown({key:'Escape'});assert.equal(settings.open,false);
 });
+
+test('outside dismissal captures touch starts without cancelling scrolling or reacting to drag endpoints',()=>{
+ const handlers={},options={},panel={id:'menu',open:true,contains:t=>t.inside};
+ const document={addEventListener:(type,fn,opts)=>{handlers[type]=fn;options[type]=opts;},querySelectorAll:()=>panel.open?[panel]:[]};
+ vm.runInNewContext(readFileSync(new URL('../public/disclosures.js',import.meta.url),'utf8'),{document});
+ for(const type of ['pointerdown','touchstart']){assert.equal(options[type].capture,true);assert.equal(options[type].passive,true);}
+ handlers.touchstart({target:{inside:true}});assert.equal(panel.open,true);
+ assert.equal(handlers.touchmove,undefined);assert.equal(handlers.touchend,undefined);assert.equal(handlers.pointerup,undefined);
+ handlers.touchstart({target:{inside:false}});assert.equal(panel.open,false);
+});
