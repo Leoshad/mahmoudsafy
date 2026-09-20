@@ -73,14 +73,16 @@
 .frames-background .profile-frame-ring svg *,.profile-frame-ring:not(.frame-in-view) svg *{animation-play-state:paused!important}
 @media(prefers-reduced-motion:reduce){.profile-frame-ring svg *{animation:none!important}.frame-side-light{display:none}}
 
-/* Small artwork moves independently of the avatar and crown. */
-.frame-love-face{animation:frame-love-dream 6s ease-in-out infinite}
-.frame-love-heart{animation:frame-love-rise 6s ease-in-out infinite}
-.frame-sad-body{animation:frame-sad-breathe 7s ease-in-out infinite}
+/* Frame artwork never moves the portrait or crown. */
+.frame-love-float{animation:frame-love-float 6s ease-in-out infinite}
+.frame-sad-face{animation:frame-sad-breathe 7s ease-in-out infinite}
 .frame-sad-tear{animation:frame-sad-drop 7s ease-in-out infinite}
-@keyframes frame-love-dream{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg) translateY(-1px)}}
-@keyframes frame-love-rise{0%,20%,100%{opacity:0;transform:translateY(4px) scale(.8)}40%,65%{opacity:1}85%{opacity:0;transform:translateY(-9px) scale(1.1)}}
+.frame-hard-cloud{animation:frame-hard-drift 7s ease-in-out infinite}
+.frame-hard-heart{animation:frame-hard-pulse 6s ease-in-out infinite}
+@keyframes frame-love-float{0%,100%{opacity:.25;transform:translateY(4px) scale(.85)}35%,65%{opacity:1}85%{opacity:.3;transform:translateY(-7px) scale(1)}}
 @keyframes frame-sad-breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(1px)}}
-@keyframes frame-sad-drop{0%,35%,100%{opacity:0;transform:translateY(0) scale(.7)}45%{opacity:.9}75%{opacity:0;transform:translateY(9px) scale(1)}}
+@keyframes frame-sad-drop{0%,20%,100%{opacity:.45;transform:translateY(0)}40%{opacity:1}80%{opacity:0;transform:translateY(4px)}}
+@keyframes frame-hard-drift{0%,100%{transform:translateX(-1px)}50%{transform:translateX(1px)}}
+@keyframes frame-hard-pulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.035);opacity:1}}
 .profile-frame-ring:not(.frame-in-view) svg *,.frames-background .profile-frame-ring svg *{animation-play-state:paused!important}
-@media(prefers-reduced-motion:reduce){.profile-frame-ring svg *{animation:none!important}.frame-love-heart,.frame-sad-tear{display:none}}
+@media(prefers-reduced-motion:reduce){.profile-frame-ring svg *{animation:none!important}}
