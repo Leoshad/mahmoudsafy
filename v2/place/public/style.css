@@ -453,3 +453,9 @@ html,body{overscroll-behavior-y:auto}
 #our-place-trial #feed .mine .message-meta,#our-place-trial #feed .mine .message-footer{justify-self:end}
 #our-place-trial #feed .message.echo .message-content,#our-place-trial #feed .message.echo .message-meta,#our-place-trial #feed .message.echo .message-footer{grid-column:1 / -1}
 #our-place-trial #feed .message.echo .message-content{width:100%}
+
+/* Touch browsers may retain :hover on the previously tapped tab after a swipe. */
+@media (hover:none){
+ #our-place-trial nav button[data-tab]:not(.selected):hover{background:transparent;border-color:transparent;color:#bba8b5}
+ #our-place-trial nav button[data-tab].selected:hover{background:#3d2936;color:#f1cfdf;border-color:#81516b}
+}
