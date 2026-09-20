@@ -62,9 +62,12 @@
 .buzz-overlay.buzz-side{animation:none;background:none;contain:layout paint}
 .buzz-side::before{content:"";position:absolute;left:50%;top:50%;width:min(440px,100vw);height:440px;transform:translate(-50%,-50%);background:radial-gradient(ellipse,#e9ae962b,transparent 68%);animation:buzz-need-lifetime 3.5s linear both}
 .buzz-side .buzz-art{filter:none;animation:buzz-need-lifetime 3.5s linear both}
-.buzz-side .side-hand-left{animation:side-pat-left 3.5s ease-in-out both}
-.buzz-side .side-hand-right{animation:side-pat-right 3.5s ease-in-out both}
-.buzz-side-heart{transform-origin:100px 70px;animation:buzz-side-heart 3.5s ease-in-out both}
-@keyframes buzz-side-heart{0%,30%,100%{opacity:0;transform:scale(.75)}52%,72%{opacity:1;transform:scale(1)}62%{transform:scale(1.1)}}
-.buzz-side .buzz-caption{background:none;border:0;border-radius:0;padding:8px 18px;font:italic 500 clamp(25px,7vw,32px)/1.2 Georgia,serif;text-align:center;text-shadow:0 2px 4px #130d18;color:#ffd4df;animation:buzz-need-lifetime 3.5s linear both}
+#buzz-trigger svg,#buzz-picker button svg{width:25px;height:25px;display:block;overflow:visible}
+.support-pink,.support-gold{transform-box:view-box;transform-origin:100px 100px}
+.buzz-side .support-pink{animation:support-pink 3.5s ease-in-out both}
+.buzz-side .support-gold{animation:support-gold 3.5s ease-in-out both}
+@keyframes support-pink{0%{opacity:0;transform:scale(.9)}15%,40%{opacity:1;transform:scale(1)}55%,75%{transform:scale(1.055)}65%,85%{transform:scale(1)}100%{opacity:0;transform:scale(1)}}
+@keyframes support-gold{0%,12%{opacity:0;transform:translate(48px,-8px) rotate(12deg)}22%{opacity:1}42%{transform:translate(0,0) rotate(0)}55%,75%{transform:scale(1.055)}65%,85%{transform:scale(1)}100%{opacity:0;transform:scale(1)}}
+.buzz-side .buzz-caption{background:none;border:0;border-radius:0;padding:4px 12px;font:500 20px/1.35 system-ui;text-align:center;text-shadow:0 2px 6px #130d18;color:#f6cedd;animation:support-caption 3.5s ease-in-out both;margin-top:0}
+@keyframes support-caption{0%,35%,100%{opacity:0}50%,85%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.buzz-side::before,.buzz-side .buzz-caption,.buzz-side svg *{animation:none!important}.buzz-side-heart{opacity:1}}

@@ -109,3 +109,7 @@
 @keyframes hard-rain{0%,100%{opacity:0;transform:translateY(-2px)}25%{opacity:.7}75%{opacity:0;transform:translateY(4px)}}
 @keyframes hard-lightning{0%,55%,85%,100%{opacity:0}68%{opacity:.8}}
 @media(prefers-reduced-motion:reduce){.profile-frame-ring svg *{animation:none!important}.frame-hard-weather{display:none}}
+
+.support-frame-pink,.support-frame-gold{transform-box:fill-box;transform-origin:center;animation:support-rest 5s ease-in-out infinite}
+@keyframes support-rest{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-.7px) scale(1.035)}}
+@media(prefers-reduced-motion:reduce){.support-frame-pink,.support-frame-gold{animation:none!important}}
