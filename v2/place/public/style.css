@@ -377,7 +377,7 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial #feed .bubble>img{width:280px;max-width:100%;height:auto;max-height:320px;margin:0;border-radius:10px}
 #our-place-trial #feed .message-meta{display:none;align-items:center;font-size:10px;gap:8px;color:#baaab7;padding:0 5px 4px}
 #our-place-trial #feed .message-selected .message-meta{display:flex}
-#our-place-trial #feed .message-footer{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:4px;min-height:0;font-size:10px}
+#our-place-trial #feed .message-footer{position:relative;margin:0;padding:0;display:flex;align-items:center;justify-content:flex-end;gap:4px;min-height:0;font-size:10px}
 #our-place-trial #feed .status{display:inline-grid;place-items:center;font-size:10px;line-height:14px;margin:3px 2px 0;color:#b7a6b4}
 #our-place-trial #feed .status[aria-label="Sent"],#our-place-trial #feed .status.delivered{width:13px;height:13px;border:0;border-radius:0}
 #our-place-trial #feed .status.delivered{background:transparent;color:#d1b078}

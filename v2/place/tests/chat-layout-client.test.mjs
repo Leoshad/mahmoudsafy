@@ -27,7 +27,7 @@ for(const who of ['Mahmoud','Safy'])test('Echo badge is inside its bubble and ke
 test('Buzz refresh leaves unchanged chat rows and day separators connected in place',()=>{
  const c=fixture('Mahmoud');c.context.state.messages=Array.from({length:60},(_,i)=>({id:String(i),author:i%2?'Mahmoud':'Safy',text:'Existing message '+i,status:'sent',sequence:i+1,createdAt:'2026-09-19T08:00:00Z'}));c.paint();
  const before=[...c.feed.children];c.feed.mutations=0;c.paint();assert.equal(c.feed.mutations,0,'unchanged refresh must not detach/reinsert the conversation');assert.deepEqual(c.feed.children,before);
- c.context.state.messages.push({id:'buzz',author:'Mahmoud',text:'🔔 I need you · to Safy',status:'sent',sequence:61,createdAt:'2026-09-19T08:00:01Z'});c.paint();assert.equal(c.feed.mutations,1,'only the new Buzz row is inserted');assert.deepEqual(c.feed.children.slice(0,before.length),before);
+ c.context.state.messages.push({id:'buzz',author:'Mahmoud',text:'🔔 I need you · to Safy',status:'sent',sequence:61,createdAt:'2026-09-19T08:00:01Z'});c.paint();assert.equal(c.feed.mutations,3,'insert new row and update only the previous last outgoing receipt');assert.deepEqual(c.feed.children.slice(0,before.length-1),before.slice(0,-1));assert.equal(c.feed.children.at(-2).querySelector('.status').hidden,true);assert.equal(c.feed.children.at(-1).querySelector('.status').hidden,false);
 });
 
 test('stable feed reconciliation still orders earlier history, changed messages and removals correctly',()=>{
@@ -36,4 +36,15 @@ test('stable feed reconciliation still orders earlier history, changed messages 
  c.context.older=[message('earlier',1,'2026-09-18T08:00:00Z'),message('middle',2,'2026-09-19T07:00:00Z')];c.paint();
  assert.deepEqual(c.feed.children.filter(n=>n.dataset.message).map(n=>n.dataset.message),['earlier','middle','current']);assert.equal(c.feed.children.find(n=>n.dataset.message==='current'),retained);
  c.context.state.messages[0].text='edited';c.context.older=[];c.paint();assert.deepEqual(c.feed.children.filter(n=>n.dataset.message).map(n=>n.dataset.message),['current']);assert.equal(c.feed.children.filter(n=>n.className==='day-divider').length,1);assert.equal(c.feed.children.find(n=>n.dataset.message==='current').querySelector('.bubble').children[0].textContent,'edited');
+});
+
+for(const who of ['Mahmoud','Safy'])test('only latest outgoing status remains while read position and failures stay accurate: '+who,()=>{
+ const c=fixture(who),other=who==='Mahmoud'?'Safy':'Mahmoud';
+ const message=(id,status='sent',author=who)=>({id,sequence:Number(id),author,status,text:id,createdAt:'2026-09-20T08:00:00Z'});
+ c.context.state.messages=[message('1'),message('2'),message('3'),message('4','sent',other)];c.paint();
+ const status=id=>c.feed.children.find(n=>n.dataset.message===id).querySelector('.status');
+ assert.equal(status('1').hidden,true);assert.equal(status('2').hidden,true);assert.equal(status('3').hidden,false);assert.equal(status('4').hidden,true);
+ c.context.state.messages[1].readAt='read';c.paint();assert.equal(status('2').hidden,false);assert.match(status('2').className,/read-receipt/);assert.equal(status('3').hidden,false);
+ c.context.state.messages.push(message('5','failed-local'),message('6','sending'));c.paint();assert.equal(status('3').hidden,true);assert.equal(status('5').hidden,false);assert.equal(status('6').hidden,false);assert.match(status('5').textContent,/Not sent/);
+ c.context.state.messages.at(-1).status='sent';c.context.state.messages.at(-1).readAt='read';c.paint();assert.equal(status('2').hidden,true);assert.equal(status('6').hidden,false);assert.match(status('6').className,/read-receipt/);assert.equal(status('5').hidden,false);
 });
