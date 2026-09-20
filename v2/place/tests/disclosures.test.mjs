@@ -23,3 +23,14 @@ test('outside dismissal captures touch starts without cancelling scrolling or re
  assert.equal(handlers.touchmove,undefined);assert.equal(handlers.touchend,undefined);assert.equal(handlers.pointerup,undefined);
  handlers.touchstart({target:{inside:false}});assert.equal(panel.open,false);
 });
+
+test('real Menu has no id: empty aria-controls must not protect it from outside taps',()=>{
+ const handlers={},inside={closest:()=>null},outside={closest:()=>null};
+ const menu={id:'',open:true,dataset:{},contains:target=>target===inside};
+ const document={addEventListener:(type,fn)=>handlers[type]=fn,querySelectorAll:()=>menu.open?[menu]:[]};
+ vm.runInNewContext(readFileSync(new URL('../public/disclosures.js',import.meta.url),'utf8'),{document});
+ handlers.pointerdown({target:inside});assert.equal(menu.open,true);
+ handlers.pointerdown({target:outside});assert.equal(menu.open,false);
+ menu.open=true;handlers.touchstart({target:outside});assert.equal(menu.open,false);
+ menu.open=true;handlers.touchstart({target:{closest:()=>({getAttribute:()=>''})}});assert.equal(menu.open,false);
+});
