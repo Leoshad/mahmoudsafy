@@ -222,7 +222,7 @@ function openEchoProfile(){
  dialog.showModal();close.focus({preventScroll:true});
 }
 $('#recall').onclick=()=>command('ai.ask',{prompt:'What are our current plans and where did we stop? Only use the memories available to you.',once:state.pauses.length>0}).then(sync).catch(error);
-async function loadOlder(){if(historyBusy||historyEnd)return;const first=[...older,...state.messages].sort((a,b)=>a.sequence-b.sequence)[0];if(!first)return;const epoch=sessionEpoch;historyBusy=true;$('#older').disabled=true;$('#load-earlier').disabled=true;$('#history-status').textContent='Loading earlier messages…';try{const batch=await api('history?before='+encodeURIComponent(first.sequence));if(epoch!==sessionEpoch||!state)return;const mark=PlaceScroll.capture($('#timeline'));mark.end=false;historyHold?.stop();if(tab==='chat')historyHold=PlaceScroll.hold($('#timeline'),mark);older=[...new Map([...batch,...older].map(m=>[m.id,m])).values()].sort((a,b)=>a.sequence-b.sequence);historyEnd=batch.length===0;paintFeed();if(tab==='chat')historyHold.restore();$('#history-status').textContent=historyEnd?'Beginning of your conversation':'';}catch(e){if(epoch!==sessionEpoch)return;$('#history-status').textContent='Could not load earlier messages. Use More → Earlier messages to retry.';error(e);}finally{if(epoch===sessionEpoch){historyBusy=false;$('#older').disabled=historyEnd;$('#load-earlier').disabled=historyEnd;}}}
+async function loadOlder(){if(historyBusy||historyEnd)return;const first=[...older,...state.messages].sort((a,b)=>a.sequence-b.sequence)[0];if(!first)return;const epoch=sessionEpoch;historyBusy=true;$('#older').disabled=true;$('#load-earlier').disabled=true;$('#history-status').hidden=false;$('#history-status').textContent='Loading earlier messages…';try{const batch=await api('history?before='+encodeURIComponent(first.sequence));if(epoch!==sessionEpoch||!state)return;const mark=PlaceScroll.capture($('#timeline'));mark.end=false;historyHold?.stop();if(tab==='chat')historyHold=PlaceScroll.hold($('#timeline'),mark);older=[...new Map([...batch,...older].map(m=>[m.id,m])).values()].sort((a,b)=>a.sequence-b.sequence);historyEnd=batch.length===0;paintFeed();if(tab==='chat')historyHold.restore();$('#history-status').textContent=historyEnd?'Beginning of your conversation':'';$('#history-status').hidden=historyEnd&&$('#timeline').scrollTop>24;}catch(e){if(epoch!==sessionEpoch)return;$('#history-status').textContent='Could not load earlier messages. Use More → Earlier messages to retry.';error(e);}finally{if(epoch===sessionEpoch){historyBusy=false;$('#older').disabled=historyEnd;$('#load-earlier').disabled=historyEnd;}}}
 $('#older').onclick=$('#load-earlier').onclick=loadOlder;
 function paintPins(){const root=$('#pinned');root.replaceChildren();const pins=state.pins||[];root.hidden=!pins.length||!followupsOpen;if(!pins.length)return;el('summary','Pinned · '+pins.length,root);for(const pin of pins){const row=el('div',null,root,'row');btn(pin.author+': '+pin.text.slice(0,90),row,()=>{closeFollowups();return openSource(pin.id);},'grow');btn('Unpin',row,()=>command('message.pin',{id:pin.id,value:false}).then(sync));}}
 function activities(){return state?.activities??(state?.activity?[state.activity]:[]);}
@@ -239,15 +239,15 @@ function renderActivity(a,parent){
  parent.dataset.signature=signature;const key=a?.id+':'+a?.index;
  const previousInput=parent.querySelector('.free-answer'),answer=parent.dataset.question===key?(previousInput?.value??''):'';
  const focused=previousInput&&document.activeElement===previousInput;parent.dataset.question=key;parent.replaceChildren();if(!a)return;
- const card=el('section',null,parent,'activity');el('div',(a.host||a.owner)+' → '+a.target,card,'label');
+ const card=el('section',null,parent,'activity');if(!(a.afterSequence>0))el('p','Earlier round · original position unavailable',card,'muted');el('div',(a.host||a.owner)+' → '+a.target,card,'label');
  const feedback=(a.feedback||[]).filter(f=>f.status==='sent').at(-1),pending=(a.feedback||[]).some(f=>f.status==='running');
  if(feedback){const reaction=el('div',null,card,'activity-reaction');el('div','✦ Echo',reaction,'label');el('p',feedback.text,reaction).dir='auto';}
  if(pending)el('p','Echo is reacting…',card,'muted');
  if(a.status!=='active'){
   el('h3',a.status==='completed'?'Round complete':'Round ended early',card);
   el('p',a.answers.length+' / '+a.total+' answered'+(a.max?' · '+a.score+' / '+a.max+' points':' · Just for fun'),card);
-  const history=el('details',null,card);el('summary','Your answers',history);
-  for(const v of a.answers)el('p',v.q+' → '+v.answer,history).dir='auto';
+  if(a.answers.length){const history=el('details',null,card);el('summary','Your answers',history);
+  for(const v of a.answers)el('p',v.q+' → '+v.answer,history).dir='auto';}else el('p','No answers were submitted.',card,'muted');
   if(state.who===a.target){
    if(!pending&&a.answers.length&&!(a.feedback||[]).some(f=>f.final&&f.status==='sent'))btn('Ask Echo to wrap up',card,()=>command('quiz.react',{activity:a.id}).then(sync));
    if(a.sharedPost)el('p','Shared to wall',card,'muted');
@@ -289,7 +289,7 @@ function paintItems(){wall.paint();}
 function editItem(item){wall.edit(item);}
 $('.room-tools').addEventListener('click',e=>{if(e.target.closest('button,a'))$('.room-tools').open=false;});$('#space-search').oninput=paintItems;function updateLatest(){const f=$('#timeline'),away=f.scrollHeight-f.scrollTop-f.clientHeight>=60;$('#latest').hidden=!away;$('#jump-latest').hidden=!away;}
 $('#latest').onclick=$('#jump-latest').onclick=()=>{$('#timeline').scrollTop=$('#timeline').scrollHeight;updateLatest();};
-$('#timeline').onscroll=()=>{updateLatest();updateActivityReminder();saveReading();};
+$('#timeline').onscroll=()=>{if(historyEnd)$('#history-status').hidden=$('#timeline').scrollTop>24;updateLatest();updateActivityReminder();saveReading();};
 
 async function openSource(id){const m=await api('messages/'+encodeURIComponent(id));if(!m)throw Error('The original message is unavailable.');older=[...new Map([...older,m].map(x=>[x.id,x])).values()].sort((a,b)=>a.sequence-b.sequence);goto('chat');paintFeed();const row=[...$('#feed').children].find(n=>n.dataset.message===id);row?.scrollIntoView({block:'center'});row?.classList.add('source-highlight');}
 $('#continue-play').onclick=()=>goto('chat');
