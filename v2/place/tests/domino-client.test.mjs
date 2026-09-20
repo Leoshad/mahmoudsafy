@@ -204,3 +204,9 @@ for(const mode of ['solo','shared'])for(const fullscreen of [false,true])test(`n
   assert.equal(next.status,'active');assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),fullscreen);
  }
 });
+
+test('new blocked results explain opponent total without subtracting winner pips',async()=>{
+ const state=initial(),clients=[],a=client('Mahmoud',state,clients);await click(a.get('#domino-open'));await click(a.get('#domino-start'));const g=state.domino.solo.Mahmoud;
+ g.status='finished';g.scores={Mahmoud:12,Computer:0};g.result={winner:'Mahmoud',points:12,reason:'blocked',scoring:'opponent-total',totals:{Mahmoud:1,Computer:12}};state.version++;a.sync();
+ assert.ok(all(a.get('#domino-game')).some(e=>e.textContent==='Blocked round · Computer’s remaining pips: 12 = 12 points'));
+});

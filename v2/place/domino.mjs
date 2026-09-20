@@ -22,9 +22,9 @@ function deal(g,now=Date.now()){
 }
 function finish(g,winner,reason){
  g.status='finished';g.turn=null;const totals=Object.fromEntries(g.players.map(n=>[n,sum(g.hands[n])]));
- const points=winner?reason==='blocked'?Math.abs(totals[g.players[0]]-totals[g.players[1]]):totals[opponent(g,winner)]:0;
+ const points=winner?totals[opponent(g,winner)]:0;
  if(winner)g.scores[winner]+=points;
- g.result={winner,reason,points,totals,hands:Object.fromEntries(g.players.map(n=>[n,g.hands[n].map(t=>({...t}))]))};g.last={text:winner?winner+' wins '+points+' points.':'The round is a draw.'};
+ g.result={winner,reason,points,totals,scoring:'opponent-total',hands:Object.fromEntries(g.players.map(n=>[n,g.hands[n].map(t=>({...t}))]))};g.last={text:winner?winner+' wins '+points+' points.':'The round is a draw.'};
 }
 function play(g,who,tile,side){
  const hand=g.hands[who];check(legalMoves(hand,g.chain).some(m=>m.tile===tile&&m.side===side),'Choose a matching tile and end.');

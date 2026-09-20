@@ -219,7 +219,7 @@ function render(){
   make('p',winner?winner+' · +'+g.result.points+' points':'Equal pips · 0 points',card,'domino-result-points');
   make('p',g.players.map(n=>n+' '+g.scores[n]).join(' · ')+' / '+g.target,card,'domino-result-score');
   const totals=g.result.totals,other=g.players.find(n=>n!==winner);
-  make('p',g.result.reason==='blocked'?(winner?'Blocked round · '+totals[other]+' − '+totals[winner]+' = '+g.result.points+' points':'Blocked round · '+g.players.map(n=>totals[n]).join(' = ')+' · no points awarded'):'Empty hand · '+totals[other]+' remaining pips = '+g.result.points+' points',card,'domino-result-calculation');
+  make('p',g.result.reason==='blocked'?(winner?'Blocked round · '+(g.result.scoring==='opponent-total'?other+'’s remaining pips: '+totals[other]+' = '+g.result.points+' points':totals[other]+' − '+totals[winner]+' = '+g.result.points+' points'):'Blocked round · '+g.players.map(n=>totals[n]).join(' = ')+' · no points awarded'):'Empty hand · '+totals[other]+' remaining pips = '+g.result.points+' points',card,'domino-result-calculation');
   const evidence=make('div',undefined,card,'domino-result-hands');
   for(const name of g.players){const group=make('div',undefined,evidence,'domino-result-hand');make('strong',name+' · '+totals[name]+' pips',group);const row=make('div',undefined,group,'domino-result-tiles');row.setAttribute('aria-label',name+' remaining tiles');const tiles=g.result.hands?.[name];if(tiles?.length)for(const tile of tiles)piece(tile,row);else make('span',tiles?'No tiles left':'Tile details unavailable',row,'domino-result-empty');}
   make('p',g.status==='complete'?'Match saved in your history.':g.result.points+' points this round. Keep playing to '+g.target+'.',card,'domino-result-note');

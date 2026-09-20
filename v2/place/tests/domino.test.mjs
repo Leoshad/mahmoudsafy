@@ -166,3 +166,11 @@ test('draw exhaustion enables pass and blocked ties award no points; revealed re
  act(s,'Mahmoud','pass');act(s,'Safy','pass');assert.equal(g.result.winner,null);assert.equal(g.result.points,0);assert.deepEqual(g.scores,{Mahmoud:0,Safy:0});assert.deepEqual(dominoSnapshot(s,'Mahmoud').shared.result.hands.Safy,[{id:'0-2',a:0,b:2}]);g.hands.Safy[0].a=5;assert.equal(g.result.hands.Safy[0].a,0);
 });
 
+
+test('blocked winner receives all opponent pips and can finish the match',()=>{
+ const s=initial();dominoChange(s,'Mahmoud','domino.create',{mode:'shared',target:50});act(s,'Safy','accept');const g=s.domino.shared;
+ g.chain=[{id:'6-6',a:6,b:6}];g.stock=[];g.turn='Mahmoud';
+ g.hands={Mahmoud:[{id:'4-5',a:4,b:5},{id:'5-5',a:5,b:5}],Safy:[{id:'1-2',a:1,b:2}]};g.scores.Safy=32;
+ act(s,'Mahmoud','pass');act(s,'Safy','pass');
+ assert.equal(g.result.winner,'Safy');assert.equal(g.result.points,19);assert.equal(g.result.scoring,'opponent-total');assert.equal(g.scores.Safy,51);assert.equal(g.status,'complete');
+});
