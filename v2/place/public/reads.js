@@ -9,7 +9,9 @@ window.OurReads=function({getState,isChat,send,now=Date.now}){
   const left=Math.max(r.left,clip.left,vv?.offsetLeft||0),right=Math.min(r.right,clip.right,(vv?.offsetLeft||0)+(vv?.width||innerWidth));
   const top=Math.max(r.top,clip.top,vv?.offsetTop||0),bottom=Math.min(r.bottom,clip.bottom,(vv?.offsetTop||0)+(vv?.height||innerHeight));
   if(right-left<Math.min(r.width*.6,120)||bottom-top<Math.min(r.height*.6,120))return false;
-  const hit=document.elementFromPoint((left+right)/2,(top+bottom)/2);return !!hit&&bubble.contains(hit);
+  // A floating new-message button can cover the centre of an otherwise visible bubble.
+  let visible=0;for(const x of [.2,.5,.8])for(const y of [.2,.5,.8]){const hit=document.elementFromPoint(left+(right-left)*x,top+(bottom-top)*y);if(hit&&bubble.contains(hit))visible++;}
+  return visible>=5;
  }
  async function scan(){
   const state=getState();if(state?.who!==who){who=state?.who;epoch++;since.clear();seen.clear();}if(!who)return;

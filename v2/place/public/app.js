@@ -45,7 +45,7 @@ function goto(next,fromHistory=false){if(next!=='chat')window.OurChatTools?.clos
 history.replaceState({placeTab:'chat'},'');window.addEventListener('popstate',e=>goto(e.state?.placeTab||'chat',true));
 let deliveryBusy=false;
 function acknowledgeDelivery(){if(deliveryBusy||!state)return;const ids=state.messages.filter(m=>m.author!==state.who&&m.author!=='Echo'&&m.status==='sent'&&!m.deliveredAt).map(m=>m.id);if(!ids.length)return;deliveryBusy=true;api('delivered',{ids}).catch(()=>{}).finally(()=>deliveryBusy=false);}
-function absorb(next){snapshotSerial++;if(state?.who===next.who)older=[...new Map([...older,...state.messages].map(m=>[m.id,m])).values()].sort((a,b)=>a.sequence-b.sequence);state=next;paintUnread();connectionWanted=true;restoreOutbox();window.OurFiles?.sync(state);window.OurBuzz?.sync(state);window.OurDraw?.sync(state);window.OurPersonal?.sync(state);window.OurCourt?.sync(state);window.OurOcho?.sync(state);window.OurDomino?.sync(state);window.OurMedia?.sync(state);for(const m of state.messages){const queued=pending.get(m.id);if(queued)queued.confirmed=true;pending.delete(m.id);if(m.author===state.who)removeOutbox(m.author,m.id);}$('#login').hidden=true;$('#app').hidden=false;$('#our-place-trial').classList.add('signed-in');$('#account').replaceChildren();el('span',state.who, $('#account'));$('#account').append(installButton);const logout=btn('',$('#account'),async()=>{await api('logout',{});signOutUI();},'sign-out-icon');logout.setAttribute('aria-label','Sign out');logout.title='Sign out';logout.innerHTML='<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 4H4v16h6M9 12h12m-4-4 4 4-4 4"/></svg>';paint();window.OurCrown?.sync(state);window.OurPersonal?.decorate();window.OurNotifications?.sync(state);window.OurComfort?.sync(state);acknowledgeDelivery();restoreReading().catch(()=>{});}
+function absorb(next){snapshotSerial++;if(state?.who===next.who)older=[...new Map([...older,...state.messages].map(m=>[m.id,m])).values()].sort((a,b)=>a.sequence-b.sequence);reconcileReads(next);state=next;paintUnread();connectionWanted=true;restoreOutbox();window.OurFiles?.sync(state);window.OurBuzz?.sync(state);window.OurDraw?.sync(state);window.OurPersonal?.sync(state);window.OurCourt?.sync(state);window.OurOcho?.sync(state);window.OurDomino?.sync(state);window.OurMedia?.sync(state);for(const m of state.messages){const queued=pending.get(m.id);if(queued)queued.confirmed=true;pending.delete(m.id);if(m.author===state.who)removeOutbox(m.author,m.id);}$('#login').hidden=true;$('#app').hidden=false;$('#our-place-trial').classList.add('signed-in');$('#account').replaceChildren();el('span',state.who, $('#account'));$('#account').append(installButton);const logout=btn('',$('#account'),async()=>{await api('logout',{});signOutUI();},'sign-out-icon');logout.setAttribute('aria-label','Sign out');logout.title='Sign out';logout.innerHTML='<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 4H4v16h6M9 12h12m-4-4 4 4-4 4"/></svg>';paint();window.OurCrown?.sync(state);window.OurPersonal?.decorate();window.OurNotifications?.sync(state);window.OurComfort?.sync(state);acknowledgeDelivery();restoreReading().catch(()=>{});}
 let snapshotSerial=0;
 async function sync(){if(refreshing)return refreshing;const epoch=sessionEpoch,serial=snapshotSerial;const task=api('state').then(next=>{if(epoch===sessionEpoch&&serial===snapshotSerial)absorb(next);}).finally(()=>{if(refreshing===task)refreshing=null;});refreshing=task;return task;}
 let typingUntil=0,typingHideTimer,typingIdleTimer,typingLastSent=0,typingActive=false,typingQueue=Promise.resolve();
@@ -288,8 +288,15 @@ const wall=OurWall({getState:()=>state,api,command,sync,goto,info,error,el,btn,c
 function paintItems(){wall.paint();}
 function editItem(item){wall.edit(item);}
 $('.room-tools').addEventListener('toggle',()=>{if($('.room-tools').open)$('.tools-content').append($('#echo-status'),$('#invite-hint'));});
-$('.room-tools').addEventListener('click',e=>{if(e.target.closest('button,a'))$('.room-tools').open=false;});$('#space-search').oninput=paintItems;let unreadOwner=null,unreadKnown=new Set(),unreadPulse=null;
-function resetUnread(){unreadOwner=null;unreadKnown.clear();clearTimeout(unreadPulse);const b=$('[data-tab="chat"]');b.classList.remove('chat-arrival');b.querySelector('.chat-unread')?.remove();b.setAttribute('aria-label','Our Chat');}
+$('.room-tools').addEventListener('click',e=>{if(e.target.closest('button,a'))$('.room-tools').open=false;});$('#space-search').oninput=paintItems;const confirmedReads=new Map();let confirmedReadOwner=null;
+function reconcileReads(next){
+ if(confirmedReadOwner!==next.who){confirmedReads.clear();confirmedReadOwner=next.who;}
+ for(const m of next.messages||[])if(m.readAt)confirmedReads.set(m.id,m.readAt);
+ for(const m of [...older,...(next.messages||[])])if(confirmedReads.has(m.id))m.readAt=confirmedReads.get(m.id);
+ next.unreadMessages=(next.unreadMessages||[]).filter(m=>!confirmedReads.has(m.id));
+}
+let unreadOwner=null,unreadKnown=new Set(),unreadPulse=null;
+function resetUnread(){confirmedReads.clear();confirmedReadOwner=null;unreadOwner=null;unreadKnown.clear();clearTimeout(unreadPulse);const b=$('[data-tab="chat"]');b.classList.remove('chat-arrival');b.querySelector('.chat-unread')?.remove();b.setAttribute('aria-label','Our Chat');}
 function paintUnread(){
  const b=$('[data-tab="chat"]'),messages=state?.unreadMessages||[];
  const arrival=unreadOwner===state?.who&&messages.some(m=>!unreadKnown.has(m.id));
@@ -302,6 +309,7 @@ function paintUnread(){
 }
 function applyReadReceipt(r){
  if(!state)return;
+ for(const id of r.ids)confirmedReads.set(id,r.at);
  for(const m of [...older,...state.messages])if(r.ids.includes(m.id)&&m.author!==r.reader)m.readAt=r.at;
  if(r.reader===state.who){state.unreadMessages=(state.unreadMessages||[]).filter(m=>!r.ids.includes(m.id));paintUnread();}
 }
