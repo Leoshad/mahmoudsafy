@@ -314,22 +314,11 @@ function applyReadReceipt(r){
  if(r.reader===state.who){state.unreadMessages=(state.unreadMessages||[]).filter(m=>!r.ids.includes(m.id));paintUnread();}
 }
 function updateLatest(){const f=$('#timeline'),away=f.scrollHeight-f.scrollTop-f.clientHeight>=60,count=state?.unreadMessages?.length||0;
- for(const id of ['#latest','#jump-latest']){const b=$(id);b.hidden=!away&&!count;b.textContent=count?'↓ '+count+' new message'+(count===1?'':'s'):'Latest messages ↓';}
+ for(const id of ['#latest','#jump-latest']){const b=$(id);b.hidden=!away;b.textContent=count?'↓ '+count+' new message'+(count===1?'':'s'):'Latest messages ↓';}
 }
 async function jumpToUnread(){
- const f=$('#timeline'),target=state?.unreadMessages?.[0],epoch=sessionEpoch;
+ const f=$('#timeline');
  readingHold?.stop();readingRestoring=false;historyHold?.stop();
- if(target){
-  // Load the intervening history too, so the new messages can be read in order.
-  while(![...$('#feed').children].some(n=>n.dataset.message===target.id)){
-   const first=[...older,...state.messages].sort((a,b)=>a.sequence-b.sequence)[0];if(!first)break;
-   const batch=await api('history?before='+encodeURIComponent(first.sequence));if(epoch!==sessionEpoch||!state)return;
-   if(!batch.length||!batch.some(m=>m.sequence<first.sequence))break;
-   older=[...new Map([...batch,...older].map(m=>[m.id,m])).values()];paintFeed();
-  }
-  const row=[...$('#feed').children].find(n=>n.dataset.message===target.id);
-  if(row){const top=f.scrollTop+row.getBoundingClientRect().top-f.getBoundingClientRect().top-12;f.scrollTo({top,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});return;}
- }
  f.scrollTo({top:f.scrollHeight,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});updateLatest();
 }
 $('#latest').onclick=$('#jump-latest').onclick=()=>jumpToUnread().catch(error);

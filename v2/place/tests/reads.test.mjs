@@ -39,7 +39,7 @@ test('unread metadata covers history beyond the latest page, both accounts, and 
  }finally{store.close();}
 });
 
-test('new-message button targets first unread, scrolls smoothly, and does not mark read on click',async()=>{
+test('new-message button goes to latest messages and does not mark skipped messages read',async()=>{
  const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
  const fn=source.slice(source.indexOf('async function jumpToUnread(){'),source.indexOf("$('#latest').onclick="));
  const calls=[],row={dataset:{message:'first'},getBoundingClientRect:()=>({top:250})};
@@ -47,7 +47,7 @@ test('new-message button targets first unread, scrolls smoothly, and does not ma
  const state={unreadMessages:[{id:'first'},{id:'second'}]};
  const ctx={state,sessionEpoch:1,readingHold:null,readingRestoring:true,historyHold:null,$:s=>s==='#timeline'?timeline:{children:[row]},matchMedia:()=>({matches:false}),updateLatest(){}};
  vm.createContext(ctx);vm.runInContext(fn+';this.jump=jumpToUnread',ctx);await ctx.jump();
- assert.equal(calls[0].top,288);assert.equal(calls[0].behavior,'smooth');assert.equal(state.unreadMessages.length,2);assert.equal(ctx.readingRestoring,false);
+ assert.equal(calls[0].top,2000);assert.equal(calls[0].behavior,'smooth');assert.equal(state.unreadMessages.length,2);assert.equal(ctx.readingRestoring,false);
 });
 
 
@@ -60,4 +60,14 @@ test('stale snapshots cannot resurrect confirmed unread messages or erase partne
  const stale={who:'Mahmoud',messages:[{id:'outgoing',readAt:null}],unreadMessages:[{id:'incoming'},{id:'new'}]};c.reconcileReads(stale);
  assert.equal(stale.messages[0].readAt,'read-time');assert.deepEqual(stale.unreadMessages.map(m=>m.id),['new']);
  const other={who:'Safy',messages:[],unreadMessages:[{id:'incoming'}]};c.reconcileReads(other);assert.equal(other.unreadMessages.length,1);
+});
+
+
+test('latest button hides at the bottom even with unread history remaining',()=>{
+ const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+ const code=source.slice(source.indexOf('function updateLatest(){'),source.indexOf('async function jumpToUnread(){'));
+ const timeline={scrollHeight:2000,scrollTop:1500,clientHeight:500},button={},menu={};
+ const context={state:{unreadMessages:[{id:'old'}]},$:s=>s==='#timeline'?timeline:s==='#latest'?button:menu};
+ vm.createContext(context);vm.runInContext(code,context);context.updateLatest();assert.equal(button.hidden,true);assert.equal(menu.hidden,true);
+ timeline.scrollTop=500;context.updateLatest();assert.equal(button.hidden,false);assert.equal(button.textContent,'↓ 1 new message');
 });
