@@ -65,9 +65,18 @@ test('stale snapshots cannot resurrect confirmed unread messages or erase partne
 
 test('latest button hides at the bottom even with unread history remaining',()=>{
  const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
- const code=source.slice(source.indexOf('function updateLatest(){'),source.indexOf('async function jumpToUnread(){'));
- const timeline={scrollHeight:2000,scrollTop:1500,clientHeight:500},button={},menu={};
+ const code=source.slice(source.indexOf('function hasMessageBelow('),source.indexOf('async function jumpToUnread(){'));
+ let top=420;const timeline={getBoundingClientRect:()=>({bottom:500}),querySelectorAll:()=>[{getBoundingClientRect:()=>({top,height:100})}]},button={},menu={};
  const context={state:{unreadMessages:[{id:'old'}]},$:s=>s==='#timeline'?timeline:s==='#latest'?button:menu};
  vm.createContext(context);vm.runInContext(code,context);context.updateLatest();assert.equal(button.hidden,true);assert.equal(menu.hidden,true);
- timeline.scrollTop=500;context.updateLatest();assert.equal(button.hidden,false);assert.equal(button.textContent,'↓ 1 new message');
+ top=510;context.updateLatest();assert.equal(button.hidden,false);assert.equal(button.textContent,'↓ 1 new message');
+});
+
+
+test('opening bottom message details reveals the row while old-history selection stays put',()=>{
+ const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');const code=source.slice(source.indexOf('function toggleMessageDetails('),source.indexOf('function updateLatest(){'));
+ let below=false;const timeline={scrollTop:100,getBoundingClientRect:()=>({bottom:500})};let selected=false;const row={classList:{toggle(){selected=!selected;}},getBoundingClientRect:()=>({bottom:560})};
+ const c={$:()=>timeline,hasMessageBelow:()=>below,readingHold:null,historyHold:null,readingRestoring:true,updateLatest(){}};vm.createContext(c);vm.runInContext(code,c);
+ c.toggleMessageDetails(row);assert.equal(selected,true);assert.equal(timeline.scrollTop,168);assert.equal(c.readingRestoring,false);
+ below=true;timeline.scrollTop=100;c.toggleMessageDetails(row);assert.equal(timeline.scrollTop,100);
 });
