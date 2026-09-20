@@ -113,3 +113,6 @@
 .support-frame-pink,.support-frame-gold{transform-box:fill-box;transform-origin:center;animation:support-rest 5s ease-in-out infinite}
 @keyframes support-rest{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-.7px) scale(1.035)}}
 @media(prefers-reduced-motion:reduce){.support-frame-pink,.support-frame-gold{animation:none!important}}
+
+/* Suppress native touch flash only on profile-avatar controls; keep keyboard focus. */
+:is(.avatar,[data-avatar-name],.personal-photo)[data-profile-name]{-webkit-tap-highlight-color:transparent}
