@@ -385,7 +385,7 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial #feed .status.read-receipt{width:16px;height:16px;border:0;border-radius:50%;background:#483342;color:#e1b4ca;font:600 10px/16px system-ui;overflow:hidden}
 #our-place-trial #feed .read-receipt img{display:block;width:16px;height:16px;object-fit:cover;border-radius:50%}
 #our-place-trial #feed .message-actions{display:none;margin:0;border:0;padding:0}
-#our-place-trial #feed .message-selected .message-actions,#our-place-trial #feed .message-actions[open],#our-place-trial #feed .message:focus-within .message-actions{display:block}
+#our-place-trial #feed .message-selected .message-actions,#our-place-trial #feed .message-actions[open]{display:block}
 #our-place-trial #feed .message-actions summary{padding:0 6px;min-height:24px;line-height:24px}
 #our-place-trial #feed .message-actions[open]{display:flex;flex-wrap:wrap;gap:4px;max-width:280px;margin-top:4px;padding:6px;border:1px solid #614658;border-radius:12px;background:#251d28}
 #our-place-trial #feed .message-actions button{font-size:12px;padding:6px 9px;min-height:34px}
@@ -393,7 +393,7 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial #feed .chat-reactions:empty{display:none}
 #our-place-trial #feed .chat-reactions button{margin:0;min-height:23px;min-width:25px;padding:0 5px;line-height:21px;font-size:15px;background:#352735;border:1px solid #74586a;border-radius:15px;box-shadow:0 2px 4px #0004}
 #our-place-trial #feed .has-reactions .bubble{margin-bottom:16px}
-@media(hover:hover){#our-place-trial #feed .message:hover .message-actions{display:block}}
+
 
 /* Echo uses the full activity-card width; height remains content-driven. */
 #our-place-trial #feed .message.echo .message-column{width:100%;max-width:100%}
@@ -438,3 +438,18 @@ html,body{overscroll-behavior-y:auto}
 #our-place-trial .chat-match{background:#dfbf80;color:#241b25;border-radius:3px}
 #our-place-trial .chat-search-active .bubble{outline:1px solid #d6b777;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){#our-place-trial .notice{transition:none}}
+
+/* Keep avatars aligned with their bubble independently of expanded details. */
+#our-place-trial #feed .message{display:grid;grid-template-columns:25px minmax(0,1fr) 25px;column-gap:7px;row-gap:0;align-items:end}
+#our-place-trial #feed .message-column{display:contents}
+#our-place-trial #feed .message>.avatar{grid-column:1;grid-row:2;align-self:end;margin-bottom:3px}
+#our-place-trial #feed .message.mine>.avatar{grid-column:3}
+#our-place-trial #feed .message-content{position:relative;grid-column:2;grid-row:2;justify-self:start;min-width:0;max-width:100%;width:fit-content}
+#our-place-trial #feed .mine .message-content{justify-self:end;max-width:calc(100% - 20px);margin-left:20px}
+#our-place-trial #feed .message-content>.bubble{box-sizing:border-box;max-width:100%}
+#our-place-trial #feed .message-content>.status{position:absolute;right:calc(100% + 4px);bottom:3px;margin:0}
+#our-place-trial #feed .message-meta{grid-column:2;grid-row:1;justify-self:start}
+#our-place-trial #feed .message-footer{grid-column:2;grid-row:3;justify-self:start}
+#our-place-trial #feed .mine .message-meta,#our-place-trial #feed .mine .message-footer{justify-self:end}
+#our-place-trial #feed .message.echo .message-content,#our-place-trial #feed .message.echo .message-meta,#our-place-trial #feed .message.echo .message-footer{grid-column:1 / -1}
+#our-place-trial #feed .message.echo .message-content{width:100%}

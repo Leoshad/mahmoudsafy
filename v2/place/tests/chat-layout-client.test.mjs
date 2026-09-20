@@ -48,3 +48,13 @@ for(const who of ['Mahmoud','Safy'])test('only latest outgoing status remains wh
  c.context.state.messages.push(message('5','failed-local'),message('6','sending'));c.paint();assert.equal(status('3').hidden,true);assert.equal(status('5').hidden,false);assert.equal(status('6').hidden,false);assert.match(status('5').textContent,/Not sent/);
  c.context.state.messages.at(-1).status='sent';c.context.state.messages.at(-1).readAt='read';c.paint();assert.equal(status('2').hidden,true);assert.equal(status('6').hidden,false);assert.match(status('6').className,/read-receipt/);assert.equal(status('5').hidden,false);
 });
+
+for(const who of ['Mahmoud','Safy'])test('bubble selection excludes avatar taps and sent receipt shares bubble anchor: '+who,()=>{
+ const c=fixture(who);c.context.state.messages=[{id:'1',author:who,text:'Hello',status:'sent',sequence:1,createdAt:1760000000000,readAt:'yes'}];c.paint();
+ const row=c.feed.children.find(n=>n.dataset.message),content=row.querySelector('.message-content');
+ assert.equal(row.querySelector('.read-receipt').parent,content);
+ assert.equal(row.querySelector('.bubble').parent,content);
+ row.handlers.click({target:{closest:q=>q==='.bubble'?null:{}}});assert.doesNotMatch(row.className,/message-selected/);
+ row.handlers.click({target:{closest:q=>q==='.bubble'?{}:null}});assert.match(row.className,/message-selected/);
+ row.handlers.click({target:{closest:q=>q==='.bubble'?{}:null}});assert.doesNotMatch(row.className,/message-selected/);
+});
