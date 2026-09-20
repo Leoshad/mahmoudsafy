@@ -98,3 +98,14 @@
 
 /* A quiet continuous rim joins every frame to its portrait. */
 .profile-frame-ring::before{content:"";position:absolute;inset:-.5px;border:1px solid var(--frame-color);border-radius:50%;opacity:.65;box-shadow:0 0 2px color-mix(in srgb,var(--frame-color) 25%,transparent);pointer-events:none}
+
+/* Independent hands approach, pat, hold, then return to their starting pose. */
+.side-hand-left,.side-hand-right{transform-box:fill-box;transform-origin:center}
+.profile-frame-ring .side-hand-left{animation:side-pat-left 6s ease-in-out infinite}
+.profile-frame-ring .side-hand-right{animation:side-pat-right 6s ease-in-out infinite}
+@keyframes side-pat-left{0%,100%{transform:translate(-6px,0) rotate(-5deg)}25%{transform:translate(0,-2px)}35%{transform:translate(0,1px)}45%{transform:translate(0,-2px)}55%,72%{transform:translate(1px,1px) rotate(3deg)}}
+@keyframes side-pat-right{0%,100%{transform:translate(6px,0) rotate(5deg)}25%,45%{transform:translate(0,0)}55%,72%{transform:translate(-1px,-1px) rotate(-3deg)}}
+.frame-hard-weather{pointer-events:none}.frame-hard-rain{animation:hard-rain 3.6s ease-in-out infinite}.frame-hard-rain.rain-b{animation-delay:-1.8s}.frame-hard-bolt{animation:hard-lightning 7s ease-in-out infinite;opacity:0}
+@keyframes hard-rain{0%,100%{opacity:0;transform:translateY(-2px)}25%{opacity:.7}75%{opacity:0;transform:translateY(4px)}}
+@keyframes hard-lightning{0%,55%,85%,100%{opacity:0}68%{opacity:.8}}
+@media(prefers-reduced-motion:reduce){.profile-frame-ring svg *{animation:none!important}.frame-hard-weather{display:none}}
