@@ -2,7 +2,7 @@ import {morningFallback} from './daily-editorial.mjs';
 import {nightFallback} from './daily-fallback.mjs';
 import {randomUUID,randomInt} from 'node:crypto';
 import {check} from './domain.mjs';
-import {dailyGenerate,morningKinds,nightKinds} from './daily-ai.mjs';
+import {dailyGenerate,morningKinds,nightKinds,freshNewsDate} from './daily-ai.mjs';
 export function dailyDefaults(now=Date.now()){return {enabled:true,timeZone:'Asia/Riyadh',revision:1,editorialVersion:2,after:now,comments:false,notifications:false,slots:[{id:'morning',time:'09:30',enabled:true},{id:'afternoon',time:'16:00',enabled:true},{id:'night',time:'22:00',enabled:true}]};}
 export function updateDaily(s,p,now=Date.now()){
  const old=s.daily??dailyDefaults(now);check(p.revision===old.revision,'Daily settings changed. Refresh before saving.',409);
@@ -63,7 +63,7 @@ export class DailyWall{
    let prior=store.db.prepare('SELECT * FROM echo_daily_runs WHERE key=?').get(slot.key);
    const prepared=store.db.prepare('SELECT * FROM echo_daily_content WHERE key=?').get(slot.key);
    if(prior?.status==='ready'){
-    if(!prepared||prepared.revision!==s.daily.revision||prepared.at!==slot.at){store.db.prepare('DELETE FROM echo_daily_runs WHERE key=?').run(slot.key);store.db.prepare('DELETE FROM echo_daily_content WHERE key=? AND published=0').run(slot.key);prior=null;}
+    if(!prepared||prepared.revision!==s.daily.revision||prepared.at!==slot.at||(slot.id==='afternoon'&&!freshNewsDate(JSON.parse(prepared.value).publishedDate,this.now()))){store.db.prepare('DELETE FROM echo_daily_runs WHERE key=?').run(slot.key);store.db.prepare('DELETE FROM echo_daily_content WHERE key=? AND published=0').run(slot.key);prior=null;}
     else if(this.now()>=slot.at){store.tx(()=>this.publish(slot,JSON.parse(prepared.value),prepared.variant,s.daily));this.refresh();continue;}else continue;
    }
    // Deletion alone never reposts. An explicit future reschedule may replace a deleted post once.
@@ -73,9 +73,11 @@ export class DailyWall{
    let retry=null,previousFailure=prior?.detail||'';
    if(slot.id==='afternoon'){
     retry=store.db.prepare('SELECT * FROM echo_daily_retry WHERE key=?').get(slot.key);
+    if(!prior&&retry?.attempts>=4){store.db.prepare('INSERT OR IGNORE INTO echo_daily_runs VALUES(?,?,?,?,?)').run(slot.key,'failed',null,'Prepared news expired; daily attempt limit reached.',new Date(this.now()).toISOString());continue;}
     if(prior&&['failed','interrupted','retrying'].includes(prior.status)){
      // Older failures had already made up to two attempts; never reset their cost counter.
-     if(!retry){store.db.prepare('INSERT INTO echo_daily_retry VALUES(?,?,?,?,?)').run(slot.key,2,0,s.daily.revision,slot.at);retry=store.db.prepare('SELECT * FROM echo_daily_retry WHERE key=?').get(slot.key);}
+     if(!retry){store.db.prepare('INSERT INTO echo_daily_retry VALUES(?,?,?,?,?)').run(slot.key,2,0,s.daily.revision,slot.at);retry=store.db.prepare('SELECT * FROM echo_daily_retry WHERE key=?').get(slot.key);
+    if(!prior&&retry?.attempts>=4){store.db.prepare('INSERT OR IGNORE INTO echo_daily_runs VALUES(?,?,?,?,?)').run(slot.key,'failed',null,'Prepared news expired; daily attempt limit reached.',new Date(this.now()).toISOString());continue;}}
      if(retry.revision!==s.daily.revision||retry.at!==slot.at||retry.at<=s.daily.after||retry.attempts>=4||this.now()<retry.nextAt)continue;
      prior=null;
     }else if(!prior&&this.now()-slot.at>=3600000)continue;
