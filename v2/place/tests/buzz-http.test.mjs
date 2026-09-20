@@ -12,13 +12,16 @@ test('Buzz reaches partner and survives disconnect, acknowledges only the latest
  assert.equal((await post(who,'buzz',data)).status,200);assert.equal((await post(who,'buzz',{id:crypto.randomUUID(),kind:'kiss'})).status,200);
  clearTimeout(timeout);controller.abort();await reader.cancel().catch(()=>{});}
  assert.equal(store.messages().length,4);
+ assert.equal((await fetch(base+'/api/buzz/pending')).status,401);
  const offlineFirst={id:crypto.randomUUID(),kind:'electric'},offlineLast={id:crypto.randomUUID(),kind:'need'};
  await post('mahmoud','buzz',offlineFirst);await post('mahmoud','buzz',offlineLast);
+ const getPending=async who=>(await fetch(base+'/api/buzz/pending',{headers:{Cookie:cookies[who]}})).json();
+ assert.equal((await getPending('safy')).event.id,offlineLast.id);assert.notEqual((await getPending('mahmoud')).event.id,offlineLast.id);
  const controller=new AbortController();controllers.push(controller);const reconnect=await fetch(base+'/api/events',{headers:{Cookie:cookies.safy},signal:controller.signal});const reader=reconnect.body.getReader();const chunk=new TextDecoder().decode((await reader.read()).value);const snapshot=JSON.parse(chunk.match(/event: snapshot\ndata: ([^\n]+)/)[1]);assert.equal(snapshot.who,'Safy');assert.equal(snapshot.pendingBuzz.id,offlineLast.id);controller.abort();await reader.cancel().catch(()=>{});
  const state=async()=> (await fetch(base+'/api/state',{headers:{Cookie:cookies.safy}})).json();
  await post('mahmoud','buzz/ack',{id:offlineLast.id});assert.equal((await state()).pendingBuzz.id,offlineLast.id);
  await post('safy','buzz/ack',{id:offlineFirst.id});assert.equal((await state()).pendingBuzz.id,offlineLast.id);
- await post('safy','buzz/ack',{id:offlineLast.id});assert.equal((await state()).pendingBuzz,null);assert.equal((await state()).pendingBuzz,null);
+ await post('safy','buzz/ack',{id:offlineLast.id});assert.equal((await state()).pendingBuzz,null);assert.equal((await getPending('safy')).event,null);
 
  }finally{controllers.forEach(c=>c.abort());server.closeAllConnections();await new Promise(r=>server.close(r));store.close();}
 });

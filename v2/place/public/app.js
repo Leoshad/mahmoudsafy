@@ -309,7 +309,7 @@ window.OurBuzz?.init({api,info: t=>error(t)});
 window.OurDraw?.init({api,command,sync,goto,revealPanel});window.OurOcho?.init({command,sync,goto,revealPanel});window.OurDomino?.init({command,sync,goto,revealPanel});
 window.OurMedia?.init({api,command,sync,goto,info,revealPanel});window.OurPersonal?.init({api,command,sync,goto,info: t=>error(t)});window.OurCourt?.init({api,command,sync,goto,info,revealPanel});
 window.readTracker=window.OurReads?.({getState:()=>state,isChat:()=>tab==='chat'&&!$('#chat').hidden,send:ids=>api('read',{ids})});
-sync().then(connect).catch(e=>{if(state)error(e);}).finally(()=>{setTimeout(()=>{const splash=$('#welcome-splash');splash.classList.add('leaving');setTimeout(()=>splash.hidden=true,250);},Math.max(0,2000-(performance.now()-openingStarted)));});
+sync().then(connect).catch(e=>{if(state)error(e);}).finally(()=>{setTimeout(()=>{const splash=$('#welcome-splash');splash.classList.add('leaving');setTimeout(()=>{splash.hidden=true;window.dispatchEvent(new Event('our-place-ready'));},250);},Math.max(0,2000-(performance.now()-openingStarted)));});
 window.addEventListener('our-place-notification',event=>{Promise.resolve().then(async()=>{
  const target=event.detail;if(!state||!target)return;await sync();goto(target.tab);
  if(target.tab==='chat'){if(target.activity)resumeActivity(target.activity);else if(target.message)await openSource(target.message);}
