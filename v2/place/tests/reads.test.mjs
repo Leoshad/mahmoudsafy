@@ -23,3 +23,29 @@ function fixture(){
 test('receipt requires dwell in the visible chat viewport, then reports once',async()=>{const c=fixture();await c.tracker.scan();assert.equal(c.sent.length,0);c.advance(650);await c.tracker.scan();assert.deepEqual(c.sent,[['one']]);c.advance(1000);await c.tracker.scan();assert.equal(c.sent.length,1);});
 test('background, games, dialogs, covered and offscreen messages never count as read',async()=>{for(const setting of [{active:false},{visible:false},{covered:true},{focused:false},{modal:true},{top:400}]){const c=fixture();c.set(setting);await c.tracker.scan();c.advance(2000);await c.tracker.scan();assert.equal(c.sent.length,0,JSON.stringify(setting));}});
 test('scrolling past or switching away cancels the dwell timer; own and Echo messages are excluded',async()=>{const c=fixture();await c.tracker.scan();c.advance(400);c.set({active:false});await c.tracker.scan();c.advance(500);c.set({active:true});await c.tracker.scan();assert.equal(c.sent.length,0);for(const author of ['Safy','Echo']){const c=fixture();c.row.dataset.author=author;await c.tracker.scan();c.advance(1000);await c.tracker.scan();assert.equal(c.sent.length,0);}});
+
+test('unread metadata covers history beyond the latest page, both accounts, and only unread partner messages',()=>{
+ const store=new Store(':memory:');try{
+ const ids=Array.from({length:75},()=>randomUUID());for(const id of ids)store.message({id,author:'Safy',text:'Hello'});
+ const own=randomUUID(),echo=randomUUID();store.message({id:own,author:'Mahmoud',text:'Hi'});store.message({id:echo,author:'Echo',text:'Hi'});
+ assert.equal(store.snapshot('Mahmoud').messages.length,60);
+ assert.deepEqual(store.snapshot('Mahmoud').unreadMessages.map(m=>m.id),ids);
+ assert.deepEqual(store.snapshot('Safy').unreadMessages.map(m=>m.id),[own]);
+ recordReads(store,'Mahmoud',[ids[1],ids[3]]);
+ assert.deepEqual(store.snapshot('Mahmoud').unreadMessages.map(m=>m.id),ids.filter((_,i)=>i!==1&&i!==3));
+ assert.equal(store.snapshot('Mahmoud').unreadMessages[0].id,ids[0]);
+ recordReads(store,'Mahmoud',ids);assert.equal(store.snapshot('Mahmoud').unreadMessages.length,0);
+ assert.equal(store.snapshot('Safy').unreadMessages.length,1);
+ }finally{store.close();}
+});
+
+test('new-message button targets first unread, scrolls smoothly, and does not mark read on click',async()=>{
+ const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
+ const fn=source.slice(source.indexOf('async function jumpToUnread(){'),source.indexOf("$('#latest').onclick="));
+ const calls=[],row={dataset:{message:'first'},getBoundingClientRect:()=>({top:250})};
+ const timeline={scrollTop:100,scrollHeight:2000,getBoundingClientRect:()=>({top:50}),scrollTo:v=>calls.push(v)};
+ const state={unreadMessages:[{id:'first'},{id:'second'}]};
+ const ctx={state,sessionEpoch:1,readingHold:null,readingRestoring:true,historyHold:null,$:s=>s==='#timeline'?timeline:{children:[row]},matchMedia:()=>({matches:false}),updateLatest(){}};
+ vm.createContext(ctx);vm.runInContext(fn+';this.jump=jumpToUnread',ctx);await ctx.jump();
+ assert.equal(calls[0].top,288);assert.equal(calls[0].behavior,'smooth');assert.equal(state.unreadMessages.length,2);assert.equal(ctx.readingRestoring,false);
+});

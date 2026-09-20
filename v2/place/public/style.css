@@ -461,3 +461,11 @@ html,body{overscroll-behavior-y:auto}
  #our-place-trial nav button[data-tab]:not(.selected):hover{background:transparent;border-color:transparent;color:#bba8b5}
  #our-place-trial nav button[data-tab].selected:hover{background:#3d2936;color:#f1cfdf;border-color:#81516b}
 }
+
+/* A message indicator stays distinct from the selected section. */
+#our-place-trial [data-tab="chat"]{position:relative;display:flex;align-items:center;justify-content:center;gap:7px}
+#our-place-trial .chat-unread{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 5px;box-sizing:border-box;border-radius:999px;background:#d69ab7;color:#241923;font-size:11px;font-weight:700;line-height:1;flex-shrink:0}
+#our-place-trial .chat-unread[hidden]{display:none}
+#our-place-trial [data-tab="chat"].chat-arrival{animation:chat-arrival 900ms ease-in-out 2}
+@keyframes chat-arrival{0%,100%{box-shadow:inset 0 0 0 0 transparent}50%{box-shadow:inset 0 0 0 1px #d69ab7,0 0 12px #d69ab733}}
+@media(prefers-reduced-motion:reduce){#our-place-trial [data-tab="chat"].chat-arrival{animation:none}}
