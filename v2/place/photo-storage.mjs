@@ -12,6 +12,7 @@ export function unusedPhotos(store, now = Date.now()) {
   for (const row of store.db.prepare('SELECT image FROM messages WHERE image IS NOT NULL').iterate()) used.add(row.image);
   for (const row of store.db.prepare('SELECT body FROM jobs').iterate()) referencedPhotoIds(JSON.parse(row.body), used);
   if(store.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='shared_files'").get())for(const row of store.db.prepare('SELECT photo FROM shared_files WHERE photo IS NOT NULL').iterate())used.add(row.photo);
+  if(store.db.prepare("SELECT 1 FROM pragma_table_info('shared_files') WHERE name='document'").get())for(const row of store.db.prepare('SELECT document FROM shared_files WHERE document IS NOT NULL').iterate()){try{referencedPhotoIds(JSON.parse(row.document),used);}catch{}}
   const candidates=[];
   for (const p of store.db.prepare('SELECT id FROM photos').all()) {
     if (used.has(p.id)) { store.db.prepare('DELETE FROM photo_orphans WHERE id=?').run(p.id); continue; }
