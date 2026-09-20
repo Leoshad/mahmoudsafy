@@ -27,3 +27,37 @@
 .profile-frame-option .personal-photo{margin-bottom:9px}.personal-photo-large>.profile-frame-ring{inset:-7px}
 .frame-traveler{animation:frame-distance 3s ease-in-out infinite}@keyframes frame-distance{0%,100%{transform:translate(-17px,-5px);opacity:.4}50%{transform:translate(17px,-5px);opacity:1}}
 @media(prefers-reduced-motion:reduce){.frame-traveler{animation:none}}
+
+/* Animate artwork only: no avatar, layout, crown or shadow animation. */
+.profile-frame-ring svg>*{transform-box:fill-box;transform-origin:center}
+.profile-frame-ring[data-frame=bad-mood] svg>path:nth-child(2){animation:frame-float 5s ease-in-out infinite}
+.profile-frame-ring[data-frame=bad-mood] svg>path:nth-child(3){animation:frame-rain 4s ease-in-out infinite}
+.profile-frame-ring[data-frame=unwell] svg>g{animation:frame-soft-light 4.5s ease-in-out infinite}
+.profile-frame-ring[data-frame=tired] svg>path:last-child{animation:frame-sleep 5s ease-in-out infinite}
+.profile-frame-ring[data-frame=space] svg>path:first-child{animation:frame-breathe 6s ease-in-out infinite}
+.profile-frame-ring[data-frame=busy] svg>path:last-child{transform-box:view-box;transform-origin:50px 89px;animation:frame-clock 8s linear infinite}
+.profile-frame-ring[data-frame=busy] svg>path:first-child{animation:frame-soft-light 4s ease-in-out infinite}
+.frame-happy-cloud{animation:frame-cloud 5s ease-in-out infinite}.frame-happy-spark{animation:frame-soft-light 3.5s ease-in-out infinite}
+.profile-frame-ring[data-frame=birthday] svg>path:last-child{transform-origin:bottom;animation:frame-flame 2.8s ease-in-out infinite}
+.profile-frame-ring[data-frame=birthday] svg>path:nth-child(2),.profile-frame-ring[data-frame=birthday] svg>path:nth-child(3){animation:frame-float 4.5s ease-in-out infinite}
+.profile-frame-ring[data-frame=women] svg>:not(:first-child){animation:frame-soft-light 5s ease-in-out infinite}
+.profile-frame-ring[data-frame=awareness] svg>path:last-child{transform-origin:top;animation:frame-ribbon 5.5s ease-in-out infinite}
+.profile-frame-ring[data-frame=hug] svg>path:nth-child(2){animation:frame-embrace 5s ease-in-out infinite}
+.profile-frame-ring[data-frame=hug] svg>g>path{animation:frame-heart 5s ease-in-out infinite}
+.frame-pout{animation:frame-turn-away 6s ease-in-out infinite}.frame-puff{animation:frame-puff-away 6s ease-in-out infinite}
+@keyframes frame-float{0%,70%,100%{transform:translateY(0)}35%{transform:translateY(-2px)}}
+@keyframes frame-rain{0%,65%,100%{opacity:0;transform:translateY(-3px)}20%{opacity:.8}50%{opacity:0;transform:translateY(3px)}}
+@keyframes frame-soft-light{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes frame-sleep{0%,100%{opacity:.2;transform:translateY(2px)}45%{opacity:1}80%{opacity:0;transform:translateY(-5px)}}
+@keyframes frame-breathe{0%,100%{transform:scaleX(1);opacity:.75}50%{transform:scaleX(1.04);opacity:1}}
+@keyframes frame-clock{to{transform:rotate(360deg)}}
+@keyframes frame-cloud{0%,80%,100%{transform:translate(0,0);opacity:.88}40%{transform:translate(1px,-3px) rotate(-2deg);opacity:1}}
+@keyframes frame-flame{0%,100%{transform:rotate(-4deg) scaleY(.96)}50%{transform:rotate(4deg) scaleY(1.04)}}
+@keyframes frame-ribbon{0%,70%,100%{transform:rotate(-2deg)}35%{transform:rotate(3deg)}}
+@keyframes frame-embrace{0%,75%,100%{transform:scaleX(1)}35%,50%{transform:scaleX(.93) translateY(-1px)}}
+@keyframes frame-heart{0%,75%,100%{transform:scale(1)}40%{transform:scale(1.09)}}
+@keyframes frame-turn-away{0%,15%,100%{transform:translateX(0) rotate(0)}35%,75%{transform:translateX(-3px) rotate(-7deg)}}
+@keyframes frame-puff-away{0%,45%,100%{opacity:0;transform:translateX(0)}55%{opacity:.7}80%{opacity:0;transform:translateX(6px)}}
+.profile-frame-ring:not(.frame-in-view) svg *,.frames-background .profile-frame-ring svg *{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){.profile-frame-ring svg *{animation:none!important}}
+.frame-happy-cloud{filter:drop-shadow(0 0 2px #f4d19b66)}
