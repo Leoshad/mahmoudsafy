@@ -50,7 +50,7 @@ test('agreement guidance is conditional and empty photo posts require attachment
 });
 test('tab navigation and browser back restore each scrolling position',()=>{
  const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8'),start=source.indexOf('const tabPositions={};'),end=source.indexOf("history.replaceState({placeTab:'chat'}",start);
- const elements=new Map(),$=id=>{if(!elements.has(id))elements.set(id,{scrollTop:0});return elements.get(id);};const context={$,window:{},document:{querySelectorAll:()=>[]},history:{pushState(){}},sendTyping(){},paintItems(){},paint(){},activities:()=>[]};
+ const elements=new Map(),$=id=>{if(!elements.has(id))elements.set(id,{scrollTop:0});return elements.get(id);};const context={$,historyHold:null,window:{},document:{querySelectorAll:()=>[]},history:{pushState(){}},sendTyping(){},paintItems(){},paint(){},activities:()=>[]};
  vm.createContext(context);vm.runInContext("let tab='space';"+source.slice(start,end)+';this.go=goto;',context);
  $('.shell').scrollTop=650;context.go('editor');assert.equal($('.shell').scrollTop,0);$('.shell').scrollTop=95;context.go('space',true);assert.equal($('.shell').scrollTop,650);
  context.go('together');$('.shell').scrollTop=430;context.go('space');assert.equal($('.shell').scrollTop,650);context.go('together',true);assert.equal($('.shell').scrollTop,430);

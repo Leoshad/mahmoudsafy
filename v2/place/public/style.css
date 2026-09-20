@@ -196,7 +196,8 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial .bubble img{width:320px;max-width:100%;height:200px;object-fit:contain;background:#141117}
 #our-place-trial .jump-link{border:0;background:transparent;color:var(--gold);padding:3px 0;min-height:28px;font-size:12px}
 #our-place-trial .signed-in nav,#our-place-trial .chat-heading{flex-shrink:0}
-#our-place-trial #history-status:not(:empty){padding:12px;text-align:center}
+#our-place-trial #history-status{position:absolute;top:4px;left:50%;transform:translateX(-50%);z-index:3;max-width:90%;width:max-content;pointer-events:none;font-size:11px;text-align:center}
+#our-place-trial #history-status:not(:empty){padding:3px 8px;border-radius:8px;background:#211923;color:#d5c4cc}
 #our-place-trial .timeline{scroll-behavior:auto;touch-action:pan-y;overflow-anchor:none}
 #our-place-trial #chat>.chat-heading{flex-shrink:0}
 @media(max-width:650px){#our-place-trial.signed-in nav{padding:6px 10px;border-top:0;border-bottom:1px solid #45303c}#our-place-trial.signed-in header{padding:7px 12px}}
