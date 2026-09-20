@@ -287,6 +287,7 @@ window.OurFiles?.init({api,getState:()=>state});
 const wall=OurWall({getState:()=>state,api,command,sync,goto,info,error,el,btn,categories,getFilter:()=>filter,setFilter:v=>filter=v,openSource});
 function paintItems(){wall.paint();}
 function editItem(item){wall.edit(item);}
+$('.room-tools').addEventListener('toggle',()=>{if($('.room-tools').open)$('.tools-content').append($('#echo-status'),$('#invite-hint'));});
 $('.room-tools').addEventListener('click',e=>{if(e.target.closest('button,a'))$('.room-tools').open=false;});$('#space-search').oninput=paintItems;let unreadOwner=null,unreadKnown=new Set(),unreadPulse=null;
 function resetUnread(){unreadOwner=null;unreadKnown.clear();clearTimeout(unreadPulse);const b=$('[data-tab="chat"]');b.classList.remove('chat-arrival');b.querySelector('.chat-unread')?.remove();b.setAttribute('aria-label','Our Chat');}
 function paintUnread(){
