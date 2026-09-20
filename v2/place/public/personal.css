@@ -72,3 +72,15 @@
 @keyframes frame-side-warmth{0%,20%{stroke-dashoffset:8;opacity:0}30%{opacity:.8}70%{stroke-dashoffset:-92;opacity:0}100%{stroke-dashoffset:-92;opacity:0}}
 .frames-background .profile-frame-ring svg *,.profile-frame-ring:not(.frame-in-view) svg *{animation-play-state:paused!important}
 @media(prefers-reduced-motion:reduce){.profile-frame-ring svg *{animation:none!important}.frame-side-light{display:none}}
+
+/* Small artwork moves independently of the avatar and crown. */
+.frame-love-face{animation:frame-love-dream 6s ease-in-out infinite}
+.frame-love-heart{animation:frame-love-rise 6s ease-in-out infinite}
+.frame-sad-body{animation:frame-sad-breathe 7s ease-in-out infinite}
+.frame-sad-tear{animation:frame-sad-drop 7s ease-in-out infinite}
+@keyframes frame-love-dream{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg) translateY(-1px)}}
+@keyframes frame-love-rise{0%,20%,100%{opacity:0;transform:translateY(4px) scale(.8)}40%,65%{opacity:1}85%{opacity:0;transform:translateY(-9px) scale(1.1)}}
+@keyframes frame-sad-breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(1px)}}
+@keyframes frame-sad-drop{0%,35%,100%{opacity:0;transform:translateY(0) scale(.7)}45%{opacity:.9}75%{opacity:0;transform:translateY(9px) scale(1)}}
+.profile-frame-ring:not(.frame-in-view) svg *,.frames-background .profile-frame-ring svg *{animation-play-state:paused!important}
+@media(prefers-reduced-motion:reduce){.profile-frame-ring svg *{animation:none!important}.frame-love-heart,.frame-sad-tear{display:none}}
