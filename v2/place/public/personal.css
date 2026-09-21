@@ -38,7 +38,7 @@
 .frame-busy-minute{transform-box:view-box;transform-origin:84px 86px;animation:frame-clock 12s linear infinite}
 .frame-busy-halo{transform-box:fill-box;transform-origin:center;animation:frame-busy-pressure 3.6s ease-in-out infinite}
 @keyframes frame-busy-pressure{0%,100%{opacity:.18;transform:scale(.95)}50%{opacity:.55;transform:scale(1.08)}}
-.profile-frame-ring[data-frame=busy] svg>path:first-child{animation:frame-soft-light 4s ease-in-out infinite}
+.profile-frame-ring[data-frame=busy] svg>path:first-child{animation:frame-busy-rim-pulse 3.6s ease-in-out infinite}
 .frame-happy-cloud{animation:frame-cloud 5s ease-in-out infinite}.frame-happy-spark{animation:frame-soft-light 3.5s ease-in-out infinite}
 .profile-frame-ring[data-frame=birthday] svg>path:last-child{transform-origin:bottom;animation:frame-flame 2.8s ease-in-out infinite}
 .profile-frame-ring[data-frame=birthday] svg>path:nth-child(2),.profile-frame-ring[data-frame=birthday] svg>path:nth-child(3){animation:frame-float 4.5s ease-in-out infinite}
@@ -131,6 +131,6 @@
 @keyframes frame-love-rim-glow{0%,100%{filter:drop-shadow(0 0 .5px #ef85ad55)}35%{filter:drop-shadow(0 0 2px #ef85ad99)}}
 @media(prefers-reduced-motion:reduce){.frame-love-rise{display:none}}
 
-/* Subtle warmth stays inside the rim, beneath the opaque clock face. */
-.frame-busy-rim-warmth{opacity:.72;animation:frame-busy-rim-pulse 3.6s ease-in-out infinite}
-@keyframes frame-busy-rim-pulse{0%,100%{opacity:.68}50%{opacity:.9}}
+/* Every rim bead changes color together, synchronized with the clock halo. */
+.frame-busy-rim{stroke:#ef625d}
+@keyframes frame-busy-rim-pulse{0%,100%{stroke:#d6b17d}50%{stroke:#ef625d}}
