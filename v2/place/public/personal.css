@@ -130,3 +130,7 @@
 @keyframes frame-love-release{0%{opacity:0;transform:translate(0,0) scale(.7)}18%{opacity:.9}75%{opacity:.5}100%{opacity:0;transform:translate(2px,-23px) scale(1)}}
 @keyframes frame-love-rim-glow{0%,100%{filter:drop-shadow(0 0 .5px #ef85ad55)}35%{filter:drop-shadow(0 0 2px #ef85ad99)}}
 @media(prefers-reduced-motion:reduce){.frame-love-rise{display:none}}
+
+/* Subtle warmth stays inside the rim, beneath the opaque clock face. */
+.frame-busy-rim-warmth{opacity:.18;animation:frame-busy-rim-pulse 3.6s ease-in-out infinite}
+@keyframes frame-busy-rim-pulse{0%,100%{opacity:.12}50%{opacity:.42}}
