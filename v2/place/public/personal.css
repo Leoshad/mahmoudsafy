@@ -132,5 +132,5 @@
 @media(prefers-reduced-motion:reduce){.frame-love-rise{display:none}}
 
 /* Subtle warmth stays inside the rim, beneath the opaque clock face. */
-.frame-busy-rim-warmth{opacity:.18;animation:frame-busy-rim-pulse 3.6s ease-in-out infinite}
-@keyframes frame-busy-rim-pulse{0%,100%{opacity:.12}50%{opacity:.42}}
+.frame-busy-rim-warmth{opacity:.72;animation:frame-busy-rim-pulse 3.6s ease-in-out infinite}
+@keyframes frame-busy-rim-pulse{0%,100%{opacity:.68}50%{opacity:.9}}
