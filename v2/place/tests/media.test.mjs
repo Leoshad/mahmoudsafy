@@ -60,6 +60,7 @@ test('media HTTP authenticates both users, verifies metadata, deduplicates and b
  let content='';for(let i=0;i<5&&!content.includes('"Mahmoud","Safy"');i++)content+=new TextDecoder().decode((await reader.read()).value);controller.abort();assert.match(content,/"Mahmoud","Safy"/);
  assert.equal((await command('safy','media.control',{position:17,playing:true})).status,200);
  assert.equal((await request('mahmoud','state')).data.media.position,17);
+ assert.equal((await command('safy','media.play',{track:{...song,title:'Forged next title'}})).status,200);assert.equal(store.state().media.track.title,song.title);assert.equal(store.state().media.position,0);assert.equal(store.state().media.playing,true);
  assert.equal((await command('mahmoud','media.end')).status,200);assert.equal((await request('safy','state')).data.media,null);
  const html=await fetch(base);assert.match(html.headers.get('content-security-policy'),/frame-src https:\/\/www.youtube.com/);assert.equal(html.headers.get('referrer-policy'),'strict-origin-when-cross-origin');
  }finally{await new Promise(r=>server.close(r));store.close();delete process.env.YOUTUBE_API_KEY;}
@@ -77,4 +78,10 @@ test('recipient replaces only an expired or declined solo session with exact rev
  const declined=initial();mediaChange(declined,'Safy','media.create',{mode:'video',track:song});
  mediaChange(declined,'Mahmoud','media.decline',{session:declined.media.id,invitation:declined.media.invitation.id});
  mediaChange(declined,'Mahmoud','media.create',{mode:'video',track:song,replaceSession:declined.media.id,replaceRevision:declined.media.revision});assert.equal(declined.media.owner,'Mahmoud');
+});
+
+test('either participant can replace playing or finished track without ending session or changing consent',()=>{
+ const s=initial();apply(s,'Mahmoud','media.create',{mode:'video',track:song});apply(s,'Safy','media.join',{invitation:s.media.invitation.id});const id=s.media.id;
+ apply(s,'Mahmoud','media.enqueue',{track:song});
+ for(const who of ['Mahmoud','Safy']){apply(s,who,'media.control',{position:song.duration,playing:false});apply(s,who,'media.play',{track:{...song,videoId:'abcdefghijk',title:'Next song'}});assert.equal(s.media.id,id);assert.deepEqual(s.media.participants,['Mahmoud','Safy']);assert.equal(s.media.position,0);assert.equal(s.media.playing,true);assert.equal(s.media.invitation,null);assert.equal(s.media.queue.length,1);}
 });

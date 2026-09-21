@@ -213,7 +213,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       }
       if(path==='/api/command'&&req.method==='POST'){
         const p=await body(req,32000);if(p.type==='draw.stroke')limit('draw-stroke:'+who,360);else limit('command:'+who,90);let verifiedTrack;
-        if(['media.create','media.enqueue'].includes(p.type)){limit('youtube:'+who,12);verifiedTrack=await youtube.resolve(p.data?.track?.videoId);}
+        if(['media.create','media.enqueue','media.play'].includes(p.type)){limit('youtube:'+who,12);verifiedTrack=await youtube.resolve(p.data?.track?.videoId);}
         const result=store.once(who,p.id,p,()=>{
           const s=store.state();const data={...(p.data??{})};
           if(p.type?.startsWith('draw.')){

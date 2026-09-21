@@ -128,3 +128,9 @@
 #our-place-trial .media-primary-controls>#media-close{display:grid;place-items:center;width:32px;height:32px;min-width:32px;min-height:32px;padding:0;line-height:1;border-radius:8px}
 #our-place-trial #media-close svg{display:block;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
 #our-place-trial .media-in-chat #media-more>summary{box-sizing:border-box;line-height:1;border-radius:8px}
+
+/* Compact in-chat song picker; keep the current session and player mounted. */
+#our-place-trial .media-in-chat.media-choosing #media-entry{display:block}
+#our-place-trial .media-in-chat.media-choosing #media-results{display:block;max-height:160px;overflow:auto}
+#our-place-trial .media-in-chat.media-choosing #media-recent{max-height:100px;overflow:auto}
+#our-place-trial .media-in-chat.media-choosing #media-status{display:block;font-size:12px}
