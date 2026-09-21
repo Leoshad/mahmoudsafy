@@ -1,6 +1,6 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s);
-let host,who=null,shared=null,activeId=null,selected=null,mode='video',player=null,ready=false,allowed=false,apiPromise=null,epoch=0,appTab='chat',clockOffset=0,busy=false,mutedUntil=0,lastSample=null,loadedId=null,searchEpoch=0,queueSignature='',noticeSignature='',seenVersion=-1,savedVolume=70,localStart=0,lastNativeState=-1;
+let host,who=null,shared=null,activeId=null,selected=null,mode='video',player=null,ready=false,allowed=false,apiPromise=null,epoch=0,appTab='chat',clockOffset=0,busy=false,mutedUntil=0,lastSample=null,loadedId=null,searchEpoch=0,queueSignature='',noticeSignature='',seenVersion=-1,savedVolume=70,localStart=0,lastNativeState=-1,localQueue=[],resultButtons=[];
 const pane=()=>$('#media-panel'),other=()=>who==='Mahmoud'?'Safy':'Mahmoud';
 const current=()=>activeId&&shared?.id===activeId?shared:null;
 const node=(tag,text,parent,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;parent?.append(n);return n;};
@@ -9,7 +9,7 @@ let restored=false,restoring=false,recentPlays=[],recentSignature='',lastSavedAt
 const storageKey=()=>who?'our-place:media:v1:'+who:null;
 function persist(){
  if(!who||!restored||restoring)return;
- try{localStorage.setItem(storageKey(),JSON.stringify({version:1,tab:['chat','together','space'].includes(appTab)?appTab:'space',track:selected,session:activeId,position:selected?Math.max(0,Math.min(selected.duration,ready?player.getCurrentTime()||0:localStart)):0,volume:ready?player.getVolume?.()??savedVolume:savedVolume,height:chatHeight,query:$('#media-query').value.slice(0,2048),plays:recentPlays,panel:!pane().hidden}));lastSavedAt=Date.now();}catch{}
+ try{localStorage.setItem(storageKey(),JSON.stringify({version:1,tab:['chat','together','space'].includes(appTab)?appTab:'space',track:selected,session:activeId,position:selected?Math.max(0,Math.min(selected.duration,ready?player.getCurrentTime()||0:localStart)):0,volume:ready?player.getVolume?.()??savedVolume:savedVolume,height:chatHeight,query:$('#media-query').value.slice(0,2048),plays:recentPlays,queue:localQueue,panel:!pane().hidden}));lastSavedAt=Date.now();}catch{}
 }
 function validSavedTrack(t){return t&&/^[A-Za-z0-9_-]{11}$/.test(t.videoId)&&typeof t.title==='string'&&t.title.length<=300&&typeof t.channel==='string'&&t.channel.length<=150&&Number.isFinite(t.duration)&&t.duration>0&&t.duration<=86400;}
 function restore(){
@@ -24,7 +24,7 @@ function restore(){
  const member=saved.session&&shared?.id===saved.session&&shared.participants.includes(who);
  const track=member?shared.track:!saved.session&&validSavedTrack(saved.track)?saved.track:null;
  if(member)activeId=shared.id;
- selected=track;
+ selected=track;localQueue=track&&!member&&Array.isArray(saved.queue)?saved.queue.filter(validSavedTrack).slice(0,20):[];
  localStart=track?Math.max(0,Math.min(track.duration,Number.isFinite(saved.position)?saved.position:0)):0;
  const identity=who;
  requestAnimationFrame(()=>{
@@ -41,10 +41,10 @@ function rememberPlayed(track){
  renderRecent();persist();
 }
 function renderRecent(){
- const sig=JSON.stringify(recentPlays)+!!current();if(sig===recentSignature)return;recentSignature=sig;
+ const sig=JSON.stringify(recentPlays)+!!selected;if(sig===recentSignature)return;recentSignature=sig;
  const root=$('#media-recent-list');root.replaceChildren();
  if(!recentPlays.length){node('p','Songs and videos you open will appear here.',root,'muted');return;}
- for(const track of recentPlays){const b=button((current()?'+ Up next · ':'▶ ')+track.title+' · '+track.channel,root,()=>choose(track),'media-recent-item');b.title=track.title;b.dir='auto';}
+ for(const track of recentPlays){const b=button((selected?'+ Up next · ':'▶ ')+track.title+' · '+track.channel,root,()=>choose(track),'media-recent-item');b.title=track.title;b.dir='auto';}
  button('Clear played history',root,()=>{recentPlays=[];renderRecent();persist();},'media-recent-clear');
 }
 
@@ -84,7 +84,7 @@ async function mount(track,autoplay=true){
  player=new YT.Player(div,{width:'100%',height:'100%',videoId:track.videoId,playerVars:{playsinline:1,origin:location.origin,rel:0,autoplay:0},events:{
  onReady:()=>{if(ticket!==epoch)return;ready=true;player.setVolume?.(savedVolume);positionPlayer();mutedUntil=performance.now()+1200;say('Ready · sound is controlled on your device');if(current()){if(!allowed)player.seekTo(Math.max(0,expected()),true);else applyPlayback(true);}else {if(localStart)player.seekTo(localStart,true);if(allowed&&visible())player.playVideo();}rememberPlayed(track);},
  onStateChange:e=>{if(ticket!==epoch||!ready)return;if(e.data!==player.getPlayerState())return;persist();const previousNative=lastNativeState;lastNativeState=e.data;if(!visible()){if(e.data===1)player.pauseVideo();return;}if(!allowed){if(e.data===1){allowed=true;$('#media-resume').hidden=true;}else return;}if(e.data===3)say('Buffering…');else if(e.data===1)say(current()?.participants.length===2?'Playing together':'Playing on your device');else if(e.data===2)say('Paused');else if(e.data===0)say('Finished · choose the next item');
- if(e.data===0&&current()?.queue.length){advanceQueue();return;}
+ if(e.data===0&&(current()?.queue.length||!current()&&localQueue.length)){advanceQueue();return;}
  if(performance.now()<mutedUntil||busy||!current())return;if(e.data===2&&previousNative===3)return;if([0,1,2].includes(e.data)&&(e.data===1)!==current().playing)publish(e.data===1).catch(fail);},
  onPlaybackRateChange:()=>{if(player?.getPlaybackRate?.()!==1){player?.setPlaybackRate?.(1);say('Shared playback uses normal speed.');}},
  onAutoplayBlocked:()=>{$('#media-resume').hidden=false;say('Tap Resume here to enable sound.');},
@@ -94,7 +94,8 @@ async function mount(track,autoplay=true){
 }
 function applyPlayback(force=false){const m=current();if(!m||!ready||!allowed||!visible()||busy)return;if(loadedId!==m.track.videoId){mount(m.track,true);return;}const target=Math.max(0,expected()),actual=player.getCurrentTime()||0,ps=player.getPlayerState();mutedUntil=performance.now()+900;if(force||Math.abs(actual-target)>3)player.seekTo(target,true);if(m.playing&&ps!==1&&ps!==3)player.playVideo();if(!m.playing&&ps!==2&&ps!==5)player.pauseVideo();lastSample={time:player.getCurrentTime()||target,at:performance.now(),playing:m.playing};}
 async function action(type,data={}){const m=current()||shared;if(!m)throw Error('This session has ended.');if(busy)return;busy=true;try{await host.command(type,{session:m.id,revision:m.revision,...data});await host.sync();}catch(e){await host.sync().catch(()=>{});throw e;}finally{busy=false;applyPlayback();render();}}
-async function advanceQueue(){if(!current()?.queue.length||!ready||!allowed||!visible()||busy||loadedId!==current().track.videoId||player.getPlayerState()!==0)return;try{await action('media.next');}catch{await host.sync().catch(()=>{});}}
+async function nextTrack(){if(current())return action('media.next');if(busy||!localQueue.length)return;const t=localQueue.shift();localStart=0;await mount(t,true);render();}
+async function advanceQueue(){if(!(current()?.queue.length||!current()&&localQueue.length)||!ready||!allowed||!visible()||busy||current()&&loadedId!==current().track.videoId||player.getPlayerState()!==0)return;try{await nextTrack();}catch{await host.sync().catch(()=>{});}}
 async function publish(playing){if(!current()||!ready||!allowed||!visible())return;await action('media.control',{playing,position:Math.min(selected.duration,Math.max(0,player.getCurrentTime()||0))});}
 async function measureClock(){try{const start=Date.now(),r=await host.api('media/clock');clockOffset=r.now-(start+Date.now())/2;}catch{}}
 function render(){
@@ -105,22 +106,23 @@ function render(){
  if(m){selected=m.track;$('#media-title').textContent=m.track.title;$('#media-channel').textContent=m.track.channel;$('#media-session-state').textContent=m.participants.length===2?'Together · '+m.participants.join(' & '):m.invitation&&m.invitation.expires>Date.now()+clockOffset?'Waiting for '+m.invitation.to:'Just you · invite '+other();}
  else $('#media-session-state').textContent=selected?'Only on your device':'Choose something to enjoy';
  $('#media-invite').textContent=hasInvite?'Respond to invitation':'↗ Invite '+other();$('#media-invite').hidden=!selected||!!m&&(m.participants.length===2||m.owner!==who);$('#media-invite').disabled=busy||!!m?.invitation&&m.invitation.expires>Date.now()+clockOffset;
- $('#media-leave').hidden=!m;$('#media-end').hidden=!m;$('#media-next').hidden=!m?.queue.length;$('#media-sync').hidden=!m;$('#media-close').hidden=!selected;$('#media-close').disabled=busy;$('#media-title').title=selected?.title||'';scheduleLayout();
- const sig=m?m.id+':'+JSON.stringify(m.queue):'';if(queueSignature!==sig){queueSignature=sig;const root=$('#media-queue');root.replaceChildren();if(m){node('h3','Up next · '+m.queue.length,root);if(!m.queue.length)node('p','Find another song or paste a link to add it.',root,'muted');for(const t of m.queue){const row=node('div',undefined,root,'media-queue-row');node('span',t.title+' · '+t.by,row);button('Remove',row,()=>action('media.remove',{queueId:t.queueId}));}}}
- $('#media-queue').hidden=!m;renderRecent();persist();
+ $('#media-leave').hidden=!m;$('#media-end').hidden=!m;$('#media-next').hidden=!(m?m.queue.length:localQueue.length);$('#media-sync').hidden=!m;$('#media-close').hidden=!selected;$('#media-close').disabled=busy;$('#media-title').title=selected?.title||'';scheduleLayout();
+ const queue=m?m.queue:localQueue;const sig=(m?m.id:selected?'local':'')+JSON.stringify(queue);if(queueSignature!==sig){queueSignature=sig;const root=$('#media-queue');root.replaceChildren();if(selected){node('h3','Up next · '+queue.length,root);if(!queue.length)node('p','Find another song and tap + Up next. It will play after this one.',root,'muted');for(const [i,t] of queue.entries()){const row=node('div',undefined,root,'media-queue-row');node('span',t.title+(t.by?' · '+t.by:''),row);button('Remove',row,()=>{if(current())return action('media.remove',{queueId:t.queueId});localQueue.splice(i,1);render();});}}}
+ $('#media-queue').hidden=!selected;for(const b of resultButtons)b.textContent=selected?'+ Up next':'Play';renderRecent();persist();
+
 }
-async function invite(){if(busy)return;try{await host.sync();if(current()){await action('media.invite');return;}if(shared?.participants.includes(who)){render();say('Open or end your shared session above first.');return;}if(shared?.invitation?.to===who&&shared.invitation.expires>Date.now()+clockOffset){render();say('Accept or decline the invitation above before sending your own.');$('#media-session-access').scrollIntoView?.({block:'nearest'});return;}if(!selected)return;busy=true;const t=selected;await host.command('media.create',{mode,track:t,position:ready?player.getCurrentTime():0,...(shared?{replaceSession:shared.id,replaceRevision:shared.revision}:{})});await host.sync();if(shared?.owner===who){activeId=shared.id;allowed=true;}say('Invitation sent to '+other()+'.');}catch(e){await host.sync().catch(()=>{});fail(e);}finally{busy=false;applyPlayback(true);render();}}
-async function join(){if(!shared)return;const m=shared;await measureClock();if(m.invitation?.to===who)await action('media.join',{invitation:m.invitation.id});if(!shared||shared.id!==m.id||!shared.participants.includes(who))return;activeId=m.id;mode=shared.mode;host.goto('together');pane().hidden=false;$('#media-entry').hidden=false;setMode(mode);await mount(shared.track,true);render();}
+async function invite(){if(busy)return;try{await host.sync();if(current()){await action('media.invite');return;}if(shared?.participants.includes(who)){render();say('Open or end your shared session above first.');return;}if(shared?.invitation?.to===who&&shared.invitation.expires>Date.now()+clockOffset){render();say('Accept or decline the invitation above before sending your own.');$('#media-session-access').scrollIntoView?.({block:'nearest'});return;}if(!selected)return;busy=true;const t=selected;await host.command('media.create',{mode,track:t,queue:localQueue,position:ready?player.getCurrentTime():0,...(shared?{replaceSession:shared.id,replaceRevision:shared.revision}:{})});await host.sync();if(shared?.owner===who){activeId=shared.id;localQueue=[];allowed=true;}say('Invitation sent to '+other()+'.');}catch(e){await host.sync().catch(()=>{});fail(e);}finally{busy=false;applyPlayback(true);render();}}
+async function join(){if(!shared)return;const m=shared;await measureClock();if(m.invitation?.to===who)await action('media.join',{invitation:m.invitation.id});if(!shared||shared.id!==m.id||!shared.participants.includes(who))return;activeId=m.id;localQueue=[];mode=shared.mode;host.goto('together');pane().hidden=false;$('#media-entry').hidden=false;setMode(mode);await mount(shared.track,true);render();}
 function setMode(){mode='video';$('#media-heading').textContent='Watch & Listen';$('#media-search-label').textContent='Search YouTube or paste a link';$('#media-query').placeholder='Song, video, artist, or YouTube link…';$('#media-find').textContent='Find';$('#media-query').maxLength=2048;}
-async function choose(t){if(current()){await action('media.enqueue',{track:t});say('Added to Up next · plays after the current song.');await advanceQueue();}else{if(shared?.participants.includes(who)){render();$('#media-session-access').scrollIntoView?.({block:'nearest'});say('Use Open session to return, or End session for both to start a new one.');return;}localStart=0;$('#media-results').replaceChildren();await mount(t,true);$('#media-player-area').scrollIntoView?.({block:'nearest'});render();}}
-async function find(e){e.preventDefault();const q=$('#media-query').value.trim();if(!q)return;const ticket=++searchEpoch;$('#media-find').disabled=true;const isLink=/^(https?:\/\/|(?:www\.|m\.|music\.)?youtube\.com\/|youtu\.be\/)/i.test(q);say(isLink?'Checking video…':'Searching YouTube…');const root=$('#media-results');root.replaceChildren();try{let items;if(isLink){const r=await host.api('media/resolve?url='+encodeURIComponent(q));items=[r.track];}else{const r=await host.api('media/search?q='+encodeURIComponent(q));items=r.items;}if(ticket!==searchEpoch)return;persist();if(isLink&&!current()){await choose(items[0]);say('Press play, then invite '+other()+'.');return;}say(items.length?'Choose a result'+(current()?' to play after the current song.':'.'):'No playable results. Try another name.');for(const t of items){const row=node('article',undefined,root,'media-result');const img=node('img',undefined,row);img.src='https://i.ytimg.com/vi/'+t.videoId+'/mqdefault.jpg';img.alt='';img.loading='lazy';const text=node('div',undefined,row);node('strong',t.title,text).dir='auto';node('small',t.channel+' · '+time(t.duration),text).dir='auto';button(current()?'+ Up next':'Play',row,()=>choose(t));}}catch(e){if(ticket===searchEpoch)fail(e);}finally{if(ticket===searchEpoch)$('#media-find').disabled=false;}}
+async function choose(t){if(current()){await action('media.enqueue',{track:t});say('Added to Up next · plays after the current song.');await advanceQueue();}else{if(shared?.participants.includes(who)){render();$('#media-session-access').scrollIntoView?.({block:'nearest'});say('Use Open session to return, or End session for both to start a new one.');return;}if(selected){if(localQueue.length>=20)throw Error('The queue has 20 videos. Remove one first.');localQueue.push(t);render();say('Added to Up next · plays after the current song.');await advanceQueue();return;}localStart=0;$('#media-results').replaceChildren();resultButtons=[];await mount(t,true);$('#media-player-area').scrollIntoView?.({block:'nearest'});render();}}
+async function find(e){e.preventDefault();const q=$('#media-query').value.trim();if(!q)return;const ticket=++searchEpoch;$('#media-find').disabled=true;const isLink=/^(https?:\/\/|(?:www\.|m\.|music\.)?youtube\.com\/|youtu\.be\/)/i.test(q);say(isLink?'Checking video…':'Searching YouTube…');const root=$('#media-results');root.replaceChildren();resultButtons=[];scheduleLayout();try{let items;if(isLink){const r=await host.api('media/resolve?url='+encodeURIComponent(q));items=[r.track];}else{const r=await host.api('media/search?q='+encodeURIComponent(q));items=r.items;}if(ticket!==searchEpoch)return;persist();if(isLink&&!selected){await choose(items[0]);say('Press play, then invite '+other()+'.');return;}say(items.length?'Choose a result'+(selected?' to play after the current song.':'.'):'No playable results. Try another name.');for(const t of items){const row=node('article',undefined,root,'media-result');const img=node('img',undefined,row);img.src='https://i.ytimg.com/vi/'+t.videoId+'/mqdefault.jpg';img.alt='';img.loading='lazy';const text=node('div',undefined,row);node('strong',t.title,text).dir='auto';node('small',t.channel+' · '+time(t.duration),text).dir='auto';resultButtons.push(button(selected?'+ Up next':'Play',row,()=>choose(t)));}}catch(e){if(ticket===searchEpoch)fail(e);}finally{if(ticket===searchEpoch)$('#media-find').disabled=false;scheduleLayout();}}
 function init(options){host=options;
  window.addEventListener('pagehide',persist);
 
  $('#our-place-trial').append($('#media-player-box'));$('#media-player-box').hidden=true;
  document.addEventListener('scroll',scheduleLayout,true);window.addEventListener('resize',scheduleLayout);
  window.visualViewport?.addEventListener('resize',scheduleLayout);window.visualViewport?.addEventListener('scroll',scheduleLayout);
- if(typeof ResizeObserver!=='undefined'){const layoutObserver=new ResizeObserver(scheduleLayout);layoutObserver.observe($('#media-player-anchor'));layoutObserver.observe($('#our-place-trial'));}
+ if(typeof ResizeObserver!=='undefined'){const layoutObserver=new ResizeObserver(scheduleLayout);layoutObserver.observe($('#media-player-anchor'));layoutObserver.observe($('#our-place-trial'));layoutObserver.observe($('#media-results'));layoutObserver.observe($('#media-panel'));layoutObserver.observe($('#media-session-access'));}
  $('#media-more').onkeydown=e=>{if(e.key==='Escape'){$('#media-more').open=false;}};
  $('#media-title').onclick=()=>{$('#media-title').classList.toggle('media-title-open');scheduleLayout();};
  $('#media-title').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('#media-title').onclick();}};
@@ -136,10 +138,10 @@ $('#media-search').onsubmit=find;document.querySelectorAll('[data-media-mode]').
  $('#media-play').onclick=()=>{if(!ready)return;allowed=true;$('#media-resume').hidden=true;if(current()){publish(player.getPlayerState()!==1).catch(fail);}else player.getPlayerState()===1?player.pauseVideo():player.playVideo();};
  $('#media-resume').onclick=()=>{allowed=true;$('#media-resume').hidden=true;mutedUntil=performance.now()+1000;if(!ready&&selected)mount(selected,true);else if(current())applyPlayback(true);else player?.playVideo?.();};
  $('#media-sync').onclick=async()=>{await measureClock();allowed=true;$('#media-resume').hidden=true;applyPlayback(true);say('Synchronized to the shared session.');};
- $('#media-next').onclick=()=>action('media.next').catch(fail);
+ $('#media-next').onclick=()=>nextTrack().catch(fail);
  $('#media-leave').onclick=async()=>{try{await action('media.leave');activeId=null;destroy();selected=null;$('#media-player-area').hidden=true;render();}catch(e){fail(e);}};
  $('#media-end').onclick=async()=>{try{await action('media.end');activeId=null;destroy();selected=null;$('#media-player-area').hidden=true;render();}catch(e){fail(e);}};
- $('#media-close').onclick=async()=>{if(busy)return;try{if(current()){stopLocal();await action('media.leave');}activeId=null;selected=null;localStart=0;destroy();pane().hidden=appTab==='chat';$('#media-player-area').hidden=true;$('#media-more').open=false;render();}catch(e){fail(e);}};
+ $('#media-close').onclick=async()=>{if(busy)return;try{if(current()){stopLocal();await action('media.leave');}activeId=null;selected=null;localQueue=[];localStart=0;destroy();pane().hidden=appTab==='chat';$('#media-player-area').hidden=true;$('#media-more').open=false;render();}catch(e){fail(e);}};
  $('#media-collapse').onclick=()=>{stopLocal();pane().hidden=true;$('#media-recent').open=false;positionPlayer();render();};
 
  $('#media-chat').onclick=()=>host.goto(appTab==='chat'?'together':'chat');
@@ -155,5 +157,5 @@ window.OurMedia={async openNotification(target={}){host.goto('together');pane().
  pane().classList.toggle('media-in-chat',next==='chat');pane().classList.remove('media-expanded');
  $('#media-expand').textContent='Enlarge';$('#media-chat').textContent=next==='chat'?'Find more':'Chat alongside';
  positionPlayer();scheduleLayout();if(!visible())stopLocal();persist();
-},reset(){persist();restored=false;restoring=false;recentPlays=[];recentSignature='';$('#media-recent').open=false;$('#media-recent-list').replaceChildren();chatHeight=200;localStart=0;savedVolume=70;seenVersion=-1;destroy();activeId=null;selected=null;shared=null;who=null;busy=false;searchEpoch++;$('#media-query').value='';$('#media-results').replaceChildren();$('#media-player-area').hidden=true;$('#media-invitation').hidden=true;noticeSignature='';queueSignature='';pane().hidden=true;}};
+},reset(){persist();restored=false;restoring=false;recentPlays=[];recentSignature='';$('#media-recent').open=false;$('#media-recent-list').replaceChildren();chatHeight=200;localStart=0;localQueue=[];resultButtons=[];savedVolume=70;seenVersion=-1;destroy();activeId=null;selected=null;shared=null;who=null;busy=false;searchEpoch++;$('#media-query').value='';$('#media-results').replaceChildren();$('#media-player-area').hidden=true;$('#media-invitation').hidden=true;noticeSignature='';queueSignature='';pane().hidden=true;}};
 })();

@@ -19,8 +19,8 @@ export function mediaChange(s,who,type,p={},now=Date.now()){
   const old=s.media;
   const replaceable=old&&old.participants.length===1&&!old.participants.includes(who)&&(!old.invitation||old.invitation.expires<=now)&&p.replaceSession===old.id&&p.replaceRevision===old.revision;
   need(!old||replaceable,'End the current shared session before inviting to another one.',409);
-  need(['video','music'].includes(p.mode),'Choose video or music.');const t=track(p.track);
-  s.media={id:randomUUID(),revision:1,owner:who,mode:p.mode,track:t,queue:[],participants:[who],invitation:{id:randomUUID(),to:who==='Mahmoud'?'Safy':'Mahmoud',expires:now+600000},position:Math.min(t.duration,Math.max(0,Number(p.position)||0)),playing:false,updatedAt:now};
+  need(['video','music'].includes(p.mode),'Choose video or music.');const t=track(p.track);need(p.queue===undefined||Array.isArray(p.queue)&&p.queue.length<=20,'The queue supports up to 20 videos.');const queue=(p.queue??[]).map(t=>({...track(t),queueId:randomUUID(),by:who}));
+  s.media={id:randomUUID(),revision:1,owner:who,mode:p.mode,track:t,queue,participants:[who],invitation:{id:randomUUID(),to:who==='Mahmoud'?'Safy':'Mahmoud',expires:now+600000},position:Math.min(t.duration,Math.max(0,Number(p.position)||0)),playing:false,updatedAt:now};
  }else{
   const m=s.media;need(m&&m.id===p.session,'This listening session has ended. Open the current session.',409);
   if(type==='media.join'||type==='media.decline'){

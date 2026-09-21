@@ -212,10 +212,11 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         check(mime,'Use a JPG, PNG, WebP or GIF.');const total=store.db.prepare('SELECT COALESCE(SUM(length(bytes)),0) AS n FROM photos').get().n;check(total+bytes.length<=150*1024*1024,'Photo storage is full.',413);const id=randomUUID();store.db.prepare('INSERT INTO photos VALUES(?,?,?,?)').run(id,mime,bytes,new Date().toISOString());store.db.prepare('INSERT INTO photo_owners VALUES(?,?)').run(id,who);return send(res,201,{id});
       }
       if(path==='/api/command'&&req.method==='POST'){
-        const p=await body(req,32000);if(p.type==='draw.stroke')limit('draw-stroke:'+who,360);else limit('command:'+who,90);let verifiedTrack;
+        const p=await body(req,32000);if(p.type==='draw.stroke')limit('draw-stroke:'+who,360);else limit('command:'+who,90);let verifiedTrack,verifiedQueue;
         if(['media.create','media.enqueue','media.play'].includes(p.type)){limit('youtube:'+who,12);verifiedTrack=await youtube.resolve(p.data?.track?.videoId);}
+        if(p.type==='media.create'&&p.data?.queue!==undefined){check(Array.isArray(p.data.queue)&&p.data.queue.length<=20,'The queue supports up to 20 videos.');verifiedQueue=await Promise.all(p.data.queue.map(t=>youtube.resolve(t?.videoId)));}
         const result=store.once(who,p.id,p,()=>{
-          const s=store.state();const data={...(p.data??{})};
+          const s=store.state();const data={...(p.data??{})};if(verifiedQueue)data.queue=verifiedQueue;
           if(p.type?.startsWith('draw.')){
             if(p.type==='draw.prepare'){check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);check(!s.pauses.length||data.once===true,'Echo is paused. Choose Ask Echo once.',409);const m=drawState(s).match;check(m?.id===data.id&&m.status==='preparing'&&!m.pending,'Match changed or Echo is already preparing.',409);const id=store.reserve(who,'shared',{purpose:'draw',matchId:m.id,context:{language:m.language,difficulty:m.difficulty}});m.pending=id;m.error=null;s.version++;store.save(s);return {job:id};}
             const pending=s.draw?.match?.pending;const result=drawChange(s,who,p.type,data);store.save(s);if(pending&&!s.draw.match.pending){store.status(pending,'cancelled');running.get(pending)?.controller.abort();}return p.type==='draw.stroke'?{...result,segment:strokeEvent(s,data)}:result;

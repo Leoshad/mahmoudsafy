@@ -170,3 +170,23 @@ for(const chooser of ['Mahmoud','Safy'])test('queue from Do Together preserves c
  c.get('#media-chat').onclick();const oldA=a.player(),oldB=b.player();oldA.ps=0;oldA.config.events.onStateChange({data:0});oldB.ps=0;oldB.config.events.onStateChange({data:0});await settle();await settle();
  assert.equal(room.media.id,id);assert.deepEqual(room.media.participants,['Mahmoud','Safy']);assert.equal(room.media.track.videoId,song.videoId);assert.equal(room.media.queue.length,1);assert.equal(room.media.playing,true);assert.equal(a.player().config.videoId,song.videoId);assert.equal(b.player().config.videoId,song.videoId);assert.equal(c.get('#media-panel').classList.contains('media-in-chat'),true);
 });
+
+test('local Up next preserves playback, survives reload, removes items and advances without invitations',async()=>{
+ const storage=new Map(),a=client('Mahmoud',initial(),[],storage);
+ a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';await a.get('#media-search').onsubmit({preventDefault(){}});await settle();
+ const first=a.player();first.time=80;
+ a.get('#media-query').value='Next';await a.get('#media-search').onsubmit({preventDefault(){}});
+ const add=a.get('#media-results').children[0].children.find(n=>n.textContent==='+ Up next');assert.ok(add);await add.onclick();await add.onclick();assert.equal(a.player(),first);assert.equal(first.time,80);assert.equal(a.commands(),0);assert.equal(a.get('#media-queue').hidden,false);
+ await a.get('#media-queue').children[1].children.find(n=>n.textContent==='Remove').onclick();a.pagehide();assert.equal(JSON.parse(storage.get('our-place:media:v1:Mahmoud')).queue.length,1);
+ const b=client('Mahmoud',initial(),[],storage);await settle();await settle();assert.match(b.get('#media-queue').children[0].textContent,/1/);assert.equal(b.player().ps,5);
+ b.get('#media-resume').onclick();const before=b.player();before.ps=0;before.config.events.onStateChange({data:0});await settle();await settle();assert.notEqual(b.player(),before);assert.equal(b.player().ps,1);assert.equal(b.commands(),0);assert.match(b.get('#media-queue').children[0].textContent,/0/);
+ await b.get('#media-close').onclick();assert.equal(b.get('#media-queue').hidden,true);
+});
+test('local queue transfers with invitation and search changes reposition existing player',async()=>{
+ const room=initial(),clients=[],a=client('Mahmoud',room,clients);
+ a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';await a.get('#media-search').onsubmit({preventDefault(){}});await settle();
+ const first=a.player();a.get('#media-player-anchor').rect.top=650;
+ a.get('#media-query').value='Next';await a.get('#media-search').onsubmit({preventDefault(){}});await settle();assert.equal(a.get('#media-player-box').style.top,'650px');assert.equal(a.player(),first);
+ await a.get('#media-results').children[0].children.find(n=>n.textContent==='+ Up next').onclick();await a.get('#media-invite').onclick();assert.equal(room.media.queue.length,1);assert.equal(room.media.queue[0].by,'Mahmoud');
+ const b=client('Safy',room,clients);await b.get('#media-invitation').children.find(n=>n.textContent==='Join').onclick();await settle();assert.match(b.get('#media-queue').children[0].textContent,/1/);
+});

@@ -51,9 +51,9 @@ test('media HTTP authenticates both users, verifies metadata, deduplicates and b
  assert.equal((await request('none','media/search?q=Example')).status,401);
  for(const who of ['mahmoud','safy'])await request(who,'login',{email:who+'@example.test',password:'test'});
  assert.equal((await request('mahmoud','media/search?q=Example')).data.items[0].title,song.title);
- const id=randomUUID(),payload={mode:'music',track:{...song,title:'Forged title'}};
+ const id=randomUUID(),payload={mode:'music',track:{...song,title:'Forged title'},queue:[{...song,title:'Forged queued title'}]};
  const once={id,type:'media.create',data:payload};assert.equal((await request('mahmoud','command',once)).status,200);assert.equal((await request('mahmoud','command',once)).status,200);
- assert.equal(store.state().media.track.title,song.title);
+ assert.equal(store.state().media.track.title,song.title);assert.equal(store.state().media.queue[0].title,song.title);
  assert.equal((await command('safy','media.control',{position:0,playing:true})).status,403);
  const controller=new AbortController(),sse=await fetch(base+'/api/events',{headers:{Cookie:cookies.mahmoud},signal:controller.signal}),reader=sse.body.getReader();await reader.read();
  const invite=store.state().media.invitation.id;assert.equal((await command('safy','media.join',{invitation:invite})).status,200);
