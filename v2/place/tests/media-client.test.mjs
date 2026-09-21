@@ -161,10 +161,12 @@ test('valid incoming invitation requires response; declining permits sending own
  await a.get('#media-session-access').children.find(n=>n.textContent==='Decline').onclick();await a.get('#media-invite').onclick();assert.equal(room.media.owner,'Mahmoud');assert.notEqual(room.media.id,old);
 });
 
-test('picking another song from chat keeps both partners in same session and mounts the new track',async()=>{
+for(const chooser of ['Mahmoud','Safy'])test('queue from Do Together preserves chat size and advances after song ends: '+chooser,async()=>{
  const room=initial();mediaChange(room,'Mahmoud','media.create',{mode:'video',track:{...song,videoId:'abcdefghijk',title:'Previous song'}});mediaChange(room,'Safy','media.join',{session:room.media.id,invitation:room.media.invitation.id});const id=room.media.id;
- const clients=[],a=client('Mahmoud',room,clients),b=client('Safy',room,clients);await a.context.OurMedia.openNotification();await b.context.OurMedia.openNotification();await settle();a.get('#media-chat').onclick();a.get('#media-chat').onclick();assert.equal(a.get('#media-panel').classList.contains('media-choosing'),true);
- a.get('#media-query').value='Next song';await a.get('#media-search').onsubmit({preventDefault(){}});
- const row=a.get('#media-results').children[0];assert.ok(row.children.find(n=>n.textContent==='+ Queue'));await row.children.find(n=>n.textContent==='Play now').onclick();await settle();
- assert.equal(room.media.id,id);assert.deepEqual(room.media.participants,['Mahmoud','Safy']);assert.equal(room.media.track.videoId,song.videoId);assert.equal(room.media.playing,true);assert.equal(a.player().config.videoId,song.videoId);assert.equal(b.player().config.videoId,song.videoId);assert.equal(a.get('#media-panel').classList.contains('media-in-chat'),true);assert.equal(a.get('#media-panel').classList.contains('media-choosing'),false);
+ const clients=[],a=client('Mahmoud',room,clients),b=client('Safy',room,clients);await a.context.OurMedia.openNotification();await b.context.OurMedia.openNotification();await settle();
+ const c=chooser==='Mahmoud'?a:b;c.get('#media-chat').onclick();assert.equal(c.get('#media-panel').classList.contains('media-in-chat'),true);c.get('#media-chat').onclick();assert.equal(c.get('#media-panel').classList.contains('media-in-chat'),false);
+ c.get('#media-query').value='Next song';await c.get('#media-search').onsubmit({preventDefault(){}});await c.get('#media-results').children[0].children.find(n=>n.textContent==='+ Up next').onclick();await settle();
+ assert.equal(room.media.track.videoId,'abcdefghijk');assert.equal(room.media.queue.length,1);assert.equal(a.player().config.videoId,'abcdefghijk');assert.equal(b.player().config.videoId,'abcdefghijk');await c.get('#media-results').children[0].children.find(n=>n.textContent==='+ Up next').onclick();assert.equal(room.media.queue.length,2);
+ c.get('#media-chat').onclick();const oldA=a.player(),oldB=b.player();oldA.ps=0;oldA.config.events.onStateChange({data:0});oldB.ps=0;oldB.config.events.onStateChange({data:0});await settle();await settle();
+ assert.equal(room.media.id,id);assert.deepEqual(room.media.participants,['Mahmoud','Safy']);assert.equal(room.media.track.videoId,song.videoId);assert.equal(room.media.queue.length,1);assert.equal(room.media.playing,true);assert.equal(a.player().config.videoId,song.videoId);assert.equal(b.player().config.videoId,song.videoId);assert.equal(c.get('#media-panel').classList.contains('media-in-chat'),true);
 });
