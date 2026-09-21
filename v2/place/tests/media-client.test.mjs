@@ -128,3 +128,20 @@ for(const who of ['Mahmoud','Safy'])test('accepted chat invitation mounts shared
  await receiver.context.OurMedia.openNotification();await settle();
  assert.equal(receiver.made(),1,'reopening preserves existing player');
 });
+
+test('hidden old session offers visible in-panel recovery and ending permits fresh invitation',async()=>{
+ const room=initial();mediaChange(room,'Safy','media.create',{mode:'video',track:song});
+ mediaChange(room,'Mahmoud','media.join',{session:room.media.id,invitation:room.media.invitation.id});
+ const old=room.media.id,clients=[],a=client('Mahmoud',room,clients),b=client('Safy',room,clients);
+ const access=a.get('#media-session-access');assert.equal(access.hidden,false);
+ assert.ok(access.children.find(n=>n.textContent==='Open session'));
+ await access.children.find(n=>n.textContent==='End session for both').onclick();
+ assert.equal(room.media,null);assert.equal(access.hidden,true);
+ b.context.OurMedia.tab('together');b.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';
+ await b.get('#media-search').onsubmit({preventDefault(){}});await settle();
+ await b.get('#media-invite').onclick();assert.notEqual(room.media.id,old);
+ await a.context.OurMedia.openNotification();
+ const accept=a.get('#media-session-access').children.find(n=>n.textContent==='Accept');assert.ok(accept);
+ await accept.onclick();await settle();assert.equal(a.made(),1);
+ assert.deepEqual(room.media.participants,['Safy','Mahmoud']);
+});
