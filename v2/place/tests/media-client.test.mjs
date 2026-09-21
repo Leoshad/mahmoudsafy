@@ -110,3 +110,21 @@ test('played history persists, reopens a closed video, and direct close leaves o
  await a.get('#media-close').onclick();assert.deepEqual(room.media.participants,['Safy']);assert.equal(a.get('#media-player-box').hidden,true);assert.equal(b.made(),1);
  a.get('#media-collapse').onclick();assert.equal(a.get('#media-panel').hidden,true);
 });
+
+for(const who of ['Mahmoud','Safy'])test('accepted chat invitation mounts shared video for '+who,async()=>{
+ const room=initial(),owner=who==='Mahmoud'?'Safy':'Mahmoud';
+ mediaChange(room,owner,'media.create',{mode:'video',track:song,position:42});
+ const receiver=client(who,room,[]);
+ await receiver.context.OurMedia.openNotification();await settle();
+ assert.equal(receiver.made(),0,'opening an unaccepted invitation does not join');
+ mediaChange(room,who,'media.join',{session:room.media.id,invitation:room.media.invitation.id});
+ receiver.sync();
+ await receiver.context.OurMedia.openNotification();await settle();
+ assert.equal(receiver.made(),1);
+ assert.equal(receiver.player().time,42);
+ assert.equal(receiver.get('#media-player-area').hidden,false);
+ receiver.player().config.events.onAutoplayBlocked();
+ assert.equal(receiver.get('#media-resume').hidden,false);
+ await receiver.context.OurMedia.openNotification();await settle();
+ assert.equal(receiver.made(),1,'reopening preserves existing player');
+});
