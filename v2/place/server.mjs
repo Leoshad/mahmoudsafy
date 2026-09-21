@@ -72,7 +72,8 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
     s.proposals=store.db.prepare("SELECT id,actor,scope,body FROM jobs WHERE status='done' ORDER BY createdAt DESC LIMIT 20").all().flatMap(j=>{const b=JSON.parse(j.body);return j.scope==='shared'&&j.actor===who&&!b.accepted?(b.proposals??[]).flatMap((p,index)=>[...(b.acceptedIndices??[]),...(b.dismissedIndices??[])].includes(index)||p.type!=='item'?[]:[{job:j.id,index,type:p.type,title:p.title,count:p.questions?.length,itemType:p.itemType}]):[];});return s;}
   function emit(event,data,who){for(const [res,meta] of streams){if(!who||meta.who===who)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);}}
   let presenceTimer=null;
-  function publishPresence(delayed=false){clearTimeout(presenceTimer);const publish=()=>emit('presence',{online:[...new Set([...streams.values()].map(v=>v.who))]});if(delayed){presenceTimer=setTimeout(publish,1500);presenceTimer.unref();}else publish();}
+  function publishPresence(delayed=false){clearTimeout(presenceTimer);const publish=()=>emit('presence',{online:['Mahmoud','Safy'].filter(who=>notifications.visible(who))});if(delayed){presenceTimer=setTimeout(publish,1500);presenceTimer.unref();}else publish();}
+  const presenceSweep=setInterval(()=>publishPresence(),1000);presenceSweep.unref();
   function refresh(actor){try{notifications.scan(actor);}catch{console.error('Notification update failed.');}for(const [res,meta]of streams)res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}
   function cancel(who,all=false){for(const [id,job]of running)if(all&&job.scope==='shared'||job.actor===who){store.status(id,'cancelled');job.controller.abort();}}
   function saveWallReply(post,id,value,status){const s=store.state(),item=s.items.find(i=>i.id===post),c=item?.comments?.find(c=>c.id===id);if(!c)return;c.text=value;c.status=status;if(status!=='streaming')item.revision++;store.save(s);}
@@ -163,7 +164,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         const data=await body(req,8000);
         if(path.endsWith('/status'))return send(res,200,{registered:notifications.registered(who,req.sessionId,data.endpoint)});
         if(path.endsWith('/read')){notifications.readInbox(who,data.id);refresh(who);return send(res,200,{ok:true});}
-        if(path.endsWith('/presence'))notifications.presence(who,req.sessionId,data);
+        if(path.endsWith('/presence')){notifications.presence(who,req.sessionId,data);publishPresence();}
         else if(path.endsWith('/subscribe')){limit('push:'+who,30);notifications.subscribe(who,req.sessionId,data);}
         else if(path.endsWith('/unsubscribe'))notifications.unsubscribe(who,data.endpoint);
         else if(path.endsWith('/test')){limit('push-test:'+who,3,60000);notifications.test(who,req.sessionId,data.endpoint);}
@@ -289,7 +290,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   const raceTimer=setInterval(()=>{try{race.tick();}catch{console.error('Race update failed.');}},16);raceTimer.unref();
   const pushTimer=setInterval(()=>notifications.drain().catch(()=>console.error('Notification delivery failed.')),250);pushTimer.unref();
   const dailyTimer=setInterval(()=>daily.tick().catch(()=>console.error('Daily Echo update failed.')),15000);dailyTimer.unref();
-  server.on('close',()=>{clearInterval(raceTimer);clearInterval(raceSaveTimer);saveRaces();clearInterval(dailyTimer);daily.stop();clearTimeout(presenceTimer);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
+  server.on('close',()=>{clearInterval(raceTimer);clearInterval(raceSaveTimer);saveRaces();clearInterval(dailyTimer);daily.stop();clearTimeout(presenceTimer);clearInterval(presenceSweep);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});
