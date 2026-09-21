@@ -35,7 +35,9 @@
 .profile-frame-ring[data-frame=unwell] svg>g{animation:frame-soft-light 4.5s ease-in-out infinite}
 .profile-frame-ring[data-frame=tired] svg>path:last-child{animation:frame-soft-light 4s ease-in-out infinite}
 .profile-frame-ring[data-frame=space] svg>path:first-child{animation:frame-breathe 6s ease-in-out infinite}
-.profile-frame-ring[data-frame=busy] svg>path:last-child{transform-box:view-box;transform-origin:50px 89px;animation:frame-clock 8s linear infinite}
+.frame-busy-minute{transform-box:view-box;transform-origin:84px 86px;animation:frame-clock 12s linear infinite}
+.frame-busy-halo{transform-box:fill-box;transform-origin:center;animation:frame-busy-pressure 3.6s ease-in-out infinite}
+@keyframes frame-busy-pressure{0%,100%{opacity:.18;transform:scale(.95)}50%{opacity:.55;transform:scale(1.08)}}
 .profile-frame-ring[data-frame=busy] svg>path:first-child{animation:frame-soft-light 4s ease-in-out infinite}
 .frame-happy-cloud{animation:frame-cloud 5s ease-in-out infinite}.frame-happy-spark{animation:frame-soft-light 3.5s ease-in-out infinite}
 .profile-frame-ring[data-frame=birthday] svg>path:last-child{transform-origin:bottom;animation:frame-flame 2.8s ease-in-out infinite}
