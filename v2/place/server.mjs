@@ -206,9 +206,9 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       }
       if(path.startsWith('/api/photos/')&&req.method==='GET'){const id=path.split('/').pop(),p=store.db.prepare('SELECT * FROM photos WHERE id=?').get(id);check(p,'Photo not found.',404);res.writeHead(200,{'Content-Type':p.mime,'Content-Length':p.bytes.length});return res.end(Buffer.from(p.bytes));}
       if(path==='/api/photos'&&req.method==='POST'){
-        limit('photo:'+who,10);const p=await body(req);const bytes=Buffer.from(p.data??'','base64');check(bytes.length>0&&bytes.length<=1024*1024,'Use a photo up to 1 MB after resizing.');
-        const mime=bytes[0]===255&&bytes[1]===216&&bytes[2]===255?'image/jpeg':bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'image/webp':null;
-        check(mime,'Use a JPG, PNG or WebP photo.');const total=store.db.prepare('SELECT COALESCE(SUM(length(bytes)),0) AS n FROM photos').get().n;check(total+bytes.length<=150*1024*1024,'Photo storage is full.',413);const id=randomUUID();store.db.prepare('INSERT INTO photos VALUES(?,?,?,?)').run(id,mime,bytes,new Date().toISOString());store.db.prepare('INSERT INTO photo_owners VALUES(?,?)').run(id,who);return send(res,201,{id});
+        limit('photo:'+who,10);const p=await body(req);const bytes=Buffer.from(p.data??'','base64');const gif=['GIF87a','GIF89a'].includes(bytes.toString('ascii',0,6));check(bytes.length>0&&bytes.length<=(gif?5:1)*1024*1024,gif?'Use a GIF up to 5 MB.':'Use a photo up to 1 MB after resizing.');
+        const mime=gif?'image/gif':bytes[0]===255&&bytes[1]===216&&bytes[2]===255?'image/jpeg':bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'image/webp':null;
+        check(mime,'Use a JPG, PNG, WebP or GIF.');const total=store.db.prepare('SELECT COALESCE(SUM(length(bytes)),0) AS n FROM photos').get().n;check(total+bytes.length<=150*1024*1024,'Photo storage is full.',413);const id=randomUUID();store.db.prepare('INSERT INTO photos VALUES(?,?,?,?)').run(id,mime,bytes,new Date().toISOString());store.db.prepare('INSERT INTO photo_owners VALUES(?,?)').run(id,who);return send(res,201,{id});
       }
       if(path==='/api/command'&&req.method==='POST'){
         const p=await body(req,32000);if(p.type==='draw.stroke')limit('draw-stroke:'+who,360);else limit('command:'+who,90);let verifiedTrack;
