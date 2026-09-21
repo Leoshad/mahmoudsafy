@@ -422,9 +422,9 @@ html,body{overscroll-behavior-y:auto}
 
 /* Chat hold opens our actions, without native text selection/callout. */
 #our-place-trial #feed .message .bubble{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-.chat-reaction-picker{max-width:calc(100vw - 16px);box-sizing:border-box}
+.chat-reaction-picker{width:366px;max-width:calc(100vw - 16px);box-sizing:border-box;flex-wrap:nowrap;align-items:center}
 .chat-reaction-picker button{flex:0 1 44px;min-width:0}
-.chat-reaction-picker .chat-copy{color:#d6b777;display:grid;place-items:center}
+.chat-reaction-picker .chat-copy,.chat-reaction-picker .chat-reply{color:#d6b777;display:grid;place-items:center}
 .chat-reaction-picker .chat-copy:disabled{opacity:.35}
 
 /* Quiet feedback in the existing bottom inset; no reserved strip or layout shift. */

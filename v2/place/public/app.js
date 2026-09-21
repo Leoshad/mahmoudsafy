@@ -359,7 +359,7 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden)recoverCon
 window.addEventListener('offline',()=>{source?.close();source=null;typingUntil=0;if(state){paintTyping();paintPresence(false);window.OurMedia?.connection(false);}});
 setInterval(()=>{if(!connectionWanted||document.hidden||navigator.onLine===false)return;if(!state||!source||source.readyState===2||Date.now()-lastEvent>45000)recoverConnection();else drainOutbox();},8000);
 window.OurChatTools?.init({api,insert:()=>paintFeed(),clear:()=>{if(state)paintFeed();},stopReading:()=>{readingHold?.stop();readingRestoring=false;}});
-window.OurComfort?.init({refresh:async()=>{saveReading();location.reload();},sync:async()=>{const hold=tab==='chat'?PlaceScroll.hold($('#timeline')):null;try{await sync();if(state&&source?.readyState!==1)connect();}finally{hold?.restore();}},command,api,info: t=>error(t)});
+window.OurComfort?.init({reply:message=>{reply=message;paintReply();$('#compose').focus();},refresh:async()=>{saveReading();location.reload();},sync:async()=>{const hold=tab==='chat'?PlaceScroll.hold($('#timeline')):null;try{await sync();if(state&&source?.readyState!==1)connect();}finally{hold?.restore();}},command,api,info: t=>error(t)});
 const revealPanel=selector=>PlaceScroll.reveal($('.shell'),$(selector));
 window.OurBuzz?.init({api,info: t=>error(t)});
 window.OurDraw?.init({api,command,sync,goto,revealPanel});window.OurOcho?.init({command,sync,goto,revealPanel});window.OurDomino?.init({command,sync,goto,revealPanel});
