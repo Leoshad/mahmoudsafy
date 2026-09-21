@@ -48,3 +48,16 @@ test('legacy stuck bookmark is ignored without deleting conversation data',async
  const again=open(store);await again.c.restoreReading();assert.equal(again.restored().end,true);
  assert.ok(store.has('our-place:reading:v1:Mahmoud'));
 });
+
+test('returning from Together restores bookmark after hidden timeline loses its scroll offset',async()=>{
+ for(const end of [false,true]){
+  const store=new Map(),h=open(store);h.setMark({id:'old-photo',offset:-18,top:1600,end});
+  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{scrollTop:0,hidden:false});return nodes.get(id);};
+  const timeline={getClientRects:()=>node('#chat').hidden?[]:[1],querySelectorAll:()=>[{dataset:{message:'old-photo'}}]};
+  h.c.$=id=>id==='#timeline'?timeline:node(id);
+  Object.assign(h.c,{tabPositions:{},history:{pushState(){}},sendTyping(){},historyHold:null,activities:()=>[],paint(){h.setMark({id:'wrong-after-layout',offset:0,top:0,end:false});},error(e){throw e;},document:{querySelectorAll:()=>[]}});
+  vm.runInContext(app.slice(app.indexOf('function goto('),app.indexOf("if('scrollRestoration' in history)")),h.c);
+  await h.c.restoreReading();h.events.touchstart();h.c.goto('together');h.setMark({id:'wrong-after-layout',offset:0,top:0,end:false});
+  h.c.goto('chat');await Promise.resolve();assert.equal(h.restored().id,'old-photo');assert.equal(h.restored().top,1600);assert.equal(h.restored().end,end);
+ }
+});
