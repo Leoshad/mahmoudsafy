@@ -85,3 +85,9 @@ test('either participant can replace playing or finished track without ending se
  apply(s,'Mahmoud','media.enqueue',{track:song});
  for(const who of ['Mahmoud','Safy']){apply(s,who,'media.control',{position:song.duration,playing:false});apply(s,who,'media.play',{track:{...song,videoId:'abcdefghijk',title:'Next song'}});assert.equal(s.media.id,id);assert.deepEqual(s.media.participants,['Mahmoud','Safy']);assert.equal(s.media.position,0);assert.equal(s.media.playing,true);assert.equal(s.media.invitation,null);assert.equal(s.media.queue.length,1);}
 });
+
+test('queue prevents duplicate video entries and removes legacy duplicates together',()=>{
+ const s=initial();apply(s,'Mahmoud','media.create',{mode:'video',track:song});apply(s,'Safy','media.join',{invitation:s.media.invitation.id});
+ apply(s,'Mahmoud','media.enqueue',{track:song});apply(s,'Safy','media.enqueue',{track:song});assert.equal(s.media.queue.length,1);
+ s.media.queue.push({...s.media.queue[0],queueId:'legacy-duplicate'});apply(s,'Safy','media.remove',{queueId:s.media.queue[0].queueId});assert.equal(s.media.queue.length,0);
+});

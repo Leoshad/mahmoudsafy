@@ -28,7 +28,7 @@ function client(who,room,clients,storage=new Map()){
  }
  const context={IntersectionObserver:class{constructor(fn){intersection=fn;}observe(){}disconnect(){}},requestAnimationFrame:fn=>setImmediate(fn),addEventListener(t,fn){windowEvents[t]=fn;},localStorage:{getItem:k=>storage.get(k)??null,setItem:(k,v)=>storage.set(k,v)},innerWidth:400,innerHeight:800,document,console,URL,location:{origin:'https://test.example'},performance:{now:()=>now},Date,setTimeout,clearTimeout,setInterval:fn=>{interval=fn;},YT:{Player}};context.window=context;vm.createContext(context);vm.runInContext(script,context);
  const c={pagehide:()=>windowEvents.pagehide(),who,context,get,document,made:()=>made,player:()=>latestPlayer,commands:()=>commands,scroll:away=>{get('#media-player-anchor').rect.top=away?-20:200;document.scroll();},advance:()=>{now+=2000;},tick:()=>interval(),sync(){context.OurMedia.sync({who,media:structuredClone(room.media??null),serverNow:Date.now()});}};clients.push(c);
- context.OurMedia.init({api:async path=>path.startsWith('media/clock')?{now:Date.now()}:path.startsWith('media/resolve')?{track:song}:{items:[song]},command:async(type,data)=>{commands++;mediaChange(room,who,type,data);},sync:async()=>{clients.forEach(c=>c.sync());},goto(next){get('#chat').hidden=next!=='chat';get('#media-home').hidden=next!=='together';context.OurMedia.tab(next);},info(){}});c.sync();return c;
+ context.OurMedia.init({api:async path=>path.startsWith('media/clock')?{now:Date.now()}:path.startsWith('media/resolve')?{track:song}:{items:c.items??[song]},command:async(type,data)=>{commands++;mediaChange(room,who,type,data);},sync:async()=>{clients.forEach(c=>c.sync());},goto(next){get('#chat').hidden=next!=='chat';get('#media-home').hidden=next!=='together';context.OurMedia.tab(next);},info(){}});c.sync();return c;
 }
 const settle=()=>new Promise(r=>setImmediate(r));
 test('client consent: preview only locally, invite without remote player, join, shared pause and hidden-tab stop',async()=>{
@@ -166,9 +166,9 @@ for(const chooser of ['Mahmoud','Safy'])test('queue from Do Together preserves c
  const clients=[],a=client('Mahmoud',room,clients),b=client('Safy',room,clients);await a.context.OurMedia.openNotification();await b.context.OurMedia.openNotification();await settle();
  const c=chooser==='Mahmoud'?a:b;c.get('#media-chat').onclick();assert.equal(c.get('#media-panel').classList.contains('media-in-chat'),true);c.get('#media-chat').onclick();assert.equal(c.get('#media-panel').classList.contains('media-in-chat'),false);
  c.get('#media-query').value='Next song';await c.get('#media-search').onsubmit({preventDefault(){}});await c.get('#media-results').children[0].children.find(n=>n.textContent==='+ Up next').onclick();await settle();
- assert.equal(room.media.track.videoId,'abcdefghijk');assert.equal(room.media.queue.length,1);assert.equal(a.player().config.videoId,'abcdefghijk');assert.equal(b.player().config.videoId,'abcdefghijk');await c.get('#media-results').children[0].children.find(n=>n.textContent==='+ Up next').onclick();assert.equal(room.media.queue.length,2);
+ assert.equal(room.media.track.videoId,'abcdefghijk');assert.equal(room.media.queue.length,1);assert.equal(a.player().config.videoId,'abcdefghijk');assert.equal(b.player().config.videoId,'abcdefghijk');const toggle=c.get('#media-results').children[0].children.find(n=>n.textContent==='✓ Up next · 1');assert.ok(toggle);await toggle.onclick();assert.equal(room.media.queue.length,0);await toggle.onclick();assert.equal(room.media.queue.length,1);
  c.get('#media-chat').onclick();const oldA=a.player(),oldB=b.player();oldA.ps=0;oldA.config.events.onStateChange({data:0});oldB.ps=0;oldB.config.events.onStateChange({data:0});await settle();await settle();
- assert.equal(room.media.id,id);assert.deepEqual(room.media.participants,['Mahmoud','Safy']);assert.equal(room.media.track.videoId,song.videoId);assert.equal(room.media.queue.length,1);assert.equal(room.media.playing,true);assert.equal(a.player().config.videoId,song.videoId);assert.equal(b.player().config.videoId,song.videoId);assert.equal(c.get('#media-panel').classList.contains('media-in-chat'),true);
+ assert.equal(room.media.id,id);assert.deepEqual(room.media.participants,['Mahmoud','Safy']);assert.equal(room.media.track.videoId,song.videoId);assert.equal(room.media.queue.length,0);assert.equal(room.media.playing,true);assert.equal(a.player().config.videoId,song.videoId);assert.equal(b.player().config.videoId,song.videoId);assert.equal(c.get('#media-panel').classList.contains('media-in-chat'),true);
 });
 
 test('local Up next preserves playback, survives reload, removes items and advances without invitations',async()=>{
@@ -176,8 +176,8 @@ test('local Up next preserves playback, survives reload, removes items and advan
  a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';await a.get('#media-search').onsubmit({preventDefault(){}});await settle();
  const first=a.player();first.time=80;
  a.get('#media-query').value='Next';await a.get('#media-search').onsubmit({preventDefault(){}});
- const add=a.get('#media-results').children[0].children.find(n=>n.textContent==='+ Up next');assert.ok(add);await add.onclick();await add.onclick();assert.equal(a.player(),first);assert.equal(first.time,80);assert.equal(a.commands(),0);assert.equal(a.get('#media-queue').hidden,false);
- await a.get('#media-queue').children[1].children.find(n=>n.textContent==='Remove').onclick();a.pagehide();assert.equal(JSON.parse(storage.get('our-place:media:v1:Mahmoud')).queue.length,1);
+ const add=a.get('#media-results').children[0].children.find(n=>n.textContent==='+ Up next');assert.ok(add);await add.onclick();assert.equal(add['aria-pressed'],'true');await add.onclick();assert.equal(add['aria-pressed'],'false');await add.onclick();assert.equal(a.player(),first);assert.equal(first.time,80);assert.equal(a.commands(),0);assert.equal(a.get('#media-queue').hidden,false);
+ await a.get('#media-queue').children[1].children.find(n=>n.textContent==='Remove').onclick();assert.equal(add['aria-pressed'],'false');await add.onclick();a.pagehide();assert.equal(JSON.parse(storage.get('our-place:media:v1:Mahmoud')).queue.length,1);
  const b=client('Mahmoud',initial(),[],storage);await settle();await settle();assert.match(b.get('#media-queue').children[0].textContent,/1/);assert.equal(b.player().ps,5);
  b.get('#media-resume').onclick();const before=b.player();before.ps=0;before.config.events.onStateChange({data:0});await settle();await settle();assert.notEqual(b.player(),before);assert.equal(b.player().ps,1);assert.equal(b.commands(),0);assert.match(b.get('#media-queue').children[0].textContent,/0/);
  await b.get('#media-close').onclick();assert.equal(b.get('#media-queue').hidden,true);
@@ -189,4 +189,20 @@ test('local queue transfers with invitation and search changes reposition existi
  a.get('#media-query').value='Next';await a.get('#media-search').onsubmit({preventDefault(){}});await settle();assert.equal(a.get('#media-player-box').style.top,'650px');assert.equal(a.player(),first);
  await a.get('#media-results').children[0].children.find(n=>n.textContent==='+ Up next').onclick();await a.get('#media-invite').onclick();assert.equal(room.media.queue.length,1);assert.equal(room.media.queue[0].by,'Mahmoud');
  const b=client('Safy',room,clients);await b.get('#media-invitation').children.find(n=>n.textContent==='Join').onclick();await settle();assert.match(b.get('#media-queue').children[0].textContent,/1/);
+});
+
+for(const shared of [false,true])test('queue selection persists across navigation/search and synchronizes removals: '+shared,async()=>{
+ const room=initial(),clients=[];
+ if(shared){mediaChange(room,'Mahmoud','media.create',{mode:'video',track:{...song,videoId:'abcdefghijk'}});mediaChange(room,'Safy','media.join',{session:room.media.id,invitation:room.media.invitation.id});}
+ const a=client('Mahmoud',room,clients),b=client('Safy',room,clients);
+ if(shared){await a.context.OurMedia.openNotification();await b.context.OurMedia.openNotification();}
+ else{a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';await a.get('#media-search').onsubmit({preventDefault(){}});}
+ await settle();a.items=[song,{...song,videoId:'12345678901',title:'Second song'}];b.items=a.items;
+ const search=async c=>{c.get('#media-query').value='songs';await c.get('#media-search').onsubmit({preventDefault(){}});};
+ const buttons=c=>c.get('#media-results').children.map(row=>row.children.find(n=>n.tag==='button'));
+ await search(a);await buttons(a)[0].onclick();await buttons(a)[1].onclick();assert.equal(buttons(a)[0].textContent,'✓ Up next · 1');assert.equal(buttons(a)[1].textContent,'✓ Up next · 2');
+ a.get('#media-chat').onclick();a.get('#media-chat').onclick();await search(a);assert.equal(buttons(a)[0]['aria-pressed'],'true');assert.equal(buttons(a)[1]['aria-pressed'],'true');
+ if(shared){await search(b);assert.equal(buttons(b)[0]['aria-pressed'],'true');await buttons(b)[0].onclick();assert.equal(buttons(a)[0]['aria-pressed'],'false');assert.equal(buttons(a)[1].textContent,'✓ Up next · 1');assert.equal(room.media.queue.length,1);}
+ else{await buttons(a)[0].onclick();assert.equal(buttons(a)[0]['aria-pressed'],'false');assert.equal(buttons(a)[1].textContent,'✓ Up next · 1');}
+ const old=a.player();old.ps=0;old.config.events.onStateChange({data:0});await settle();await settle();assert.equal(a.player().config.videoId,'12345678901');assert.equal(buttons(a)[1]['aria-pressed'],'false');
 });

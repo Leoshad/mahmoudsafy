@@ -129,3 +129,5 @@
 #our-place-trial #media-close svg{display:block;width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round}
 #our-place-trial .media-in-chat #media-more>summary{box-sizing:border-box;line-height:1;border-radius:8px}
 
+
+#our-place-trial button.media-queued{background:#d1b078;color:#211923;border-color:#e2c897;box-shadow:inset 0 0 0 1px #e2c897}
