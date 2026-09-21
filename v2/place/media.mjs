@@ -16,7 +16,9 @@ export function position(m,now=Date.now()){return Math.min(m.track.duration,Math
 export function mediaChange(s,who,type,p={},now=Date.now()){
  need(['Mahmoud','Safy'].includes(who),'Not invited.',403);
  if(type==='media.create'){
-  need(!s.media,'End the current shared session before inviting to another one.',409);
+  const old=s.media;
+  const replaceable=old&&old.participants.length===1&&!old.participants.includes(who)&&(!old.invitation||old.invitation.expires<=now)&&p.replaceSession===old.id&&p.replaceRevision===old.revision;
+  need(!old||replaceable,'End the current shared session before inviting to another one.',409);
   need(['video','music'].includes(p.mode),'Choose video or music.');const t=track(p.track);
   s.media={id:randomUUID(),revision:1,owner:who,mode:p.mode,track:t,queue:[],participants:[who],invitation:{id:randomUUID(),to:who==='Mahmoud'?'Safy':'Mahmoud',expires:now+600000},position:Math.min(t.duration,Math.max(0,Number(p.position)||0)),playing:false,updatedAt:now};
  }else{

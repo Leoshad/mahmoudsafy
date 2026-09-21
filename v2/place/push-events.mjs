@@ -23,8 +23,8 @@ export function attentionEvents(before,after,actor){
   if(m.status==='active'&&(old?.status!=='active'||old?.round!==m.round))both('draw:turn:'+m.id+':'+m.round,'Your Draw & Guess round has started.',target);
   if(['review','complete'].includes(m.status)&&old?.status!==m.status)both('draw:end:'+m.id+':'+m.round,'Your drawing round result is ready.',target);
  }
- const media=after.media,prior=before.media;if(media?.invitation?.id!==prior?.invitation?.id&&media?.invitation)add('media:'+media.invitation.id,media.invitation.to,media.owner+' invited you to Watch & Listen.',{tab:'together',game:'media'});
- if(media&&prior?.invitation&&!media.invitation&&media.participants?.length===2)add('media:accepted:'+media.id,media.owner,'Your Watch & Listen invitation was accepted.',{tab:'together',game:'media'});
+ const media=after.media,prior=before.media;if(media?.invitation?.id!==prior?.invitation?.id&&media?.invitation)add('media:'+media.invitation.id,media.invitation.to,media.owner+' invited you to Watch & Listen.',{tab:'together',game:'media',session:media.id,invitation:media.invitation.id});
+ if(media&&prior?.invitation&&!media.invitation&&media.participants?.length===2)add('media:accepted:'+media.id,media.owner,'Your Watch & Listen invitation was accepted.',{tab:'together',game:'media',session:media.id});
  for(const c of after.court?.cases??[]){const old=before.court?.cases?.find(x=>x.id===c.id),target={tab:'together',game:'court',caseId:c.id};
   if(c.stage==='invited'&&(!old||old.round!==c.round))add('court:invite:'+c.id+':'+c.round,other(c.owner),c.owner+' invited you to Echo’s Court.',target,'invitation');
   if(old?.stage==='invited'&&c.stage==='statements')add('court:accept:'+c.id+':'+c.round,c.owner,'Your Echo’s Court invitation was accepted.',target);

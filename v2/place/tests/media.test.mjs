@@ -64,3 +64,17 @@ test('media HTTP authenticates both users, verifies metadata, deduplicates and b
  const html=await fetch(base);assert.match(html.headers.get('content-security-policy'),/frame-src https:\/\/www.youtube.com/);assert.equal(html.headers.get('referrer-policy'),'strict-origin-when-cross-origin');
  }finally{await new Promise(r=>server.close(r));store.close();delete process.env.YOUTUBE_API_KEY;}
 });
+
+test('recipient replaces only an expired or declined solo session with exact revision',()=>{
+ const s=initial();mediaChange(s,'Safy','media.create',{mode:'video',track:song},1000);const old=structuredClone(s.media);
+ const data={mode:'video',track:song,replaceSession:old.id,replaceRevision:old.revision};
+ assert.throws(()=>mediaChange(s,'Mahmoud','media.create',data,2000),/End/);
+ assert.throws(()=>mediaChange(s,'Mahmoud','media.create',{...data,replaceRevision:99},700000),/End/);
+ mediaChange(s,'Mahmoud','media.create',data,700000);assert.notEqual(s.media.id,old.id);assert.deepEqual(s.media.participants,['Mahmoud']);
+ assert.throws(()=>mediaChange(s,'Mahmoud','media.join',{session:old.id,invitation:old.invitation.id},700001),/ended/);
+ mediaChange(s,'Safy','media.join',{session:s.media.id,invitation:s.media.invitation.id},700001);
+ assert.throws(()=>mediaChange(s,'Safy','media.create',{...data,replaceSession:s.media.id,replaceRevision:s.media.revision},1400000),/End/);
+ const declined=initial();mediaChange(declined,'Safy','media.create',{mode:'video',track:song});
+ mediaChange(declined,'Mahmoud','media.decline',{session:declined.media.id,invitation:declined.media.invitation.id});
+ mediaChange(declined,'Mahmoud','media.create',{mode:'video',track:song,replaceSession:declined.media.id,replaceRevision:declined.media.revision});assert.equal(declined.media.owner,'Mahmoud');
+});

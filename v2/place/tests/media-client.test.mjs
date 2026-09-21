@@ -145,3 +145,18 @@ test('hidden old session offers visible in-panel recovery and ending permits fre
  await accept.onclick();await settle();assert.equal(a.made(),1);
  assert.deepEqual(room.media.participants,['Safy','Mahmoud']);
 });
+
+test('expired partner session cannot trap local player or new invitation; stale notices cannot join replacement',async()=>{
+ const room=initial();mediaChange(room,'Safy','media.create',{mode:'video',track:song},Date.now()-700000);const old=structuredClone(room.media);
+ const clients=[],a=client('Mahmoud',room,clients);a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';await a.get('#media-search').onsubmit({preventDefault(){}});await settle();
+ assert.equal(a.get('#media-session-state').textContent,'Only on your device');
+ await a.get('#media-invite').onclick();assert.equal(room.media.owner,'Mahmoud');assert.notEqual(room.media.id,old.id);assert.match(a.get('#media-session-state').textContent,/Waiting for Safy/);
+ const b=client('Safy',room,clients);await b.context.OurMedia.openNotification({session:old.id,invitation:old.invitation.id});assert.equal(b.made(),0);assert.match(b.get('#media-status').textContent,/ended or was replaced/);
+ await b.context.OurMedia.openNotification({session:room.media.id,invitation:room.media.invitation.id});await b.get('#media-session-access').children.find(n=>n.textContent==='Accept').onclick();await settle();assert.deepEqual(room.media.participants,['Mahmoud','Safy']);assert.equal(b.made(),1);
+});
+test('valid incoming invitation requires response; declining permits sending own invitation',async()=>{
+ const room=initial();mediaChange(room,'Safy','media.create',{mode:'video',track:song});const old=room.media.id;
+ const clients=[],a=client('Mahmoud',room,clients);a.context.OurMedia.tab('together');a.get('#media-query').value='https://youtu.be/M7lc1UVf-VE';await a.get('#media-search').onsubmit({preventDefault(){}});await settle();
+ await a.get('#media-invite').onclick();assert.equal(room.media.id,old);assert.match(a.get('#media-status').textContent,/Accept or decline/);
+ await a.get('#media-session-access').children.find(n=>n.textContent==='Decline').onclick();await a.get('#media-invite').onclick();assert.equal(room.media.owner,'Mahmoud');assert.notEqual(room.media.id,old);
+});

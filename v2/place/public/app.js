@@ -375,7 +375,7 @@ window.addEventListener('our-place-notification',event=>{Promise.resolve().then(
  if(target.tab==='together'&&target.game==='race')window.OurRace?.openTogether();
  if(target.tab==='together'&&['ocho','domino','draw','media','court'].includes(target.game)){
  if(target.game==='court')window.OurCourt?.openNotification(target.caseId);
- else if(target.game==='media')window.OurMedia?.openNotification();
+ else if(target.game==='media')window.OurMedia?.openNotification(target);
  else document.getElementById(target.game+'-open')?.click();
  const panel=document.getElementById(target.game+'-panel');
  if(target.game==='draw')[...panel?.querySelectorAll('button')||[]].find(b=>b.textContent==='Draw & Guess')?.click();
