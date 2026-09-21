@@ -118,3 +118,15 @@
 
 /* Suppress native touch flash only on profile-avatar controls; keep keyboard focus. */
 :is(.avatar,[data-avatar-name],.personal-photo)[data-profile-name]{-webkit-tap-highlight-color:transparent}
+
+
+/* Love stays on the portrait edge; nested groups preserve each heart's anchor. */
+.frame-love-main{transform-box:fill-box;transform-origin:center;animation:frame-love-beat 3.8s ease-in-out infinite}
+.love-tone-0{color:#f495ba}.love-tone-1{color:#f16c87;animation-delay:-1.2s}.love-tone-2{color:#ffadc9;animation-delay:-2.4s}
+.frame-love-rise{color:#f6a5c6;opacity:0;animation:frame-love-release 5.4s ease-out infinite}
+.love-rise-1{animation-delay:-1.8s}.love-rise-2{animation-delay:-3.6s}
+.frame-love-rim{stroke:#efa0bf;animation:frame-love-rim-glow 3.8s ease-in-out infinite}
+@keyframes frame-love-beat{0%,60%,100%{transform:scale(1)}28%{transform:scale(1.13)}40%{transform:scale(1.04)}}
+@keyframes frame-love-release{0%{opacity:0;transform:translate(0,0) scale(.7)}18%{opacity:.9}75%{opacity:.5}100%{opacity:0;transform:translate(2px,-23px) scale(1)}}
+@keyframes frame-love-rim-glow{0%,100%{filter:drop-shadow(0 0 .5px #ef85ad55)}35%{filter:drop-shadow(0 0 2px #ef85ad99)}}
+@media(prefers-reduced-motion:reduce){.frame-love-rise{display:none}}
