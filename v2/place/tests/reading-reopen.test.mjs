@@ -26,3 +26,17 @@ test('end restore follows late layout growth and stops on user interaction',()=>
  root.scrollHeight=1400;events.load();assert.equal(root.scrollTop,1400);
  events.touchstart();root.scrollTop=300;root.scrollHeight=1600;events.load();assert.equal(root.scrollTop,300);
 });
+
+test('leaving chat saves its current position before hiding it, then refresh in Together restores it',async()=>{
+ for(const end of [true,false]){
+  const store=new Map(),first=open(store);first.c.saveReading();
+  first.setMark({id:'chosen-position',offset:-18,top:1600,end});
+  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{scrollTop:0,hidden:false});return nodes.get(id);};
+  first.c.$=id=>id==='#timeline'?{getClientRects:()=>node('#chat').hidden?[]:[1]}:node(id);
+  Object.assign(first.c,{tabPositions:{},history:{pushState(){}},sendTyping(){},historyHold:null,activities:()=>[],document:{querySelectorAll:()=>[]}});
+  vm.runInContext(app.slice(app.indexOf('function goto('),app.indexOf("history.replaceState({placeTab:")),first.c);
+  first.c.goto('together');first.events.pagehide();
+  assert.equal(JSON.parse(store.get('our-place:reading:v1:Mahmoud')).id,'chosen-position');
+  const next=open(store);await next.c.restoreReading();assert.equal(next.restored().id,'chosen-position');assert.equal(next.restored().end,end);
+ }
+});
