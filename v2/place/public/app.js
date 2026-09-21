@@ -14,7 +14,7 @@ async function api(path,data){const epoch=sessionEpoch;const r=await fetch('/api
 async function command(type,data={},id=crypto.randomUUID()){return api('command',{id,type,data});}
 function signOutUI(){clearSourceHighlight();resetUnread();window.OurChatTools?.reset();connectionWanted=false;outboxOwner=null;window.OurFiles?.reset();window.OurBuzz?.reset();saveReading();readingOwner=null;readingRestoring=false;readingHold?.stop();historyHold?.stop();sendTyping(false);typingUntil=0;clearTimeout(typingHideTimer);clearTimeout(typingIdleTimer);clearTimeout(reconnectTimer);reconnectTimer=null;$('#echo-profile')?.close();window.OurAccount?.reset();window.readTracker?.reset();window.OurNotifications?.reset();window.OurDraw?.reset();window.OurCourt?.reset();window.OurPersonal?.reset();window.OurCrown?.reset();window.OurJourney?.reset();window.OurRace?.reset();window.OurOcho?.reset();window.OurDomino?.reset();window.OurMedia?.reset();$('#chat-wallpaper').removeAttribute('src');$('#chat-wallpaper').hidden=true;$('#background-dialog').close();sessionEpoch++;refreshing=null;window.OurComfort?.reset();historyBusy=false;activityNodes.clear();followupsOpen=false;source?.close();source=null;state=null;older=[];historyEnd=false;pending.clear();attachment=null;reply=null;editing=null;wall.reset();for(const key of Object.keys(tabPositions))delete tabPositions[key];$('#compose').value='';$('#item-form').reset();$('#feed').replaceChildren();$('#items').replaceChildren();$('#app').hidden=true;$('#login').hidden=false;$('#our-place-trial').classList.remove('signed-in');$('#account').replaceChildren(installButton);$('#password').value='';$('#older').disabled=false;$('#load-earlier').disabled=false;$('#history-status').textContent='';}
 let readingOwner=null,readingRestoring=false,readingHold=null,readingAttempt=0;
-function readingKey(){return 'our-place:reading:v1:'+state?.who;}
+function readingKey(){return 'our-place:reading:v2:'+state?.who;}
 function saveReading(){if(!state||tab!=='chat'||readingRestoring||!$('#timeline').getClientRects().length)return;try{const mark=PlaceScroll.capture($('#timeline'));if(!mark.id)return;localStorage.setItem(readingKey(),JSON.stringify(mark));}catch{}}
 async function restoreReading(){
  if(!state||readingOwner===state.who)return;
@@ -43,6 +43,7 @@ window.addEventListener('pagehide',saveReading);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)saveReading();});
 const tabPositions={};
 function goto(next,fromHistory=false){if(next!=='chat')window.OurChatTools?.close();window.OurBuzz?.close();if(!['chat','together','space','editor'].includes(next))next='chat';const previous=tab,scroller=$('.shell');if(previous!==next){if(previous==='chat'){readingHold?.stop();readingRestoring=false;saveReading();}tabPositions[previous]=scroller.scrollTop;if(!fromHistory)history.pushState({placeTab:next},'');}if(next!=='chat'){sendTyping(false);historyHold?.stop();}tab=next;for(const t of ['chat','together','space','editor'])$('#'+t).hidden=t!==next;document.querySelectorAll('[data-tab]').forEach(b=>(b.classList.toggle('selected',b.dataset.tab===(next==='editor'?'space':next)),b.setAttribute('aria-current',b.dataset.tab===(next==='editor'?'space':next)?'page':'false')));window.OurDraw?.tab(next);window.OurOcho?.tab(next);window.OurMedia?.tab(next);if(next==='space')paintItems();if(next==='chat')paint();if(next==='together')$('#continue-round').hidden=!activities().some(a=>a.status==='active');if(previous!==next)scroller.scrollTop=next==='editor'?0:tabPositions[next]??0;}
+if('scrollRestoration' in history)history.scrollRestoration='manual';
 history.replaceState({placeTab:'chat'},'');window.addEventListener('popstate',e=>goto(e.state?.placeTab||'chat',true));
 let deliveryBusy=false;
 function acknowledgeDelivery(){if(deliveryBusy||!state)return;const ids=state.messages.filter(m=>m.author!==state.who&&m.author!=='Echo'&&m.status==='sent'&&!m.deliveredAt).map(m=>m.id);if(!ids.length)return;deliveryBusy=true;api('delivered',{ids}).catch(()=>{}).finally(()=>deliveryBusy=false);}
@@ -336,7 +337,9 @@ async function jumpToUnread(){
  f.scrollTo({top:f.scrollHeight,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});updateLatest();
 }
 $('#latest').onclick=$('#jump-latest').onclick=()=>jumpToUnread().catch(error);
-$('#timeline').onscroll=()=>{if(historyEnd)$('#history-status').hidden=$('#timeline').scrollTop>24;updateLatest();updateActivityReminder();saveReading();};
+$('#timeline').addEventListener('scroll',saveReading,{passive:true});
+$('#timeline').addEventListener('scrollend',saveReading,{passive:true});
+$('#timeline').onscroll=()=>{if(historyEnd)$('#history-status').hidden=$('#timeline').scrollTop>24;updateLatest();updateActivityReminder();};
 
 let sourceHighlightTimer=null,sourceHighlightRow=null;
 function clearSourceHighlight(){clearTimeout(sourceHighlightTimer);sourceHighlightTimer=null;sourceHighlightRow?.classList.remove('source-highlight');sourceHighlightRow=null;}
