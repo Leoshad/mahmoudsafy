@@ -61,3 +61,21 @@ test('returning from Together restores bookmark after hidden timeline loses its 
   h.c.goto('chat');await Promise.resolve();assert.equal(h.restored().id,'old-photo');assert.equal(h.restored().top,1600);assert.equal(h.restored().end,end);
  }
 });
+
+test('startup return to Together preserves pending reading position across reopening',async()=>{
+ const store=new Map(),first=open(store);first.c.saveReading();
+ const h=open(store,'Mahmoud',true);let resolve;
+ h.c.api=()=>new Promise(r=>resolve=r);const loading=h.c.restoreReading();
+ h.setMark({id:'transient-latest',offset:0,top:2500,end:true});
+ const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{scrollTop:0,hidden:false});return nodes.get(id);};
+ const timeline={getClientRects:()=>node('#chat').hidden?[]:[1],contains:()=>false,querySelectorAll:()=>[{dataset:{message:'old-photo'}}]};
+ h.c.$=id=>id==='#timeline'?timeline:node(id);
+ Object.assign(h.c,{history:{pushState(){}},sendTyping(){},historyHold:null,activities:()=>[],paint(){},error(e){throw e;},document:{querySelectorAll:()=>[]}});
+ vm.runInContext(app.slice(app.indexOf('const tabPositions='),app.indexOf("if('scrollRestoration' in history)")),h.c);
+ h.events.touchstart({target:{}});h.c.goto('together');h.events.pagehide();
+ resolve([{id:'old-photo',sequence:1}]);await loading;
+ assert.equal(h.restored(),undefined);assert.equal(h.c.older.length,0);
+ assert.equal(JSON.parse(store.get('our-place:reading:v2:Mahmoud')).id,'old-photo');
+ h.c.goto('chat');await Promise.resolve();assert.equal(h.restored().id,'old-photo');assert.equal(h.restored().offset,-125);
+ const reopened=open(store);await reopened.c.restoreReading();assert.equal(reopened.restored().id,'old-photo');
+});

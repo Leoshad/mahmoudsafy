@@ -23,7 +23,7 @@ async function restoreReading(){
  try{mark=JSON.parse(localStorage.getItem(readingKey()));}catch{}
  if(!mark||typeof mark.id!=='string'||!Number.isFinite(mark.offset)||!Number.isFinite(mark.top))return;
  readingRestoring=true;const attempt=++readingAttempt;
- const active=()=>readingRestoring&&attempt===readingAttempt&&epoch===sessionEpoch&&state?.who===owner;
+ const active=()=>tab==='chat'&&readingRestoring&&attempt===readingAttempt&&epoch===sessionEpoch&&state?.who===owner;
  try{
   const present=()=>[...$('#timeline').querySelectorAll('.message,[data-activity]')].some(n=>(n.dataset.message||'activity:'+n.dataset.activity)===mark.id);
   // Fetch authenticated history until the saved message is available; store no message text locally.
@@ -39,11 +39,11 @@ async function restoreReading(){
   setTimeout(()=>{if(attempt===readingAttempt&&epoch===sessionEpoch)readingRestoring=false;},10000);
  }catch{if(attempt===readingAttempt)readingRestoring=false;}
 }
-for(const type of ['touchstart','pointerdown','wheel','keydown'])window.addEventListener(type,()=>{if(readingRestoring){readingHold?.stop();readingRestoring=false;}},{capture:true,passive:true});
+for(const type of ['touchstart','pointerdown','wheel','keydown'])window.addEventListener(type,e=>{if(e?.target&&!$('#timeline').contains(e.target))return;if(readingRestoring){readingHold?.stop();readingRestoring=false;}},{capture:true,passive:true});
 window.addEventListener('pagehide',saveReading);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)saveReading();});
 const tabPositions={};
-function goto(next,fromHistory=false){if(next!=='chat')window.OurChatTools?.close();window.OurBuzz?.close();if(!['chat','together','space','editor'].includes(next))next='chat';const previous=tab,scroller=$('.shell');if(previous!==next){if(previous==='chat'){readingHold?.stop();readingRestoring=false;saveReading();readingOwner=null;}tabPositions[previous]=scroller.scrollTop;if(!fromHistory)history.pushState({placeTab:next},'');}if(next!=='chat'){sendTyping(false);historyHold?.stop();}tab=next;for(const t of ['chat','together','space','editor'])$('#'+t).hidden=t!==next;document.querySelectorAll('[data-tab]').forEach(b=>(b.classList.toggle('selected',b.dataset.tab===(next==='editor'?'space':next)),b.setAttribute('aria-current',b.dataset.tab===(next==='editor'?'space':next)?'page':'false')));window.OurDraw?.tab(next);window.OurOcho?.tab(next);window.OurMedia?.tab(next);if(next==='space')paintItems();if(next==='chat'){paint();if(previous!==next)restoreReading().catch(error);}if(next==='together')$('#continue-round').hidden=!activities().some(a=>a.status==='active');if(previous!==next)scroller.scrollTop=next==='editor'?0:tabPositions[next]??0;}
+function goto(next,fromHistory=false){if(next!=='chat')window.OurChatTools?.close();window.OurBuzz?.close();if(!['chat','together','space','editor'].includes(next))next='chat';const previous=tab,scroller=$('.shell');if(previous!==next){if(previous==='chat'){saveReading();readingHold?.stop();readingRestoring=false;readingAttempt++;readingOwner=null;}tabPositions[previous]=scroller.scrollTop;if(!fromHistory)history.pushState({placeTab:next},'');}if(next!=='chat'){sendTyping(false);historyHold?.stop();}tab=next;for(const t of ['chat','together','space','editor'])$('#'+t).hidden=t!==next;document.querySelectorAll('[data-tab]').forEach(b=>(b.classList.toggle('selected',b.dataset.tab===(next==='editor'?'space':next)),b.setAttribute('aria-current',b.dataset.tab===(next==='editor'?'space':next)?'page':'false')));window.OurDraw?.tab(next);window.OurOcho?.tab(next);window.OurMedia?.tab(next);if(next==='space')paintItems();if(next==='chat'){paint();if(previous!==next)restoreReading().catch(error);}if(next==='together')$('#continue-round').hidden=!activities().some(a=>a.status==='active');if(previous!==next)scroller.scrollTop=next==='editor'?0:tabPositions[next]??0;}
 if('scrollRestoration' in history)history.scrollRestoration='manual';
 history.replaceState({placeTab:'chat'},'');window.addEventListener('popstate',e=>goto(e.state?.placeTab||'chat',true));
 let deliveryBusy=false;
