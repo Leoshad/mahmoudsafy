@@ -28,7 +28,7 @@ function requestPage(u,address,signal){
   });req.on('error',reject);
  });
 }
-export async function verifyPage(value,{signal,resolveDNS=lookup,request=requestPage}={}){
+export async function verifyPage(value,{signal,resolveDNS=lookup,request=requestPage,evidence=false}={}){
  const deadline=AbortSignal.timeout(7000),stop=signal?AbortSignal.any([signal,deadline]):deadline;
  let u=contentURL(value);if(!u)return null;
  try{
@@ -43,7 +43,7 @@ export async function verifyPage(value,{signal,resolveDNS=lookup,request=request
    if(!r.type.includes('text/html'))return null;
    const title=clean(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(r.body)?.[1]||'');
    if(!title||/not found|access denied|just a moment|sign in|log in|page unavailable|404|captcha/i.test(title))return null;
-   return {url:u.href,title:title.slice(0,300)};
+   return {url:u.href,title:title.slice(0,300),...(evidence?pageEvidence(r.body):{})};
   }
  }catch{if(signal?.aborted)throw signal.reason;}
  return null;
@@ -52,4 +52,20 @@ export function sameContent(expected,actual){
  if(!actual)return true; // A PDF has no HTML title; the search citation identifies it.
  const words=s=>new Set(clean(s).toLowerCase().match(/[\p{L}\p{N}]{3,}/gu)||[]),a=words(expected),b=words(actual);
  return a.size>0&&[...a].filter(w=>b.has(w)).length/Math.min(a.size,b.size||1)>=0.5;
+}
+
+// Optional article evidence for the daily editor. Existing link checks keep
+// their small return value; scripts/navigation are never treated as prose.
+export function pageEvidence(html){
+ const dates=[];
+ for(const tag of html.matchAll(/<meta\b[^>]*>/gi)){
+  const attrs=Object.fromEntries([...tag[0].matchAll(/([\w:-]+)\s*=\s*(["'])(.*?)\2/g)].map(m=>[m[1].toLowerCase(),clean(m[3])]));
+  if(/^(article:published_time|datepublished|citation_publication_date|dc.date.issued)$/i.test(attrs.property||attrs.name||''))dates.push(attrs.content);
+ }
+ for(const tag of html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){
+  try{const walk=x=>{if(!x||typeof x!=='object')return;if(x.datePublished)dates.push(String(x.datePublished));for(const v of Object.values(x))if(typeof v==='object')Array.isArray(v)?v.forEach(walk):walk(v);};walk(JSON.parse(tag[1]));}catch{}
+ }
+ const stripped=html.replace(/<(script|style|nav|header|footer|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi,' ');
+ const article=/<article\b[^>]*>([\s\S]*?)<\/article>/i.exec(stripped)?.[1]||/<main\b[^>]*>([\s\S]*?)<\/main>/i.exec(stripped)?.[1]||stripped;
+ return {text:clean(article).slice(0,8000),publicationDates:[...new Set(dates.filter(Boolean))].slice(0,8)};
 }
