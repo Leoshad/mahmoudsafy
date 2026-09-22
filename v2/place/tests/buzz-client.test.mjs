@@ -45,3 +45,9 @@ test('legacy early seen marker does not suppress a still-pending server event',(
 });
 
 test('by-your-side Buzz sends, shows its caption and acknowledges only after completion',async()=>{const f=fixture();await f.picker.children[7].onclick();assert.equal(f.calls.at(-1).kind,'side');let overlay=f.body.children.at(-1);assert.equal(overlay.className,'buzz-overlay buzz-side');assert.match(overlay.children[0].innerHTML,/support-gold/);assert.equal(overlay.children[1].textContent,'You’re not alone');f.finish();const event={id:'support',kind:'side',from:'Safy',to:'Mahmoud',at:20000,sequence:42};f.buzz.sync({who:'Mahmoud',pendingBuzz:event});assert.ok(!f.calls.some(c=>c.id==='support'));f.finish();assert.ok(f.calls.some(c=>c.id==='support'));});
+
+test('Gzzzz uses approved teeth artwork, one sender lifetime and completes at 3200ms',async()=>{
+ const f=fixture();await f.picker.children[8].onclick();assert.equal(f.calls.at(-1).kind,'gzzzz');
+ const overlay=f.body.children.at(-1),art=overlay.children[0];assert.equal(overlay.attrs['aria-label'],'Gzzzz from Mahmoud');assert.equal(overlay.children.length,1);assert.equal(art.className,'buzz-art gz-effect gz-playing');assert.match(art.innerHTML,/gz-upper/);assert.match(art.innerHTML,/gz-lower/);assert.match(art.innerHTML,/>Gzzzz</);assert.equal(art.children[0].textContent,'from Mahmoud');assert.ok([...f.timers.values()].some(t=>t.ms===3200));f.finish();assert.equal(overlay.removed,true);
+ const event={id:'grinding',kind:'gzzzz',from:'Safy',to:'Mahmoud',at:20000,sequence:42};f.buzz.receive(event);assert.equal(f.body.children.at(-1).children[0].children[0].textContent,'from Safy');assert.ok(!f.calls.some(c=>c.id==='grinding'));f.finish();assert.ok(f.calls.some(c=>c.id==='grinding'));
+});
