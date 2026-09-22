@@ -22,6 +22,9 @@
 .buzz-overlay .buzz-art{width:210px;height:210px;display:grid;place-items:center}
 .buzz-love .buzz-art{animation:buzz-heartbeat 1s ease-in-out 2}
 .buzz-kiss .buzz-art{animation:buzz-stamp 2.4s cubic-bezier(.2,.8,.3,1) both}
+.buzz-kiss .buzz-caption{animation:buzz-kiss-caption 2.4s cubic-bezier(.2,.8,.3,1) both}
+@keyframes buzz-kiss-caption{0%{opacity:0}20%,30%,75%{opacity:1}100%{opacity:0}}
+@media(prefers-reduced-motion:reduce){.buzz-kiss .buzz-caption{animation:none!important}}
 .buzz-angry .buzz-art{animation:buzz-grr .5s ease-in-out 3}
 .buzz-steam{animation:buzz-steam .8s ease-out infinite}
 .buzz-bolts{position:absolute;inset:0;z-index:1;opacity:.75;filter:drop-shadow(0 0 5px #e6b971);animation:buzz-charge 1.2s ease-in-out 2}.buzz-bolts svg{width:100%;height:100%}
