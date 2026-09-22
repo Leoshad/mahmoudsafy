@@ -16,10 +16,12 @@ export class Store {
       CREATE TABLE IF NOT EXISTS budget(key TEXT PRIMARY KEY,used INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS photos(id TEXT PRIMARY KEY,mime TEXT NOT NULL,bytes BLOB NOT NULL,createdAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS photo_orphans(id TEXT PRIMARY KEY,since INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS voices(id TEXT PRIMARY KEY,owner TEXT NOT NULL,mime TEXT NOT NULL,bytes BLOB NOT NULL,createdAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS photo_owners(id TEXT PRIMARY KEY,owner TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS identities(name TEXT PRIMARY KEY,uid TEXT UNIQUE NOT NULL);
       CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY,expires INTEGER NOT NULL);
     `);
+    if(!this.db.prepare('PRAGMA table_info(messages)').all().some(c=>c.name==='audio'))this.db.exec('ALTER TABLE messages ADD COLUMN audio TEXT');
     this.db.prepare('INSERT OR IGNORE INTO state VALUES(1,?)').run(JSON.stringify(initial()));
     // Unknown request cost stays charged after crashes/cancellation. Never blindly retry a billed request.
     this.db.exec("UPDATE jobs SET status='interrupted' WHERE status='running'; UPDATE messages SET status='interrupted' WHERE status='streaming'");
@@ -30,7 +32,7 @@ export class Store {
   save(s){if(s.activity&&s.activities)s.activity=s.activities.find(a=>a.id===s.activity.id)??s.activity;updateCrown(s);this.db.prepare('UPDATE state SET body=? WHERE id=1').run(JSON.stringify(s));}
   identity(name,uid){const old=this.db.prepare('SELECT uid FROM identities WHERE name=?').get(name);check(!old||old.uid===uid,'This invitation is already bound to another account.',403);this.db.prepare('INSERT OR IGNORE INTO identities VALUES(?,?)').run(name,uid);}
   once(actor,id,payload,fn){check(typeof id==='string'&&/^[a-f0-9-]{36}$/.test(id),'Missing action ID.');const digest=hash(JSON.stringify(payload));return this.tx(()=>{const old=this.db.prepare('SELECT * FROM receipts WHERE id=?').get(id);if(old){check(old.actor===actor&&old.digest===digest,'Action ID already used.',409);return JSON.parse(old.result);}const result=fn()??{ok:true};this.db.prepare('INSERT INTO receipts VALUES(?,?,?,?)').run(id,actor,digest,JSON.stringify(result));return result;});}
-  message(m){this.db.prepare('INSERT INTO messages VALUES(?,?,?,?,?,?,?,?)').run(m.id,m.author,m.text,m.image??null,m.reply??null,m.aiAllowed?1:0,m.status??'sent',new Date().toISOString());}
+  message(m){this.db.prepare('INSERT INTO messages(id,author,text,image,reply,aiAllowed,status,createdAt,audio) VALUES(?,?,?,?,?,?,?,?,?)').run(m.id,m.author,m.text,m.image??null,m.reply??null,m.aiAllowed?1:0,m.status??'sent',new Date().toISOString(),m.audio??null);}
   messages(before){return this.db.prepare('SELECT * FROM (SELECT rowid AS sequence,*,(SELECT at FROM message_reads WHERE message=messages.id) AS readAt,(SELECT at FROM message_deliveries WHERE message=messages.id) AS deliveredAt FROM messages WHERE rowid < ? ORDER BY rowid DESC LIMIT 60) ORDER BY sequence').all(Number(before)||Number.MAX_SAFE_INTEGER);}
   snapshot(who,state=this.state()){return {...project(state,who),messages:this.messages(),unreadMessages:this.db.prepare("SELECT id,rowid AS sequence FROM messages WHERE author=? AND status='sent' AND NOT EXISTS(SELECT 1 FROM message_reads WHERE message=messages.id) ORDER BY rowid").all(who==='Mahmoud'?'Safy':'Mahmoud'),jobs:this.db.prepare("SELECT id,actor,scope,status FROM jobs WHERE status='running' AND (scope='shared' OR actor=?)").all(who)};}
   reserve(actor,scope,body){

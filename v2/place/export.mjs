@@ -13,6 +13,8 @@ export async function exportArchive(store, snapshot, res) {
     for(const id of ids){const photo=store.db.prepare('SELECT mime,bytes,createdAt FROM photos WHERE id=?').get(id);if(!photo)continue;
       await write((first?'':',')+JSON.stringify(id)+':'+JSON.stringify({mime:photo.mime,data:Buffer.from(photo.bytes).toString('base64'),createdAt:photo.createdAt}));first=false;
     }
+    await write('},"voices":{');first=true;
+    for(const id of new Set(value.messages.map(m=>m.audio).filter(Boolean))){const voice=store.db.prepare('SELECT mime,bytes,createdAt FROM voices WHERE id=?').get(id);if(!voice)continue;await write((first?'':',')+JSON.stringify(id)+':'+JSON.stringify({mime:voice.mime,data:Buffer.from(voice.bytes).toString('base64'),createdAt:voice.createdAt}));first=false;}
     res.end('}}');
   } finally {res.off('close',closed);}
 }

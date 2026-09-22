@@ -1,0 +1,9 @@
+#our-place-trial .voice-trigger{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#our-place-trial .voice-recorder{padding:12px;margin:8px 0;border:1px solid #987387;border-radius:16px;background:#28202b}
+#our-place-trial .voice-recorder[hidden]{display:none}
+#our-place-trial .voice-recorder p{margin:0 0 10px;font-size:14px;color:#e5c68b}
+#our-place-trial .voice-recorder>div{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+#our-place-trial .voice-recorder button{min-height:42px;padding:8px 12px}
+#our-place-trial .voice-recorder audio,#our-place-trial .voice-message{display:block;width:260px;max-width:100%;height:44px}
+#our-place-trial .voice-recorder audio[hidden]{display:none}
+#our-place-trial .bubble:has(.voice-message){min-width:min(260px,55vw)}
