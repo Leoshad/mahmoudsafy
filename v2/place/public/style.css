@@ -155,7 +155,6 @@ body{margin:0;background:#0b0b0e}
 }
 @media(max-height:550px){
  #our-place-trial.signed-in header{padding:5px 12px}
- #our-place-trial.signed-in .brand{display:none}
  #our-place-trial.signed-in nav{padding-top:5px;padding-bottom:5px}
  #our-place-trial.signed-in nav small{display:none}
  #our-place-trial .composer textarea{min-height:42px;height:42px}
