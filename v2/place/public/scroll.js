@@ -2,11 +2,11 @@ const PlaceScroll={
  hold(root,saved,followEnd=false){
   const mark=saved?{...saved}:this.capture(root);if(!followEnd)mark.end=false;let stopped=false,timer,frame,observer;
   const restore=()=>{if(!stopped&&root.isConnected&&root.getClientRects().length)this.restore(root,mark);};
-  const stop=()=>{stopped=true;clearTimeout(timer);cancelAnimationFrame(frame);observer?.disconnect();root.removeEventListener('load',restore,true);for(const type of ['pointerdown','touchstart','wheel','keydown'])window.removeEventListener(type,stop,true);};
+  const stop=()=>{stopped=true;clearTimeout(timer);cancelAnimationFrame(frame);observer?.disconnect();root.removeEventListener('load',restore,true);window.removeEventListener('resize',restore);window.visualViewport?.removeEventListener('resize',restore);for(const type of ['pointerdown','touchstart','wheel','keydown'])window.removeEventListener(type,stop,true);};
   for(const type of ['pointerdown','touchstart','wheel','keydown'])window.addEventListener(type,stop,{capture:true,passive:true});
-  root.addEventListener('load',restore,true);
-  if(typeof ResizeObserver!=='undefined'){observer=new ResizeObserver(restore);observer.observe(root.querySelector('#feed')||root);}
-  timer=setTimeout(stop,10000);
+  root.addEventListener('load',restore,true);window.addEventListener('resize',restore);window.visualViewport?.addEventListener('resize',restore);
+  if(typeof ResizeObserver!=='undefined'){observer=new ResizeObserver(restore);observer.observe(root.querySelector('#feed')||root);observer.observe(root);}
+  if(!followEnd||!mark.end)timer=setTimeout(stop,10000);
   return {restore(){restore();frame=requestAnimationFrame(restore);},stop};
  },
  // Reveal only after an explicit open action; live updates must not move the reader.

@@ -336,7 +336,7 @@ function applyReadReceipt(r){
 }
 function hasMessageBelow(f){
  const edge=f.getBoundingClientRect().bottom;
- return [...f.querySelectorAll('.message .bubble')].some(b=>{const r=b.getBoundingClientRect();return r.height>0&&r.top>=edge;});
+ return [...f.querySelectorAll('.message .bubble')].some(b=>{const r=b.getBoundingClientRect();return r.height>0&&r.bottom>edge+2;});
 }
 function toggleMessageDetails(row){
  const f=$('#timeline'),follow=!hasMessageBelow(f);
@@ -347,13 +347,14 @@ function toggleMessageDetails(row){
  }
  updateLatest();
 }
-function updateLatest(){const f=$('#timeline'),away=hasMessageBelow(f),count=state?.unreadMessages?.length||0;
+function updateLatest(){const f=$('#timeline'),away=hasMessageBelow(f),edge=f.getBoundingClientRect().bottom,below=new Set([...f.querySelectorAll('.message')].filter(row=>{const r=row.querySelector('.bubble')?.getBoundingClientRect();return r&&r.height>0&&r.bottom>edge+2;}).map(row=>row.dataset.message)),count=(state?.unreadMessages||[]).filter(m=>below.has(m.id)).length;
  for(const id of ['#latest','#jump-latest']){const b=$(id);b.hidden=!away;b.textContent=count?'↓ '+count+' new message'+(count===1?'':'s'):'Latest messages ↓';}
 }
 async function jumpToUnread(){
  const f=$('#timeline');
  readingHold?.stop();readingRestoring=false;historyHold?.stop();
- f.scrollTo({top:f.scrollHeight,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'});updateLatest();
+ // Follow the real end through late image sizes and keyboard viewport changes.
+ readingHold=PlaceScroll.hold(f,{end:true},true);readingHold.restore();updateLatest();
 }
 $('#latest').onclick=$('#jump-latest').onclick=()=>jumpToUnread().catch(error);
 $('#timeline').addEventListener('scroll',saveReading,{passive:true});

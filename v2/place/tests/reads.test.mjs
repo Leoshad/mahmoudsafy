@@ -45,9 +45,9 @@ test('new-message button goes to latest messages and does not mark skipped messa
  const calls=[],row={dataset:{message:'first'},getBoundingClientRect:()=>({top:250})};
  const timeline={scrollTop:100,scrollHeight:2000,getBoundingClientRect:()=>({top:50}),scrollTo:v=>calls.push(v)};
  const state={unreadMessages:[{id:'first'},{id:'second'}]};
- const ctx={state,sessionEpoch:1,readingHold:null,readingRestoring:true,historyHold:null,$:s=>s==='#timeline'?timeline:{children:[row]},matchMedia:()=>({matches:false}),updateLatest(){}};
+ const ctx={state,sessionEpoch:1,readingHold:null,readingRestoring:true,historyHold:null,$:s=>s==='#timeline'?timeline:{children:[row]},PlaceScroll:{hold:(root,mark,follow)=>{assert.equal(mark.end,true);assert.equal(follow,true);return {restore:()=>root.scrollTo({top:root.scrollHeight,behavior:'auto'})};}},updateLatest(){}};
  vm.createContext(ctx);vm.runInContext(fn+';this.jump=jumpToUnread',ctx);await ctx.jump();
- assert.equal(calls[0].top,2000);assert.equal(calls[0].behavior,'smooth');assert.equal(state.unreadMessages.length,2);assert.equal(ctx.readingRestoring,false);
+ assert.equal(calls[0].top,2000);assert.equal(calls[0].behavior,'auto');assert.equal(state.unreadMessages.length,2);assert.equal(ctx.readingRestoring,false);
 });
 
 
@@ -66,10 +66,10 @@ test('stale snapshots cannot resurrect confirmed unread messages or erase partne
 test('latest button hides at the bottom even with unread history remaining',()=>{
  const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
  const code=source.slice(source.indexOf('function hasMessageBelow('),source.indexOf('async function jumpToUnread(){'));
- let top=420;const timeline={getBoundingClientRect:()=>({bottom:500}),querySelectorAll:()=>[{getBoundingClientRect:()=>({top,height:100})}]},button={},menu={};
+ let top=390;const bubble={getBoundingClientRect:()=>({top,bottom:top+100,height:100})},row={dataset:{message:'new'},querySelector:()=>bubble};const timeline={getBoundingClientRect:()=>({bottom:500}),querySelectorAll:s=>s==='.message'?[row]:[bubble]},button={},menu={};
  const context={state:{unreadMessages:[{id:'old'}]},$:s=>s==='#timeline'?timeline:s==='#latest'?button:menu};
  vm.createContext(context);vm.runInContext(code,context);context.updateLatest();assert.equal(button.hidden,true);assert.equal(menu.hidden,true);
- top=510;context.updateLatest();assert.equal(button.hidden,false);assert.equal(button.textContent,'↓ 1 new message');
+ top=420;context.updateLatest();assert.equal(button.hidden,false);assert.equal(button.textContent,'Latest messages ↓');context.state.unreadMessages.push({id:'new'});context.updateLatest();assert.equal(button.textContent,'↓ 1 new message');top=390;context.updateLatest();assert.equal(button.hidden,true);
 });
 
 
