@@ -117,7 +117,7 @@ function renderMessageText(parent,message){
   }
   if(cursor===0)root.textContent=text;else if(cursor<text.length)root.append(document.createTextNode(text.slice(cursor)));
  }
- parent.replaceChildren();if(message.author!=='Echo'){if(/^😬 Gzzzz · to (Mahmoud|Safy)$/.test(value)&&window.OurBuzz?.setIcon){const icon=document.createElement('span');window.OurBuzz.setIcon(icon,'gzzzz');parent.append(icon,document.createTextNode(value.slice(3)));}else links(parent,value);return;}const parts=value.split('**');parts.forEach((part,i)=>{if(i%2){const strong=document.createElement('strong');links(strong,part);parent.append(strong);}else{const span=document.createElement('span');links(span,part);parent.append(span);}});
+ parent.replaceChildren();if(message.author!=='Echo'){if(/^(😬 Gzzzz|👑 Still my crown\.) · to (Mahmoud|Safy)$/.test(value)&&window.OurBuzz?.setIcon){const icon=document.createElement('span');window.OurBuzz.setIcon(icon,value.startsWith('👑')?'crown':'gzzzz');parent.append(icon,document.createTextNode(value.slice(3)));}else links(parent,value);return;}const parts=value.split('**');parts.forEach((part,i)=>{if(i%2){const strong=document.createElement('strong');links(strong,part);parent.append(strong);}else{const span=document.createElement('span');links(span,part);parent.append(span);}});
 }
 function paintWallpaper(){const image=state.wallpaper?.image,img=$('#chat-wallpaper');img.hidden=!image;if(image){const url='/api/photos/'+image;if(img.getAttribute('src')!==url)img.src=url;}else img.removeAttribute('src');}
 let backgroundChoice=null,backgroundData=null,backgroundURL=null,backgroundRevision=0,backgroundBusy=false;
