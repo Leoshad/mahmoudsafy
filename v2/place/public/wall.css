@@ -144,3 +144,5 @@
 
 
 #our-place-trial .wall-sheet-composer .partner-comment-mention{left:auto;right:12px;bottom:calc(100% + 6px);z-index:4}
+
+#our-place-trial .wall-notification-target{outline:2px solid #d1b078;outline-offset:-2px;background-color:#d1b07820}

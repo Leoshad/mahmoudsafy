@@ -389,7 +389,7 @@ sync().then(connect).catch(e=>{if(state)error(e);}).finally(()=>{setTimeout(()=>
 window.addEventListener('our-place-notification',event=>{Promise.resolve().then(async()=>{
  const target=event.detail;if(!state||!target)return;await sync();goto(target.tab);
  if(target.tab==='chat'){if(target.activity)resumeActivity(target.activity);else if(target.message)await openSource(target.message);}
- if(target.tab==='space'&&target.post){filter='All';paintItems();const post=[...document.querySelectorAll('[data-post]')].find(n=>n.dataset.post===target.post);post?.scrollIntoView({block:'center'});const comments=post?.querySelector('.wall-comments');if(comments)comments.open=true;}
+ if(target.tab==='space'&&target.post){filter='All';$('#space-search').value='';paintItems();wall.openNotification(target);}
  if(target.tab==='together'&&target.game==='race')window.OurRace?.openTogether();
  if(target.tab==='together'&&['ocho','domino','draw','media','court'].includes(target.game)){
  if(target.game==='court')window.OurCourt?.openNotification(target.caseId);

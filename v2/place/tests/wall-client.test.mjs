@@ -8,7 +8,7 @@ const walk=e=>[e,...e.children.flatMap(walk)];
 function client(s){
  let doc;const timers=new Map();let timerId=0;
  class Node{
-  constructor(tag='div'){this.handlers={};this.tag=tag;this.children=[];this.dataset={};this.value='';this.className='';this.scrollTop=0;this.textContent='';this.classList={add:c=>this.className+=' '+c};}
+  constructor(tag='div'){this.handlers={};this.tag=tag;this.children=[];this.dataset={};this.value='';this.className='';this.scrollTop=0;this.textContent='';this.classList={add:c=>this.className+=' '+c,remove:c=>this.className=this.className.split(' ').filter(x=>x!==c).join(' ')};}
   addEventListener(event,fn){this.handlers[event]=fn;}
   append(n){n.remove();n.parentElement=this;this.children.push(n);}
   insertBefore(n,b){n.remove();n.parentElement=this;const i=this.children.indexOf(b);this.children.splice(i<0?this.children.length:i,0,n);}
@@ -18,9 +18,10 @@ function client(s){
   matches(q){if(q.startsWith('.'))return this.className.split(' ').includes(q.slice(1));if(q==='[data-comment]')return !!this.dataset.comment;if(q.startsWith('[data-field='))return this.dataset.field===q.match(/"(.*?)"/)[1];return this.tag===q;}
   querySelectorAll(q){return walk(this).slice(1).filter(n=>n.matches(q));}querySelector(q){return this.querySelectorAll(q)[0]??null;}
   contains(n){return walk(this).includes(n);}get isConnected(){return !!this.parentElement;}getBoundingClientRect(){return {top:0,bottom:100};}
+  scrollIntoView(){this.scrolled=true;}
   focus(){doc.activeElement=this;}setSelectionRange(a,b){this.selectionStart=a;this.selectionEnd=b;}showModal(){this.open=true;}close(){const was=this.open;this.open=false;if(was)this.handlers.close?.();}reset(){}
  }
- const nodes=new Map(),$=q=>{if(!nodes.has(q))nodes.set(q,new Node());return nodes.get(q);};doc={querySelector:$,createElement:t=>new Node(t),activeElement:null};
+ const nodes=new Map(),$=q=>{if(!nodes.has(q))nodes.set(q,new Node());return nodes.get(q);};doc={querySelector:$,querySelectorAll:q=>[...nodes.values()].flatMap(walk).filter(n=>q==='[data-post]'&&n.dataset.post),createElement:t=>new Node(t),activeElement:null};
  const el=(t,text,p,cls)=>{const n=new Node(t);n.textContent=text??'';n.className=cls??'';p?.append(n);return n;};const failures=[],btn=(t,p,fn,cls)=>{const n=el('button',t,p,cls);n.onclick=async()=>{try{await fn();}catch(e){failures.push(e);}};return n;};
  let wall,filter='All',tab='',commands=[];
  const context={setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),document:doc,URL,structuredClone,Intl,Date,crypto:{randomUUID},history:{back:()=>tab='space',replaceState(){}}};context.window=context;vm.createContext(context);vm.runInContext(readFileSync(new URL('../public/wall.js',import.meta.url),'utf8'),context);
@@ -128,4 +129,16 @@ test('Echo comments render bold safely for existing replies and split streaming 
  c.wall.delta({post:s.items[0].id,id:'stream-bold',text:'Here **bo'});assert.equal(body('stream-bold').querySelector('strong').textContent,'bo');
  c.wall.delta({post:s.items[0].id,id:'stream-bold',text:'ld** and <img src=x onerror=alert(1)>'});assert.equal(body('stream-bold').querySelector('strong').textContent,'bold');assert.equal(body('stream-bold').querySelectorAll('img').length,0);assert.ok(walk(body('stream-bold')).some(n=>n.textContent.includes('<img')));
  s.items[0].comments[2].status='sent';c.wall.paint();assert.equal(body('stream-bold').querySelector('strong').textContent,'bold');assert.equal(s.items[0].comments[0].text,'يعني **تعرف معنى الكلام** و **تختبر بناءه**.');
+});
+
+test('notification opens and highlights the exact older comment and handles deleted targets',()=>{
+ const s=initial();change(s,'Safy','item.save',{type:'Idea',title:'Moment'});
+ s.items[0].comments=[{id:'chosen',by:'Safy',text:'First'},{id:'later',by:'Mahmoud',text:'Later'}];
+ const c=client(s);c.wall.paint();c.wall.openNotification({post:s.items[0].id,comment:'chosen'});
+ assert.equal(sheet(c).open,true);
+ const rows=sheet(c).querySelectorAll('.wall-comment');assert.equal(rows[0].scrolled,true);
+ assert.ok(rows[0].className.includes('wall-notification-target'));assert.ok(!rows[1].className.includes('wall-notification-target'));
+ c.wall.openNotification({post:s.items[0].id,comment:'deleted'});
+ assert.match(sheet(c).querySelector('.wall-thread-error').textContent,/no longer available/);
+ c.wall.openNotification({post:'deleted'});assert.match(c.failures[0].message,/no longer available/);
 });

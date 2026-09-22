@@ -98,3 +98,14 @@ for(const owner of ['Mahmoud','Safy'])test('court invitation reaches partner dev
  push.scan(owner);advance(400);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].body.owner,other);assert.equal(sent[0].body.target.caseId,'invite-case');assert.equal(sent[0].body.kind,'invitation');assert.ok(sent[0].options.TTL>36000);
  push.scan(owner);await push.drain();assert.equal(sent.length,1);
 });
+
+test('comment notification preserves exact target through service worker URL',()=>{
+ const before={items:[{id:'post-1',by:'Mahmoud',comments:[]}]},after=structuredClone(before);
+ after.items[0].comments.push({id:'reply-1',by:'Safy',text:'Hello'});
+ const event=attentionEvents(before,after,'Safy')[0];
+ assert.deepEqual(event.target,{tab:'space',post:'post-1',comment:'reply-1'});
+ const src=readFileSync(new URL('../public/sw.js',import.meta.url),'utf8');
+ const context={URL,URLSearchParams,self:{addEventListener(){}}};vm.createContext(context);vm.runInContext(src,context);
+ const target=JSON.parse(new URL(context.destination(event.target),'https://example.test').searchParams.get('notice'));
+ assert.deepEqual(target,event.target);
+});
