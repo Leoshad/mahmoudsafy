@@ -44,7 +44,7 @@ export function change(s,who,type,p={}){
     case 'quiz.launch': {
       check(s.activities.filter(a=>a.status==='active').length<10,'Finish an activity before starting more than 10.',409);
       check(names.includes(p.target),'Choose Mahmoud or Safy.');
-      const qs=questions(p.questions);addActivity({id:randomUUID(),owner:who,host:p.host==='Echo'?'Echo':who,target:p.target,qs,index:0,answers:[],score:0,pauses:[],status:'active',afterSequence:p.afterSequence??0,title:p.title||'Quiz'});break;
+      const qs=questions(p.questions);addActivity({id:randomUUID(),createdAt:new Date().toISOString(),owner:who,host:p.host==='Echo'?'Echo':who,target:p.target,qs,index:0,answers:[],score:0,pauses:[],status:'active',afterSequence:p.afterSequence??0,title:p.title||'Quiz'});break;
     }
     case 'quiz.pause': {const a=selected();check(a?.status==='active','No active quiz.',409);a.pauses=p.value?[...new Set([...a.pauses,who])]:a.pauses.filter(n=>n!==who);break;}
     case 'quiz.answer': {

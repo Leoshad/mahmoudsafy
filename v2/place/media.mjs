@@ -31,10 +31,10 @@ export function mediaChange(s,who,type,p={},now=Date.now()){
    need(p.revision===m.revision,'Playback changed. Please try again.',409);
    if(type==='media.invite'){need(m.owner===who&&m.participants.length===1,'Your partner is already in the session.',409);m.invitation={id:randomUUID(),to:who==='Mahmoud'?'Safy':'Mahmoud',expires:now+600000};}
    else if(type==='media.control'){need(typeof p.playing==='boolean'&&Number.isFinite(p.position)&&p.position>=0&&p.position<=m.track.duration+1,'Invalid playback position.');m.position=Math.min(m.track.duration,p.position);m.playing=p.playing;m.updatedAt=now;}
-   else if(type==='media.play'){m.track=track(p.track);m.position=0;m.playing=true;m.updatedAt=now;}
+   else if(type==='media.play'){m.memoryPlayKey=randomUUID();m.track=track(p.track);m.position=0;m.playing=true;m.updatedAt=now;}
    else if(type==='media.enqueue'){const t=track(p.track);if(!m.queue.some(q=>q.videoId===t.videoId)){need(m.queue.length<20,'The queue has 20 videos. Remove one first.');m.queue.push({...t,queueId:randomUUID(),by:who});}}
    else if(type==='media.remove'){need(m.queue.some(t=>t.queueId===p.queueId),'This queue item changed.',409);const id=m.queue.find(t=>t.queueId===p.queueId).videoId;m.queue=m.queue.filter(t=>t.videoId!==id);}
-   else if(type==='media.next'){need(m.queue.length,'The queue is empty.');m.track=track(m.queue.shift());m.position=0;m.playing=true;m.updatedAt=now;}
+   else if(type==='media.next'){need(m.queue.length,'The queue is empty.');m.memoryPlayKey=randomUUID();m.track=track(m.queue.shift());m.position=0;m.playing=true;m.updatedAt=now;}
    else if(type==='media.leave'){m.participants=m.participants.filter(n=>n!==who);m.invitation=null;if(!m.participants.length)s.media=null;else if(m.owner===who)m.owner=m.participants[0];}
    else if(type==='media.end')s.media=null;
    else need(false,'Unknown media action.');
