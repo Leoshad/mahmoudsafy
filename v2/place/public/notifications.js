@@ -6,7 +6,10 @@ const iphone=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==
 const installed=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
 const ready=supported?navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(()=>navigator.serviceWorker.ready).then(r=>(registration=r,r)).catch(()=>null):Promise.resolve(null);
 async function request(path,data,keepalive=false){const r=await fetch('/api/notifications'+path,{method:data?'POST':'GET',headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined,keepalive});if(!r.ok){const v=await r.json();throw Error(v.error||'Could not update notifications. Try again.');}return r.json();}
-function presence(){if(who)request('/presence',{client,visible:document.visibilityState==='visible',sequence:++sequence},true).catch(()=>{});if(document.visibilityState==='visible')clearShown();}
+// hasFocus includes focused descendants (including the embedded player).
+// Do not infer focus from a remembered iframe or fullscreen element.
+function foreground(){return document.visibilityState==='visible'&&document.hasFocus()&&navigator.onLine!==false;}
+function presence(){const visible=foreground();if(who)request('/presence',{client,visible,sequence:++sequence},true).catch(()=>{});if(visible)clearShown().catch(()=>{});}
 async function clearShown(){const r=await ready;if(r)for(const n of await r.getNotifications())n.close();}
 async function refresh(){
  const r=await ready,sub=r?await r.pushManager.getSubscription():null;
@@ -56,8 +59,9 @@ async function bind(){const current=epoch,name=who,r=await ready;if(!name||!r||b
 function receive(url){try{const u=new URL(url,location.origin);if(u.origin!==location.origin)return;const value=JSON.parse(u.searchParams.get('notice'));if(value&&['chat','space','together'].includes(value.tab))pending=value;}catch{}deliver();}
 function deliver(){if(who&&pending){const value=pending;pending=null;window.dispatchEvent(new CustomEvent('our-place-notification',{detail:value}));}}
 if(supported)navigator.serviceWorker.addEventListener('message',e=>{if(e.data?.type==='notification-open')receive(e.data.url);});
+window.addEventListener('focus',presence);window.addEventListener('blur',()=>queueMicrotask(presence));window.addEventListener('online',presence);window.addEventListener('offline',presence);document.addEventListener('fullscreenchange',()=>queueMicrotask(presence));
 document.addEventListener('visibilitychange',presence);window.addEventListener('pageshow',presence);window.addEventListener('pagehide',()=>{if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});});
-setInterval(()=>{if(who&&!document.hidden)presence();},2000);
+setInterval(()=>{if(who&&!document.hidden)presence();},1500);
 window.OurNotifications={sync(state){if(who!==state.who){who=state.who;epoch++;bound=null;presence();bind().catch(()=>{});}deliver();},reset(){if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});who=null;bound=null;epoch++;dialog.close();clearShown().catch(()=>{});}};
 receive(location.href);if(new URL(location.href).searchParams.has('notice'))history.replaceState(history.state,'','/');
 })();

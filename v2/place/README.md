@@ -233,3 +233,5 @@ Latest Shared Touch behavior: anyone may fully open a local scene regardless of 
 The fingerprint artwork is enlarged another 10%. Gesture starts on the last bubble text are included; strip geometry is measured from its top at touch-down and requires the chat to be at its latest position.
 
 Fingerprint artwork enlarged an additional 10%; the start strip includes the entire final bubble height and gap beneath it.
+
+Presence uses visible + document focus + network availability across all app sections. Focus inside descendants (including embedded media) is included; stale iframe/fullscreen references do not override lost focus. Blur/focus, visibility, page lifecycle and connectivity trigger updates; heartbeats run every 1.5 seconds with a five-second server lease. Service-worker push suppression also requires a focused visible window. Abrupt disconnection is bounded by lease expiry plus delivery/sweep latency, not guaranteed instantaneous.

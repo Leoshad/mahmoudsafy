@@ -27,7 +27,7 @@ export class PushNotifications{
  seal(v){const iv=randomBytes(12),c=createCipheriv('aes-256-gcm',this.key,iv);return Buffer.concat([iv,c.update(JSON.stringify(v)),c.final(),c.getAuthTag()]).toString('base64');}
  open(v){const b=Buffer.from(v,'base64'),d=createDecipheriv('aes-256-gcm',this.key,b.subarray(0,12));d.setAuthTag(b.subarray(-16));return JSON.parse(Buffer.concat([d.update(b.subarray(12,-16)),d.final()]).toString());}
  mark(key){return this.db.prepare('INSERT OR IGNORE INTO push_seen VALUES(?,?)').run(key,this.now()).changes>0;}
- visible(who){return !!this.db.prepare('SELECT 1 FROM push_presence p JOIN sessions s ON p.session=s.id WHERE p.owner=? AND p.visible=1 AND p.updated>? AND s.expires>?').get(who,this.now()-8000,this.now());}
+ visible(who){return !!this.db.prepare('SELECT 1 FROM push_presence p JOIN sessions s ON p.session=s.id WHERE p.owner=? AND p.visible=1 AND p.updated>? AND s.expires>?').get(who,this.now()-5000,this.now());}
  presence(who,sid,data){
   check(typeof data.client==='string'&&/^[\w-]{16,80}$/.test(data.client)&&typeof data.visible==='boolean','Invalid visibility update.');
   const sequence=data.sequence??0;check(Number.isSafeInteger(sequence)&&sequence>=0,'Invalid visibility sequence.');
