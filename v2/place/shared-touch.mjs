@@ -29,8 +29,8 @@ export class SharedTouch {
   if(p.action==='start'){
    if(this.closed.has(p.id))return this.view(now);
    const participants=names.map(n=>n===who?(this.readiness.get(key)?.until>now?key:null):[...this.readiness].find(([k,v])=>v.who===n&&v.until>now)?.[0]);
-   if(this.requireReady&&participants.some(k=>!k)){this.closed.set(p.id,now);check(false,'Both of you need to be in Our Chat.',409);}
-   if(!this.session)this.session={id:p.id||randomUUID(),starter:who,participants,created:now,activity:now,updated:now,hands:{},progress:0,done:false};
+   if(this.requireReady&&participants.some(k=>!k))return {id:p.id,starter:who,created:now,progress:0,done:false,hands:{},localOnly:true};
+   if(!this.session)this.session={id:p.id||randomUUID(),starter:who,participants,audience:participants.filter(Boolean).map(k=>k.slice(k.lastIndexOf(':')+1)),created:now,activity:now,updated:now,hands:{},progress:0,done:false};
    return this.view(now);
   }
   const s=this.session;if(!s||s.id!==p.id||s.done)return this.view(now);
@@ -42,7 +42,7 @@ export class SharedTouch {
   return this.view(now);
  }
  disconnect(sid,now=Date.now()){for(const [k,v]of this.readiness)if(v.sid===sid)this.readiness.delete(k);if(this.requireReady)this.tick(now);const s=this.session;if(!s||s.done)return;for(const n of names)if(s.hands[n]?.sid===sid)delete s.hands[n];s.updated=now;}
- view(now=Date.now()){const s=this.session;return s?{id:s.id,starter:s.starter,created:s.created,progress:s.progress,done:s.done,hands:Object.fromEntries(names.map(n=>[n,s.done||!!(s.hands[n]?.until>now)]))}:null;}
+ view(now=Date.now()){const s=this.session;return s?{id:s.id,starter:s.starter,audience:this.requireReady?s.audience:undefined,created:s.created,progress:s.progress,done:s.done,hands:Object.fromEntries(names.map(n=>[n,s.done||!!(s.hands[n]?.until>now)]))}:null;}
 }
 
 export function saveTouchMemory(store,moment,now=Date.now()){
