@@ -2,10 +2,11 @@ import {randomUUID} from 'node:crypto';
 import {check,project} from './domain.mjs';
 import {personalSnapshot} from './personal.mjs';
 import {noteBlocks} from './public/note-format.mjs';
-export function initMemories(store){store.db.exec(`CREATE TABLE IF NOT EXISTS shared_listening(id TEXT PRIMARY KEY,session TEXT NOT NULL,playKey TEXT NOT NULL UNIQUE,videoId TEXT NOT NULL,title TEXT NOT NULL,channel TEXT NOT NULL,mode TEXT NOT NULL,startedAt TEXT NOT NULL);`);}
+export function initMemories(store){store.db.exec(`CREATE TABLE IF NOT EXISTS shared_listening(id TEXT PRIMARY KEY,session TEXT NOT NULL,playKey TEXT NOT NULL UNIQUE,videoId TEXT NOT NULL,title TEXT NOT NULL,channel TEXT NOT NULL,mode TEXT NOT NULL,startedAt TEXT NOT NULL);CREATE TABLE IF NOT EXISTS memory_media_invites(id TEXT PRIMARY KEY,session TEXT NOT NULL,sender TEXT NOT NULL,recipient TEXT NOT NULL,videoId TEXT NOT NULL,title TEXT NOT NULL,channel TEXT NOT NULL,mode TEXT NOT NULL,startedAt TEXT NOT NULL);`);}
 // Records shared playback state, not an invitation or a claim that both speakers were audible.
 export function recordListening(store,s,now=Date.now()){
- const m=s.media;if(!m?.playing||!['Mahmoud','Safy'].every(n=>m.participants.includes(n)))return;
+ const m=s.media;if(m?.invitation)store.db.prepare('INSERT OR IGNORE INTO memory_media_invites VALUES(?,?,?,?,?,?,?,?,?)').run(m.invitation.id,m.id,m.owner,m.invitation.to,m.track.videoId,m.track.title,m.track.channel||'',m.mode,new Date(now).toISOString());
+ if(!m?.playing||!['Mahmoud','Safy'].every(n=>m.participants.includes(n)))return;
  m.memoryPlayKey??=randomUUID();
  store.db.prepare('INSERT OR IGNORE INTO shared_listening VALUES(?,?,?,?,?,?,?,?)').run(randomUUID(),m.id,m.memoryPlayKey,m.track.videoId,m.track.title,m.track.channel||'',m.mode,new Date(now).toISOString());
 }
@@ -27,7 +28,7 @@ export function memoryData(store,who,opt){
  check(messages.length<=10000,'Choose a shorter period (up to 10,000 messages per PDF).',413);
  for(const m of messages){m.reactions=view.messageReactions[m.id]||{};if(m.reply){const r=byId.get(m.reply);m.source=r?{id:r.id,author:r.author,text:r.text,image:!!r.image,audio:!!r.audio,inRange:inside(r.createdAt)}:null;}}
  const listening=store.db.prepare('SELECT * FROM shared_listening ORDER BY startedAt').all().filter(m=>inside(m.startedAt));
- const data={...opt,generatedAt:new Date().toISOString(),who,profiles:Object.fromEntries(Object.entries(personalSnapshot(s,who).profiles).map(([name,p])=>[name,{photo:p.photo}])),messages,listening,items:[],files:[],activities:[],games:[],dates:[],cases:[],drawing:null};
+ const data={...opt,generatedAt:new Date().toISOString(),who,invitations:store.db.prepare('SELECT * FROM memory_media_invites ORDER BY startedAt').all().filter(m=>inside(m.startedAt)),profiles:Object.fromEntries(Object.entries(personalSnapshot(s,who).profiles).map(([name,p])=>[name,{photo:p.photo}])),messages,listening,items:[],files:[],activities:[],games:[],dates:[],cases:[],drawing:null};
  if(opt.scope==='all'){
   if(!dated&&s.draw?.shared?.strokes?.length)data.drawing=s.draw.shared;
   data.items=view.items.filter(i=>inside(i.createdAt)||(i.comments||[]).some(c=>inside(c.createdAt))).map(i=>({...i,comments:(i.comments||[]).filter(c=>inside(c.createdAt))}));

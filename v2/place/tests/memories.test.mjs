@@ -14,7 +14,7 @@ test('export reads full chat, preserves replies, excludes quiz answers not yet r
  }finally{s.close();}
 });
 test('invites and paused joins are not listening; play tracked once and queue creates next memory',()=>{
- const db=new Store(':memory:');initMemories(db);try{const s=db.state();mediaChange(s,'Mahmoud','media.create',{mode:'music',track:song},1000);recordListening(db,s,1000);assert.equal(db.db.prepare('SELECT COUNT(*) n FROM shared_listening').get().n,0);
+ const db=new Store(':memory:');initMemories(db);try{const s=db.state();mediaChange(s,'Mahmoud','media.create',{mode:'music',track:song},1000);recordListening(db,s,1000);recordListening(db,s,1001);const invites=memoryData(db,'Mahmoud',options('')).invitations;assert.equal(invites.length,1);assert.equal(invites[0].sender,'Mahmoud');assert.equal(invites[0].recipient,'Safy');assert.match(memoryHTML(memoryData(db,'Mahmoud',options(''))),/Mahmoud invited Safy to listen together/);assert.equal(db.db.prepare('SELECT COUNT(*) n FROM shared_listening').get().n,0);
  mediaChange(s,'Safy','media.join',{session:s.media.id,invitation:s.media.invitation.id},1100);recordListening(db,s,1100);assert.equal(db.db.prepare('SELECT COUNT(*) n FROM shared_listening').get().n,0);
  mediaChange(s,'Mahmoud','media.control',{session:s.media.id,revision:s.media.revision,playing:true,position:0},1200);recordListening(db,s,1200);recordListening(db,s,1300);assert.equal(db.db.prepare('SELECT COUNT(*) n FROM shared_listening').get().n,1);
  mediaChange(s,'Safy','media.play',{session:s.media.id,revision:s.media.revision,track:{...song,videoId:'lmnopqrstuv'}},1400);recordListening(db,s,1400);assert.equal(db.db.prepare('SELECT COUNT(*) n FROM shared_listening').get().n,2);
