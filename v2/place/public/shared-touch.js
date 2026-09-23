@@ -7,7 +7,7 @@ layer.innerHTML='<button class="touch-close" aria-label="Close shared touch">×<
 host.append(layer);const thumb=layer.querySelector('.touch-thumb'),status=layer.querySelector('.touch-status'),stage=layer.querySelector('.touch-stage');
 let hooks=null,who=null,current=null,pending=null,gesture=null,held=false,seq=0,revision=0,pulse=null,stale=null,frame=null,displayProgress=0,targetProgress=0,closedAt=0,suppressClickUntil=0;
 const dismissed=new Set();const client=crypto.randomUUID();let clientEpoch=0;let inChat=true;
-const blocked='button,a,input,textarea,select,summary,details,img,audio,video,.avatar,[data-profile-name]';
+const blocked='button,a,input,textarea,select,summary,details,img,audio,video,.avatar,.bubble,[data-profile-name]';
 const visible=()=>inChat&&!!who&&!document.hidden&&document.hasFocus()&&!document.querySelector('#chat').hidden&&!document.querySelector('#app').hidden;
 const available=()=>visible()&&!document.querySelector('dialog[open]')&&!window.OurBalloon?.busy();
 const bottom=()=>timeline.scrollHeight-timeline.clientHeight-timeline.scrollTop<=5;
@@ -28,7 +28,7 @@ function receive(m){if(m?.audience&&!m.audience.includes(client))return;if(curre
  if(m.done){clearInterval(pulse);pulse=null;}paint();if(!m.done&&!m.localOnly)stale=setTimeout(()=>{if(current&&!current.done){release();current={...current,hands:{},progress:0};paint();say('Waiting for connection…');}},2200);
 }
 function commit(){if(!gesture||!available())return;gesture=null;pending=crypto.randomUUID();reveal();layer.classList.remove('touch-preview');layer.classList.add('touch-open');layer.style.opacity='';stage.style.transform='';paint();const id=pending,version=revision;void post('start',id).then(r=>{if(!r)return;if(!r.moment){current={id:pending,localOnly:true,hands:{},progress:0,done:false};pending=null;paint();return;}if(!pending&&!current){void post('close',id,{quiet:true});return;}if(version===revision)receive(r.moment);});}
-function start(x,y,id,target){if(current||pending||gesture||!available()||!bottom()||performance.now()-closedAt<450||target.closest(blocked))return;const r=timeline.getBoundingClientRect();if(y<r.bottom-Math.min(150,r.height*.25)||y>r.bottom)return;gesture={x,y,id,at:performance.now(),claimed:false,distance:Math.max(60,y-(r.top+r.height*.5))};}
+function start(x,y,id,target){if(current||pending||gesture||!available()||!bottom()||performance.now()-closedAt<450||target.closest(blocked))return;const r=timeline.getBoundingClientRect(),last=[...timeline.querySelectorAll('#feed .message')].at(-1);if(!last)return;const edge=(last.querySelector('.bubble')||last).getBoundingClientRect().bottom;if(x<r.left||x>r.right||y<=Math.max(r.top,edge)||y>=r.bottom)return;gesture={x,y,id,at:performance.now(),claimed:false,distance:Math.max(60,y-(r.top+r.height*.5))};}
 function move(x,y){const g=gesture;if(!g)return false;const dx=x-g.x,dy=g.y-y;if(!g.claimed){if(performance.now()-g.at>=300||Math.abs(dx)>Math.max(16,Math.abs(dy)*1.3)||dy< -12||!available()){gesture=null;return false;}if(dy<7||dy<Math.abs(dx)*1.15)return false;g.claimed=true;window.OurComfort?.cancelMessageHold();window.OurBalloon?.cancel();reveal();layer.classList.add('touch-preview');}
  suppressClickUntil=performance.now()+500;const amount=Math.max(0,Math.min(1,dy/g.distance));layer.style.opacity=String(amount);stage.style.transform=`translateY(${32*(1-amount)}px) scale(${.85+.15*amount})`;if(amount>=1)commit();return true;
 }
