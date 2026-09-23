@@ -155,7 +155,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
     if(path==='/api/logout'&&req.method==='POST'){const who=await auth(req,res);sharedTouch.disconnect(req.sessionId);notifications.logout(req.sessionId);store.db.prepare('DELETE FROM sessions WHERE id=?').run(req.sessionId);cookie(res,'',0);for(const [r,m]of streams)if(m.who===who)r.end();return send(res,200,{ok:true});}
     if(path.startsWith('/api/')){
       const who=await auth(req,res);
-      if(path==='/api/shared-touch'&&req.method==='POST'){limit('shared-touch:'+who,360);const p=await body(req,2000);const moment=sharedTouch.action(who,req.sessionId,p);emit('shared-touch',{moment});return send(res,200,{moment});}
+      if(path==='/api/shared-touch'&&req.method==='POST'){limit('shared-touch:'+who,360);const p=await body(req,2000);const before=JSON.stringify(sharedTouch.view());const moment=sharedTouch.action(who,req.sessionId,p);if(p.action!=='ready'||JSON.stringify(moment)!==before)emit('shared-touch',{moment});return send(res,200,{moment});}
       if(path==='/api/memories.pdf'&&req.method==='GET'){
         limit('memories:'+who,4,60000);const opt=memoryOptions(url.searchParams),data=memoryData(store,who,opt),controller=new AbortController();const close=()=>controller.abort();res.on('close',close);
         try{const pdf=await memoryRenderer(data,store,{origin,signal:controller.signal});if(!res.destroyed){res.setHeader('Content-Disposition','attachment; filename="Our-Place-Memories.pdf"');res.writeHead(200,{'Content-Type':'application/pdf','Content-Length':pdf.length,'Cache-Control':'no-store'});res.end(pdf);}}finally{res.off('close',close);}return;
@@ -215,7 +215,8 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(path==='/api/history'&&req.method==='GET')return send(res,200,store.messages(url.searchParams.get('before')));
       if(path==='/api/events'&&req.method==='GET'){
         res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive','X-Accel-Buffering':'no'});res.write(`retry: 250\n\nevent: snapshot\ndata: ${JSON.stringify(snapshot(who))}\n\n`);streams.set(res,{who,sid:req.sessionId,segments:url.searchParams.get('draw')==='segments'});publishPresence();
-        const beat=setInterval(()=>res.write('event: heartbeat\ndata: {}\n\n'),15000);const expiry=setTimeout(()=>res.end(),60000);res.on('close',()=>{clearInterval(beat);clearTimeout(expiry);streams.delete(res);if(![...streams.values()].some(m=>m.sid===req.sessionId)){sharedTouch.disconnect(req.sessionId);emit('shared-touch',{moment:sharedTouch.view()});}publishPresence(true);});return;
+        const beat=setInterval(()=>res.write('event: heartbeat\ndata: {}\n\n'),15000);const expiry=setTimeout(()=>res.end(),60000);res.on('close',()=>{clearInterval(beat);clearTimeout(expiry);streams.delete(res);// Chat readiness has its own lease; routine SSE rotation is not a departure.
+publishPresence(true);});return;
       }
       if(path==='/api/voices'&&req.method==='POST'){
         limit('voice:'+who,10);const p=await body(req,12*1024*1024),bytes=Buffer.from(p.data??'','base64');

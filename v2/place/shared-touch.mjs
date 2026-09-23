@@ -20,9 +20,9 @@ export class SharedTouch {
   check(['ready','start','hold','release','close'].includes(p.action),'Invalid touch action.');
   for(const [id,t]of this.closed)if(now-t>600000)this.closed.delete(id);
   for(const [id,v]of this.orders)if(now-v.at>600000)this.orders.delete(id);
-  const key=sid+':'+p.client,old=this.orders.get(key);
+  const key=sid+':'+p.client,orderKey=key+(p.action==='ready'?':ready':':touch'),old=this.orders.get(orderKey);
   if(old&&p.seq<=old.seq)return this.view(now);
-  this.orders.set(key,{seq:p.seq,at:now});
+  this.orders.set(orderKey,{seq:p.seq,at:now});
   if(p.action==='ready'){if(p.active===true)this.readiness.set(key,{who,sid,until:now+3500});else this.readiness.delete(key);this.tick(now);return this.view(now);}
   this.tick(now);
   if(p.action==='close'){this.closed.set(p.id,now);if(this.session?.id===p.id)this.close(now);return this.view(now);}
