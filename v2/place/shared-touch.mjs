@@ -1,14 +1,14 @@
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import {check} from './domain.mjs';
 const names=['Mahmoud','Safy'];
 export class SharedTouch {
- constructor(){this.session=null;this.closed=new Map();this.orders=new Map();}
+ constructor({onComplete=()=>{}}={}){this.onComplete=onComplete;this.session=null;this.closed=new Map();this.orders=new Map();}
  tick(now=Date.now()){
   const s=this.session;if(!s)return;
   if(!s.done&&now-s.activity>90000){this.close(now);return;}
   const dt=Math.max(0,Math.min(250,now-s.updated));s.updated=now;
   const both=names.every(n=>s.hands[n]?.until>now);
-  if(!s.done){s.progress=both?Math.min(1,s.progress+dt/4000):Math.max(0,s.progress-dt/1100);if(s.progress===1)s.done=true;}
+  if(!s.done){s.progress=both?Math.min(1,s.progress+dt/4000):Math.max(0,s.progress-dt/1100);if(s.progress===1){this.onComplete(s,now);s.done=true;}}
  }
  close(now=Date.now()){if(this.session)this.closed.set(this.session.id,now);this.session=null;}
  action(who,sid,p,now=Date.now()){
@@ -36,4 +36,9 @@ export class SharedTouch {
  }
  disconnect(sid,now=Date.now()){const s=this.session;if(!s||s.done)return;for(const n of names)if(s.hands[n]?.sid===sid)delete s.hands[n];s.updated=now;}
  view(now=Date.now()){const s=this.session;return s?{id:s.id,starter:s.starter,created:s.created,progress:s.progress,done:s.done,hands:Object.fromEntries(names.map(n=>[n,s.done||!!(s.hands[n]?.until>now)]))}:null;}
+}
+
+export function saveTouchMemory(store,moment,now=Date.now()){
+ const id='shared-touch:'+createHash('sha256').update(moment.id).digest('hex');
+ return store.tx(()=>{if(store.db.prepare('SELECT 1 FROM messages WHERE id=?').get(id))return false;store.message({id,author:'Together',text:'A shared touch ♥',status:'sent'});store.db.prepare('UPDATE messages SET createdAt=? WHERE id=?').run(new Date(now).toISOString(),id);return true;});
 }

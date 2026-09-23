@@ -1,4 +1,4 @@
-import {SharedTouch} from './shared-touch.mjs';
+import {SharedTouch,saveTouchMemory} from './shared-touch.mjs';
 import {initMemories,memoryOptions,memoryData,recordListening} from './memories.mjs';
 import {renderMemoryPDF} from './memory-pdf.mjs';
 import {verifyEchoModels} from './ai-models.mjs';
@@ -56,7 +56,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   const daily=new DailyWall(store,{refresh,...(dailyAI?{generate:dailyAI}:{})});
   const key=Buffer.from(hash(secret),'hex'),cookieName=testing?'ms_place':'__Host-ms_place';
   initMemories(store);
-  const sharedTouch=new SharedTouch();
+  const sharedTouch=new SharedTouch({onComplete:(moment,now)=>{if(saveTouchMemory(store,moment,now))queueMicrotask(()=>refresh());}});
   const streams=new Map(),running=new Map(),cache=new Map(),rates=new Map();
   const youtube=youtubeService({fetcher:mediaFetch,reserve:()=>{const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),key='youtube-search:'+day;store.tx(()=>{store.db.prepare('INSERT OR IGNORE INTO budget(key) VALUES(?)').run(key);check(store.db.prepare('SELECT used FROM budget WHERE key=?').get(key).used<80,'Today’s song-search allowance is used. Try again tomorrow.',429);store.db.prepare('UPDATE budget SET used=used+1 WHERE key=?').run(key);});}});
   function seal(value){const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key,iv);const data=Buffer.concat([cipher.update(JSON.stringify(value)),cipher.final()]);return Buffer.concat([iv,cipher.getAuthTag(),data]).toString('base64url');}
@@ -77,7 +77,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   function snapshot(who){const saved=store.state(),s=store.snapshot(who,saved);s.messages=s.messages.map(m=>running.has(m.id)?{...m,text:running.get(m.id).text}:m);s.items=s.items.map(i=>({...i,comments:(i.comments??[]).map(c=>running.has(c.id)?{...c,text:running.get(c.id).text}:c)}));s.filesRevision=filesRevision(store);s.daily=daily.view();s.inbox=notifications.inbox(who);s.who=who;s.pendingBuzz=saved.buzzPending?.[who]??null;s.draw=drawView(saved,who);s.court=courtView(saved,who);s.personal=personalSnapshot(saved,who);s.crown=crownSnapshot(saved,who);s.ocho=ochoSnapshot(saved,who);s.domino=dominoSnapshot(saved,who);s.media=saved.media??null;const sharedRace=race.get(who,'together');s.raceInvitation=sharedRace?.status==='lobby'&&sharedRace.owner!==who&&!sharedRace.ready.includes(who)?{id:sharedRace.id,owner:sharedRace.owner}:null;s.sharedTouch=sharedTouch.view();s.serverNow=Date.now();s.youtubeConfigured=!!process.env.YOUTUBE_API_KEY;s.model=MODEL;s.aiConnected=!!process.env.OPENAI_API_KEY;
     s.proposals=store.db.prepare("SELECT id,actor,scope,body FROM jobs WHERE status='done' ORDER BY createdAt DESC LIMIT 20").all().flatMap(j=>{const b=JSON.parse(j.body);return j.scope==='shared'&&j.actor===who&&!b.accepted?(b.proposals??[]).flatMap((p,index)=>[...(b.acceptedIndices??[]),...(b.dismissedIndices??[])].includes(index)||p.type!=='item'?[]:[{job:j.id,index,type:p.type,title:p.title,count:p.questions?.length,itemType:p.itemType}]):[];});return s;}
   function emit(event,data,who){for(const [res,meta] of streams){if(!who||meta.who===who)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);}}
-  let lastTouchWire='',lastTouchEmit=0;const touchTimer=setInterval(()=>{sharedTouch.tick();const value=sharedTouch.view(),wire=JSON.stringify(value);if(wire!==lastTouchWire||(value&&Date.now()-lastTouchEmit>650)){lastTouchEmit=Date.now();lastTouchWire=wire;emit('shared-touch',{moment:value});}},100);touchTimer.unref();
+  let lastTouchWire='',lastTouchEmit=0;const touchTimer=setInterval(()=>{try{sharedTouch.tick();}catch{console.error('Shared touch memory could not be saved.');return;}const value=sharedTouch.view(),wire=JSON.stringify(value);if(wire!==lastTouchWire||(value&&Date.now()-lastTouchEmit>650)){lastTouchEmit=Date.now();lastTouchWire=wire;emit('shared-touch',{moment:value});}},100);touchTimer.unref();
   let presenceTimer=null;
   function publishPresence(delayed=false){clearTimeout(presenceTimer);const publish=()=>emit('presence',{online:['Mahmoud','Safy'].filter(who=>notifications.visible(who))});if(delayed){presenceTimer=setTimeout(publish,1500);presenceTimer.unref();}else publish();}
   const presenceSweep=setInterval(()=>publishPresence(),1000);presenceSweep.unref();
