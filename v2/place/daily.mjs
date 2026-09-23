@@ -1,3 +1,4 @@
+import {scheduledReserve} from './daily-reserve.mjs';
 import {morningFallback} from './daily-editorial.mjs';
 import {nightFallback} from './daily-fallback.mjs';
 import {randomUUID,randomInt} from 'node:crypto';
@@ -31,6 +32,21 @@ export class DailyWall{
  view(){return {...this.store.state().daily,runs:this.store.db.prepare('SELECT key,status,detail,createdAt FROM echo_daily_runs ORDER BY createdAt DESC LIMIT 6').all()};}
  stop(){this.stopped=true;this.cancel(()=>true);}
  cancel(predicate){for(const [id,x]of this.active)if(predicate(x)){this.store.status(id,'cancelled');x.controller.abort();}}
+ reserve(slot){
+  let posted=false;
+  this.store.tx(()=>{
+   const s=this.store.state(),cfg=s.daily;
+   if(this.stopped||!cfg.enabled||s.pauses.length||!cfg.slots.some(x=>x.id===slot.id&&x.enabled)||this.now()<slot.at||slot.at<=cfg.after)return;
+   const run=this.store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key);
+   if(run?.status==='posted'||run?.status==='cancelled'||s.items.some(x=>x.daily?.key===slot.key))return;
+   const archived=this.store.db.prepare('SELECT value FROM echo_daily_content WHERE published=1 ORDER BY at DESC LIMIT 180').all().map(x=>JSON.parse(x.value));
+   const value=scheduledReserve(slot.id,[...s.items,...archived],slot.key);if(!value)return;
+   this.store.db.prepare('INSERT OR IGNORE INTO echo_daily_runs VALUES(?,?,?,?,?)').run(slot.key,'ready',null,null,new Date(this.now()).toISOString());
+   this.store.db.prepare('INSERT OR REPLACE INTO echo_daily_content VALUES(?,?,?,?,?,0)').run(slot.key,JSON.stringify(value),'editorial reserve',cfg.revision,slot.at);
+   posted=this.publish(slot,value,'editorial reserve',cfg);
+   if(posted)this.store.db.prepare("UPDATE echo_daily_runs SET detail=? WHERE key=?").run(slot.id==='afternoon'?'Published a labelled reserve discovery; current news could not be verified.':'Published an editorial reserve at the scheduled time.',slot.key);
+  });if(posted)this.refresh();return posted;
+ }
  recoverNight(slot){
   this.store.tx(()=>{
    const s=this.store.state(),run=this.store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key);
@@ -46,25 +62,30 @@ export class DailyWall{
  }
  publish(slot,value,variant,cfg){
   const current=this.store.state();if(current.daily.revision!==cfg.revision||!current.daily.enabled||current.pauses.length)return false;
-  if(!value||current.items.length>=500||current.items.some(x=>x.daily&&(x.daily.key===slot.key||x.title===value.title)))return false;
+  if(!value||current.items.length>=500||current.items.some(x=>x.daily&&(x.daily.key===slot.key||(!value.reserve&&x.title===value.title))))return false;
   current.items.unshift({id:randomUUID(),type:'Discussion',title:value.title,by:'Echo',images:[],steps:[],approvals:[],comments:[],revision:1,aiAllowed:false,echoComments:cfg.comments,echoEpoch:0,createdAt:new Date(this.now()).toISOString(),sources:value.sources,publishedDate:value.publishedDate,daily:{slot:slot.id,key:slot.key,variant,reserveFormat:value.reserveFormat,notify:cfg.notifications}});current.version++;this.store.save(current);
   this.store.db.prepare("UPDATE echo_daily_runs SET status='posted',detail=NULL WHERE key=?").run(slot.key);
   this.store.db.prepare('UPDATE echo_daily_content SET published=1 WHERE key=?').run(slot.key);console.info(JSON.stringify({event:'echo_daily_posted',key:slot.key}));return true;
  }
  async tick(){
   if(this.stopped)return;const {store}=this,s=store.state();if(s.pauses.length)return;
+  // Deadline delivery runs before the AI job lock, including during a slow request.
+  for(const slot of dueSlots(s.daily,this.now(),0,24*3600000)){
+   const run=store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key);
+   if(run&&['running','failed','interrupted','retrying','skipped'].includes(run.status))this.reserve(slot);
+  }
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(this.now()));
   if(s.daily.enabled&&s.daily.slots.some(x=>x.id==='night'&&x.enabled)){
    const key=today+':night',old=store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(key);
    if(old&&['failed','interrupted'].includes(old.status))this.recoverNight({key,id:'night'});
   }
-  for(const slot of dueSlots(s.daily,this.now(),15*60000,3*3600000)){
-   if(slot.id!=='afternoon'&&(this.now()<slot.at-5*60000||this.now()-slot.at>=3600000))continue;
+  for(const slot of dueSlots(s.daily,this.now(),60*60000,3*3600000)){
+   if(slot.id!=='afternoon'&&this.now()-slot.at>=3600000)continue;
    let prior=store.db.prepare('SELECT * FROM echo_daily_runs WHERE key=?').get(slot.key);
    const prepared=store.db.prepare('SELECT * FROM echo_daily_content WHERE key=?').get(slot.key);
    if(prior?.status==='ready'){
     if(!prepared||prepared.revision!==s.daily.revision||prepared.at!==slot.at||(slot.id==='afternoon'&&!freshNewsDate(JSON.parse(prepared.value).publishedDate,this.now()))){store.db.prepare('DELETE FROM echo_daily_runs WHERE key=?').run(slot.key);store.db.prepare('DELETE FROM echo_daily_content WHERE key=? AND published=0').run(slot.key);prior=null;}
-    else if(this.now()>=slot.at){store.tx(()=>this.publish(slot,JSON.parse(prepared.value),prepared.variant,s.daily));this.refresh();continue;}else continue;
+    else if(this.now()>=slot.at){const published=store.tx(()=>this.publish(slot,JSON.parse(prepared.value),prepared.variant,s.daily));if(!published)this.reserve(slot);this.refresh();continue;}else continue;
    }
    // Deletion alone never reposts. An explicit future reschedule may replace a deleted post once.
    if(prior?.status==='posted'&&!s.items.some(x=>x.daily?.key===slot.key)&&s.daily.after>Date.parse(prior.createdAt)&&slot.at>s.daily.after&&!store.db.prepare('SELECT 1 FROM echo_daily_replacements WHERE key=?').get(slot.key)){
@@ -73,26 +94,26 @@ export class DailyWall{
    let retry=null,previousFailure=prior?.detail||'';
    if(slot.id==='afternoon'){
     retry=store.db.prepare('SELECT * FROM echo_daily_retry WHERE key=?').get(slot.key);
-    if(!prior&&retry?.attempts>=4){store.db.prepare('INSERT OR IGNORE INTO echo_daily_runs VALUES(?,?,?,?,?)').run(slot.key,'failed',null,'Prepared news expired; daily attempt limit reached.',new Date(this.now()).toISOString());continue;}
+    if(!prior&&retry?.attempts>=4){store.db.prepare('INSERT OR IGNORE INTO echo_daily_runs VALUES(?,?,?,?,?)').run(slot.key,'failed',null,'Prepared news expired; daily attempt limit reached.',new Date(this.now()).toISOString());this.reserve(slot);continue;}
     if(prior&&['failed','interrupted','retrying'].includes(prior.status)){
      // Older failures had already made up to two attempts; never reset their cost counter.
      if(!retry){store.db.prepare('INSERT INTO echo_daily_retry VALUES(?,?,?,?,?)').run(slot.key,2,0,s.daily.revision,slot.at);retry=store.db.prepare('SELECT * FROM echo_daily_retry WHERE key=?').get(slot.key);
-    if(!prior&&retry?.attempts>=4){store.db.prepare('INSERT OR IGNORE INTO echo_daily_runs VALUES(?,?,?,?,?)').run(slot.key,'failed',null,'Prepared news expired; daily attempt limit reached.',new Date(this.now()).toISOString());continue;}}
+    if(!prior&&retry?.attempts>=4){store.db.prepare('INSERT OR IGNORE INTO echo_daily_runs VALUES(?,?,?,?,?)').run(slot.key,'failed',null,'Prepared news expired; daily attempt limit reached.',new Date(this.now()).toISOString());this.reserve(slot);continue;}}
      if(retry.revision!==s.daily.revision||retry.at!==slot.at||retry.at<=s.daily.after||retry.attempts>=4||this.now()<retry.nextAt)continue;
      prior=null;
     }else if(!prior&&this.now()-slot.at>=3600000)continue;
    }
    if(prior){if(slot.id==='night' &&['failed','interrupted'].includes(prior.status))this.recoverNight(slot);continue;}
-   if(store.db.prepare("SELECT 1 FROM jobs WHERE status='running'").get())return;
+   if(store.db.prepare("SELECT 1 FROM jobs WHERE status='running'").get()){this.reserve(slot);return;}
    let id;const cfg=s.daily;
    const record=(status,detail,job=null)=>store.db.prepare('INSERT OR IGNORE INTO echo_daily_runs VALUES(?,?,?,?,?)').run(slot.key,status,job,detail,new Date(this.now()).toISOString());
-   if(!this.connected()){if(this.now()<slot.at)continue;record('skipped','Echo is not connected.');this.refresh();continue;}
+   if(!this.connected()){if(this.now()<slot.at)continue;record('skipped','Echo is not connected.');this.reserve(slot);this.refresh();continue;}
    if(s.items.length>=500){record('skipped','Your wall is full. Export a backup before making space.');this.refresh();continue;}
    try{store.tx(()=>{id=store.reserve('Echo','shared',{purpose:'daily',searchBudget:slot.id!=='morning'});if(slot.id==='afternoon'){
      store.db.prepare('INSERT INTO echo_daily_retry VALUES(?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET attempts=attempts+1,revision=excluded.revision,at=excluded.at,nextAt=0').run(slot.key,1,0,cfg.revision,slot.at);
      store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?) ON CONFLICT(key) DO UPDATE SET status=excluded.status,job=excluded.job,detail=NULL').run(slot.key,'running',id,null,new Date(this.now()).toISOString());
     }else record('running',null,id);});}
-   catch(e){if(this.now()<slot.at)continue;record('skipped',e.status===429?'Echo budget limit reached.':'Echo is unavailable.');this.refresh();continue;}
+   catch(e){if(this.now()<slot.at)continue;record('skipped',e.status===429?'Echo budget limit reached.':'Echo is unavailable.');this.reserve(slot);this.refresh();continue;}
    const controller=new AbortController();this.active.set(id,{controller,kind:'daily',revision:cfg.revision});const timer=setTimeout(()=>controller.abort(),210000);timer.unref();
    try{
     const archived=store.db.prepare('SELECT * FROM echo_daily_content WHERE published=1 ORDER BY at DESC LIMIT 30').all().map(x=>({...JSON.parse(x.value),daily:{slot:x.key.split(':')[1],variant:x.variant}}));const recent=[...s.items.filter(x=>x.daily),...archived].filter((x,i,a)=>a.findIndex(p=>p.title===x.title)===i).slice(0,30),choices=slot.id==='morning'?morningKinds:slot.id==='afternoon'?['a current verified non-negative world news report']:nightKinds,available=choices.filter(x=>!recent.filter(p=>p.daily.slot===slot.id).slice(0,choices.length-1).some(p=>p.daily.variant===x)),variant=(available.length?available:choices)[randomInt((available.length?available:choices).length)];
@@ -105,6 +126,7 @@ export class DailyWall{
       if(controller.signal.aborted)throw e;
       previousFailure=String(e.message||'Preparation failed').slice(0,240);
       store.tx(()=>{store.settle(id,e.usage);store.status(id,'failed');});
+      if(store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key)?.status==='posted')throw e;
       if(attempt===0&&(slot.id!=='afternoon'||(retry?.attempts||0)+1<4)){
        try{const next=store.tx(()=>{const next=store.reserve('Echo','shared',{purpose:'daily',searchBudget:slot.id!=='morning'});if(slot.id==='afternoon')store.db.prepare('UPDATE echo_daily_retry SET attempts=attempts+1 WHERE key=?').run(slot.key);return next;});
         this.active.delete(id);store.db.prepare("UPDATE jobs SET body='{}' WHERE id=?").run(id);id=next;
@@ -116,21 +138,21 @@ export class DailyWall{
       store.status(id,'running');result={value:slot.id==='morning'?morningFallback(recent):nightFallback(recent,slot.key)};break;
      }
     }
-    store.tx(()=>{store.settle(id,result.usage);const current=store.state();if(controller.signal.aborted||store.job(id).status!=='running'||current.daily.revision!==cfg.revision||!current.daily.enabled||current.pauses.length){store.status(id,'cancelled');store.db.prepare("UPDATE echo_daily_runs SET status='cancelled',detail='Settings changed or Echo was paused.' WHERE key=?").run(slot.key);return;}
+    store.tx(()=>{store.settle(id,result.usage);if(store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key)?.status==='posted'){store.status(id,'done');return;}const current=store.state();if(controller.signal.aborted||store.job(id).status!=='running'||current.daily.revision!==cfg.revision||!current.daily.enabled||current.pauses.length){store.status(id,'cancelled');store.db.prepare("UPDATE echo_daily_runs SET status='cancelled',detail='Settings changed or Echo was paused.' WHERE key=?").run(slot.key);return;}
      const value=result.value;if(value){
       store.db.prepare('INSERT OR REPLACE INTO echo_daily_content VALUES(?,?,?,?,?,0)').run(slot.key,JSON.stringify(value),variant,cfg.revision,slot.at);
       if(this.now()<slot.at)store.db.prepare("UPDATE echo_daily_runs SET status='ready',detail='Reviewed and ready for the scheduled time.' WHERE key=?").run(slot.key);
       else if(!this.publish(slot,value,variant,cfg))store.db.prepare("UPDATE echo_daily_runs SET status='skipped',detail='No suitable original post was found.' WHERE key=?").run(slot.key);
      }else store.db.prepare("UPDATE echo_daily_runs SET status='failed',detail='No unused reviewed reserve is available.' WHERE key=?").run(slot.key);
      store.status(id,'done');});
-   }catch(e){const current=store.state(),cancelled=controller.signal.aborted&&(this.stopped||current.daily.revision!==cfg.revision||!current.daily.enabled||current.pauses.length||store.job(id).status==='cancelled');store.status(id,cancelled?'cancelled':'failed');
+   }catch(e){if(store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key)?.status==='posted'){store.status(id,'failed');continue;}const current=store.state(),cancelled=controller.signal.aborted&&(this.stopped||current.daily.revision!==cfg.revision||!current.daily.enabled||current.pauses.length||store.job(id).status==='cancelled');store.status(id,cancelled?'cancelled':'failed');
     const count=store.db.prepare('SELECT attempts FROM echo_daily_retry WHERE key=?').get(slot.key)?.attempts||0;
     const again=!cancelled&&slot.id==='afternoon'&&count<4&&this.now()+5*60000<slot.at+3*3600000;
     const reason=String(e.message||'Preparation failed').replace(/Bearer\s+\S+|sk-[\w-]+/gi,'[redacted]').slice(0,240);
     if(again)store.db.prepare('UPDATE echo_daily_retry SET nextAt=? WHERE key=?').run(this.now()+5*60000,slot.key);
     store.db.prepare('UPDATE echo_daily_runs SET status=?,detail=? WHERE key=?').run(cancelled?'cancelled':again?'retrying':'failed',cancelled?'Echo stopped.':reason+(again?' Retrying in five minutes.':' No unverified substitute was published.'),slot.key);
     if(!cancelled)console.warn(JSON.stringify({event:'echo_daily_failure',key:slot.key,attempts:count,retry:again,reason}));}
-   finally{clearTimeout(timer);this.active.delete(id);store.db.prepare("UPDATE jobs SET body='{}' WHERE id=?").run(id);this.refresh();}
+   finally{clearTimeout(timer);this.active.delete(id);store.db.prepare("UPDATE jobs SET body='{}' WHERE id=?").run(id);const run=store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key);if(run&&['failed','retrying','skipped'].includes(run.status))this.reserve(slot);this.refresh();}
   }
  }
  async comment(postId){

@@ -9,7 +9,7 @@ function fixture(generate){const store=new Store(':memory:');let clock=base;cons
 test('Riyadh times, future-only activation, grace window and settings validation',()=>{const cfg=dailyDefaults(base);assert.equal(dueSlots(cfg,base).length,0);assert.equal(dueSlots(cfg,base+5400000)[0].id,'morning');assert.equal(dueSlots(cfg,base+9000000).length,0);const s={daily:cfg,version:0};updateDaily(s,{...cfg,enabled:false},base+5400001);assert.equal(dueSlots(s.daily,base+5400002).length,0);assert.throws(()=>updateDaily(s,{...s.daily,slots:[]}),/three/);assert.throws(()=>updateDaily(s,{...cfg}),/changed/);});
 test('at most one post/debit across overlapping ticks, deletion and worker restart',async()=>{let calls=0,resolve;const f=fixture(async()=>{calls++;await new Promise(r=>resolve=r);return {value:{title:'An original thoughtful post for two people.',sources:[]},usage};});f.set(base+5400000);const task=f.wall.tick();await f.wall.tick();assert.equal(calls,1);resolve();await task;assert.equal(f.store.state().items.length,1);const spent=f.store.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used;f.store.tx(()=>{const s=f.store.state();s.items=[];f.store.save(s);});const replacement=new DailyWall(f.store,{now:()=>base+5400010,connected:()=>true,generate:()=>{throw Error('duplicate');}});await replacement.tick();assert.equal(f.store.state().items.length,0);assert.equal(f.store.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,spent);replacement.stop();f.close();});
 test('settings prevent pending result publication',async()=>{let resolve;const f=fixture(async()=>new Promise(r=>resolve=r));f.set(base+5400000);const task=f.wall.tick();f.store.tx(()=>{const s=f.store.state();updateDaily(s,{...s.daily,enabled:false},base+5400001);f.store.save(s);});resolve({value:{title:'Do not publish me',sources:[]},usage});await task;assert.equal(f.store.state().items.length,0);assert.equal(f.wall.view().runs[0].status,'cancelled');f.close();});
-test('budget cap skips without spending or raising cap',async()=>{const f=fixture(async()=>{throw Error('must not call');});f.set(base+5400000);f.store.db.prepare("INSERT INTO budget VALUES('lifetime',3000000)").run();await f.wall.tick();assert.equal(f.wall.view().runs[0].status,'skipped');assert.match(f.wall.view().runs[0].detail,/budget/);assert.equal(f.store.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,3000000);f.close();});
+test('budget cap publishes an offline reserve without spending or raising cap',async()=>{const f=fixture(async()=>{throw Error('must not call');});f.set(base+5400000);f.store.db.prepare("INSERT INTO budget VALUES('lifetime',3000000)").run();await f.wall.tick();assert.equal(f.wall.view().runs[0].status,'posted');assert.match(f.wall.view().runs[0].detail,/reserve/);assert.equal(f.store.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,3000000);f.close();});
 test('research requires successful search, safe citations and fresh news date',()=>{const now=Date.parse('2026-09-17T13:00Z'),text='DATE: 2026-09-17\nA concrete event was announced today. [source]';const r={status:'completed',output:[{type:'web_search_call',status:'completed'},{type:'message',content:[{type:'output_text',text,annotations:[{type:'url_citation',url:'https://example.org/report',title:'Report',start_index:54,end_index:62}]}]}]};assert.equal(parseDaily(r,'afternoon',now).publishedDate,'2026-09-17');const old=structuredClone(r);old.output[1].content[0].text=text.replace('2026-09-17','2026-09-01');assert.throws(()=>parseDaily(old,'afternoon',now),/recent/);assert.throws(()=>parseDaily({...r,output:r.output.slice(1)},'night',now),/source/);r.output[1].content[0].annotations[0].url='javascript:alert(1)';assert.throws(()=>parseDaily(r,'night',now),/source/);});
 test('settlement includes search fees; interrupted requests retain reservation',()=>{const f=fixture();const id=f.store.tx(()=>f.store.reserve('Echo','shared',{searchBudget:true}));assert.equal(f.store.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,500000);f.store.tx(()=>f.store.settle(id,{...usage,web_search_calls:2}));assert.equal(f.store.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,26500);f.store.status(id,'done');const next=f.store.tx(()=>f.store.reserve('Echo','shared',{searchBudget:true}));f.store.status(next,'interrupted');assert.equal(f.store.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,526500);f.close();});
 test('consent and disabling pending reply preserve human comments',async()=>{let calls=0,resolve;const f=fixture(async()=>{calls++;return new Promise(r=>resolve=r);});const s=f.store.state();change(s,'Mahmoud','item.save',{type:'Discussion',title:'A topic'});const id=s.items[0].id;change(s,'Safy','item.comment',{id,text:'Echo, what do you think of this?'});f.store.save(s);await f.wall.comment(id);assert.equal(calls,0);change(s,'Mahmoud','item.echo',{id,value:true});f.store.save(s);const task=f.wall.comment(id);await f.wall.comment(id);assert.equal(calls,1);const current=f.store.state();change(current,'Safy','item.echo',{id,value:false});f.store.save(current);resolve({value:'A pending answer.',usage});await task;assert.equal(f.store.state().items[0].comments.length,1);assert.equal(f.store.state().items[0].comments[0].by,'Safy');f.close();});
@@ -38,10 +38,10 @@ test('failed night recovers after grace without AI calls, duplication or changin
  f.store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?)').run('2026-09-17:night','failed',null,'No verified sources',new Date(base).toISOString());
  await f.wall.tick();await f.wall.tick();assert.equal(f.store.state().items.length,1);assert.equal(f.wall.view().runs[0].status,'posted');assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM jobs').get().n,0);f.close();
 });
-test('paused Echo blocks recovery and old news is never replaced with evergreen content',async()=>{
+test('paused Echo blocks recovery; afternoon reserve is clearly labelled as not news',async()=>{
  const f=fixture();f.set(Date.parse('2026-09-17T20:30:00Z'));const s=f.store.state();s.pauses=['Mahmoud'];f.store.save(s);
  for(const id of ['night','afternoon'])f.store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?)').run('2026-09-17:'+id,'failed',null,'No sources',new Date(base).toISOString());
- await f.wall.tick();assert.equal(f.store.state().items.length,0);s.pauses=[];f.store.save(s);await f.wall.tick();assert.equal(f.store.state().items.length,1);assert.equal(f.store.state().items[0].daily.slot,'night');f.close();
+ await f.wall.tick();assert.equal(f.store.state().items.length,0);s.pauses=[];f.store.save(s);await f.wall.tick();assert.equal(f.store.state().items.length,2);const news=f.store.state().items.find(x=>x.daily.slot==='afternoon');assert.match(news.title,/not current news/);assert.equal(news.publishedDate,null);f.close();
 });
 
 test('prepares five minutes early, publishes only at schedule, survives restart and notifies once',async()=>{
@@ -71,13 +71,14 @@ test('news retries after cooldown, survives restart, prepares early and publishe
  const restarted=new DailyWall(f.store,{now:()=>clock,connected:()=>true,generate});clock+=5*60000;await restarted.tick();assert.equal(calls,3);assert.equal(f.wall.view().runs[0].status,'ready');assert.match(seen[2].previousFailure,/source date/);assert.notEqual(seen[0].signal,seen[1].signal);
  clock=Date.parse('2026-09-17T13:00Z');await restarted.tick();await restarted.tick();assert.equal(f.store.state().items.length,1);assert.equal(f.store.state().items[0].daily.notify,true);assert.equal(calls,3);restarted.stop();f.close();
 });
-test('news retry count is bounded across restarts and never publishes invented fallback',async()=>{
- let calls=0;const f=fixture(async()=>{calls++;const e=Error('No verified sources');e.usage=usage;throw e;});const at=Date.parse('2026-09-17T13:00Z');f.set(at);await f.wall.tick();f.set(at+5*60000);await f.wall.tick();assert.equal(calls,4);assert.equal(f.wall.view().runs[0].status,'failed');
- const restarted=new DailyWall(f.store,{now:()=>at+10*60000,connected:()=>true,generate:async()=>{calls++;throw Error('Must not retry');}});await restarted.tick();assert.equal(calls,4);assert.equal(f.store.state().items.length,0);restarted.stop();f.close();
+test('news retries before its deadline then publishes a labelled reserve once across restarts',async()=>{
+ let calls=0;const f=fixture(async()=>{calls++;const e=Error('No verified sources');e.usage=usage;throw e;});const at=Date.parse('2026-09-17T13:00Z');
+ f.set(at-60*60000);await f.wall.tick();f.set(at-55*60000);await f.wall.tick();assert.equal(calls,4);assert.equal(f.wall.view().runs[0].status,'failed');assert.equal(f.store.state().items.length,0);
+ f.set(at);await f.wall.tick();assert.equal(f.wall.view().runs[0].status,'posted');assert.match(f.store.state().items[0].title,/not current news/);
+ const restarted=new DailyWall(f.store,{now:()=>at+10*60000,connected:()=>true,generate:async()=>{calls++;throw Error('Must not retry');}});await restarted.tick();assert.equal(calls,4);assert.equal(f.store.state().items.length,1);restarted.stop();f.close();
 });
-test('legacy failed afternoon recovers after the old one-hour window with notification consent',async()=>{
- let calls=0;const f=fixture(async()=>{calls++;return {value:{title:'A current sourced event after recovery.',sources:[{url:'https://example.org/news'}],publishedDate:'2026-09-17'},usage};});
- f.set(Date.parse('2026-09-17T14:10Z'));f.store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?)').run('2026-09-17:afternoon','failed',null,'Legacy failure',new Date(base).toISOString());await f.wall.tick();await f.wall.tick();assert.equal(calls,1);assert.equal(f.store.state().items.length,1);assert.equal(f.store.state().items[0].daily.slot,'afternoon');f.close();
+test('legacy failed afternoon gets a labelled reserve without additional AI cost',async()=>{
+ let calls=0;const f=fixture(async()=>{calls++;throw Error('must not call');});f.set(Date.parse('2026-09-17T14:10Z'));f.store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?)').run('2026-09-17:afternoon','failed',null,'Legacy failure',new Date(base).toISOString());await f.wall.tick();await f.wall.tick();assert.equal(calls,0);assert.equal(f.store.state().items.length,1);assert.match(f.store.state().items[0].title,/not current news/);f.close();
 });
 test('news retry respects pause, disabled slot and budget without raising caps',async()=>{
  let calls=0;const f=fixture(async()=>{calls++;const e=Error('No sources');e.usage=usage;throw e;});const at=Date.parse('2026-09-17T13:00Z');f.set(at);await f.wall.tick();f.set(at+5*60000);
@@ -92,5 +93,25 @@ test('prepared news is rechecked at publication without resetting its attempt bu
  f.store.db.prepare('INSERT INTO echo_daily_content VALUES(?,?,?,?,?,0)').run(key,JSON.stringify({title:'Expired cached news must never be posted.',publishedDate:'2026-09-15T12:50:00Z'}),'news',cfg.revision,at);
  f.store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?)').run(key,'ready',null,null,new Date(at-900000).toISOString());
  f.store.db.prepare('INSERT INTO echo_daily_retry VALUES(?,?,?,?,?)').run(key,4,0,cfg.revision,at);
- f.wall.generate=async()=>{calls++;throw Error('Budget must not reset');};await f.wall.tick();assert.equal(calls,0);assert.equal(f.store.state().items.length,0);assert.equal(f.wall.view().runs[0].status,'failed');f.close();
+ f.wall.generate=async()=>{calls++;throw Error('Budget must not reset');};await f.wall.tick();assert.equal(calls,0);assert.equal(f.store.state().items.length,1);assert.match(f.store.state().items[0].title,/not current news/);assert.equal(f.wall.view().runs[0].status,'posted');f.close();
+});
+
+test('deadline is not blocked by a slow model and a late result cannot duplicate the reserve',async()=>{
+ let finish;const f=fixture(async()=>new Promise(r=>finish=r)),at=base+5400000;
+ f.set(at-50*60000);const task=f.wall.tick();assert.equal(f.store.state().items.length,0);
+ f.set(at);await f.wall.tick();const post=f.store.state().items[0];assert.ok(post);assert.equal(f.wall.view().runs[0].status,'posted');
+ finish({value:{title:'A late candidate that must not replace the delivered reserve.',sources:[]},usage});await task;
+ assert.equal(f.store.state().items.length,1);assert.equal(f.store.state().items[0].id,post.id);assert.equal(f.wall.view().runs[0].status,'posted');f.close();
+});
+test('provider disconnected still delivers without a paid job or bypassing pause',async()=>{
+ const f=fixture();f.wall.connected=()=>false;f.set(base+5400000);await f.wall.tick();assert.equal(f.store.state().items.length,1);assert.equal(f.store.db.prepare('SELECT COUNT(*) AS n FROM jobs').get().n,0);await f.wall.tick();assert.equal(f.store.state().items.length,1);f.close();
+});
+test('an unrelated running AI request cannot block a scheduled reserve',async()=>{
+ const f=fixture();f.store.tx(()=>f.store.reserve('Mahmoud','shared',{}));f.set(base+5400000);await f.wall.tick();assert.equal(f.store.state().items.length,1);f.close();
+});
+test('a late failed writer cannot mark an already delivered reserve failed',async()=>{
+ let reject;const f=fixture(async()=>new Promise((_,r)=>reject=r)),at=base+5400000;
+ f.set(at-600000);const task=f.wall.tick();f.set(at);await f.wall.tick();reject(Error('provider down'));
+ // Avoid retrying a finished slot after the deadline delivery.
+ f.wall.generate=async()=>{throw Error('provider down');};await task;assert.equal(f.wall.view().runs[0].status,'posted');assert.equal(f.store.state().items.length,1);f.close();
 });

@@ -31,3 +31,10 @@ test('unreadable articles fail with retry guidance before spending on editorial 
  process.env.OPENAI_API_KEY='test';let calls=0;
  await assert.rejects(dailyGenerate({kind:'afternoon',now:Date.parse('2026-09-22T13:00Z'),verify:async()=>null,fetcher:async()=>{calls++;return Response.json({status:'completed',usage:{input_tokens:100,output_tokens:50},output:[{type:'web_search_call',status:'completed'},{type:'message',content:[{type:'output_text',text:'DATE: 2026-09-22\n'+article,annotations:[{type:'url_citation',url:'https://example.org/new-instrument'}]}]}]});}}),e=>{assert.match(e.message,/another publisher/);assert.equal(e.usage.input_tokens,100);return true;});assert.equal(calls,1);
 });
+
+test('literal Markdown citations survive missing annotations and still undergo article verification',async()=>{
+ const {parseDaily}=await import('../daily-ai.mjs');const r={status:'completed',output:[{type:'web_search_call',status:'completed'},{type:'message',content:[{type:'output_text',text:'DATE: 2026-09-22\nA new instrument was announced. [Read the report](https://example.org/new-instrument)',annotations:[]}]}]};
+ const value=parseDaily(r,'afternoon',Date.parse('2026-09-22T13:00Z'));assert.equal(value.sources[0].url,'https://example.org/new-instrument');assert.equal(value.title.slice(value.sources[0].start,value.sources[0].end),'[Read the report](https://example.org/new-instrument)');
+ await assert.rejects(newsEvidence(value,{verify:async()=>null}),/could not be read/);
+ r.output[1].content[0].text=r.output[1].content[0].text.replace('https://example.org/new-instrument','https://example.org/news');await assert.rejects(newsEvidence(parseDaily(r,'afternoon',Date.parse('2026-09-22T13:00Z'))),/direct article/);
+});

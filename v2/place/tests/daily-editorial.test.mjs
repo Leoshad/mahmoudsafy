@@ -19,8 +19,8 @@ test('news timestamps preserve the actual publication time and reject stale/futu
 });
 test('night discovery review accepts undated sources and receives the scheduler clock',async()=>{
  process.env.OPENAI_API_KEY='test';let calls=0;const now=Date.parse('2026-09-20T13:00:00Z');
- const result=await dailyGenerate({kind:'night',variant:'surprising science',now,fetcher:async(_,opts)=>{
-  const body=JSON.parse(opts.body);if(++calls===1)return Response.json({status:'completed',usage,output:[{type:'web_search_call',status:'completed'},{type:'message',content:[{type:'output_text',text:'DATE: none\nAn interesting scientific finding explained with appropriate qualifications.',annotations:[{type:'url_citation',url:'https://example.org/science',start_index:11,end_index:70}]}]}]});
+ const result=await dailyGenerate({kind:'night',variant:'surprising science',now,verify:async url=>({url,title:'Verified scientific finding',text:'An interesting scientific finding explained with appropriate qualifications. '.repeat(5)}),fetcher:async(_,opts)=>{
+  const body=JSON.parse(opts.body);if(++calls===1)return Response.json({status:'completed',usage,output:[{type:'web_search_call',status:'completed'},{type:'message',content:[{type:'output_text',text:'DATE: none\nAn interesting scientific finding explained with appropriate qualifications.',annotations:[{type:'url_citation',url:'https://example.org/science/specific-finding',start_index:11,end_index:70}]}]}]});
   assert.match(body.instructions,/night discoveries require citations but do not require a recent publication date/);assert.equal(JSON.parse(body.input).now,new Date(now).toISOString());return response('{"approve":true,"reason":"Sourced discovery"}');
  }});assert.equal(result.value.reviewed,true);assert.equal(result.usage.web_search_calls,1);
 });
