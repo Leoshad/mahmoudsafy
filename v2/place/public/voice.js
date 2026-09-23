@@ -21,7 +21,7 @@ async function begin(){
   const update=()=>{const seconds=Math.floor((Date.now()-started)/1000);label((locked?'Recording · locked · ':'Recording · slide up to lock · ')+Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0'));if(seconds>=300)stop();};update();tick=setInterval(update,250);
  }catch(e){if(attempt!==token)return;tracks();pressed=false;label(e.name==='NotAllowedError'?'Microphone permission was not granted. Allow it, then hold + again.':e.message||'Could not start recording.');}
 }
-function init(h){host=h;button=h.button;button.classList.add('voice-trigger');button.setAttribute('aria-label','Add photo · hold to record voice');button.title='Add photo · hold to record voice';
+function init(h){host=h;button=h.button;button.classList.add('voice-trigger');button.setAttribute('aria-label','Add photo or MP3 · hold to record voice');button.title='Add photo or MP3 · hold to record voice';
  panel=document.createElement('section');panel.className='voice-recorder';panel.hidden=true;panel.setAttribute('aria-label','Voice recording');
  status=document.createElement('p');status.setAttribute('role','status');preview=document.createElement('audio');preview.controls=true;preview.preload='metadata';preview.hidden=true;
  const controls=document.createElement('div');const add=(text,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=text;b.onclick=fn;controls.append(b);return b;};

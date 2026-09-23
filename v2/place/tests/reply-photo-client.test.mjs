@@ -8,7 +8,7 @@ function fixture(){
  const c={state:{who:'Mahmoud'},sessionEpoch:0,sending:false,attachment:null,reply:{id:'original'},pending:new Map(),crypto:{randomUUID:()=> 'id'},Date,URL:{createObjectURL:()=> 'blob:preview',revokeObjectURL(){}},info(){},error:e=>errors.push(e),sendTyping(){},paintReply(){},paintAttachment(){},paintFeed(){},saveOutbox:m=>{sent.push(m);return true;},drainOutbox:async()=>{},$:id=>{if(!nodes.has(id))nodes.set(id,{value:'',files:[]});return nodes.get(id);},createImageBitmap:async()=>({width:100,height:100,close(){}}),document:{createElement:()=>({getContext:()=>({drawImage(){}}),toDataURL:()=> 'data:image/jpeg;base64,PHOTO'})}};
  vm.createContext(c);
  vm.runInContext(source.slice(source.indexOf("$('#composer').onsubmit="),source.indexOf("$('#compose').onkeydown=")),c);
- vm.runInContext(source.slice(source.indexOf("$('#photo').onclick="),source.indexOf("$('#ask').onchange=")),c);
+ vm.runInContext(source.slice(source.indexOf("$('#upload').onchange="),source.indexOf("$('#ask').onchange=")),c);
  return {c,sent,errors};
 }
 test('caption waits for photo upload and sends once with photo and reply in the same payload',async()=>{
@@ -28,3 +28,5 @@ test('reply preview includes author, caption and thumbnail; navigation loads and
  vm.runInContext(source.slice(source.indexOf('function paintQuote('),source.indexOf('function paintReply(')),c);c.paintQuote(root,{author:'Safy',text:'Caption',image:'photo'});assert.equal(root.children[0].children[0].text,'Safy');assert.equal(root.children[0].children[1].text,'Caption');assert.equal(root.children[1].src,'/api/photos/photo');
  vm.runInContext(source.slice(source.indexOf('async function openSource('),source.indexOf("$('#continue-play')")),c);await c.openSource('old');assert.equal(row.scrolled,'center');assert.equal(highlighted,row);assert.equal(c.older[0].id,'old');
 });
+
+test('MP3 attachment sends its audio id and title through the durable outbox',async()=>{const {c,sent}=fixture();c.attachment={id:'music-1',kind:'audio',name:'Song.mp3'};await c.$('#composer').onsubmit({preventDefault(){}});assert.equal(sent.length,1);assert.equal(sent[0].audioMime,'audio/mpeg');assert.deepEqual(JSON.parse(JSON.stringify(sent[0].payload)),{text:'Song.mp3',audio:'music-1',reply:'original'});});
