@@ -29,7 +29,7 @@ function close(immediate=false){clearTimeout(hold);hold=null;gesture=null;drag=n
 function ready(){mode='ready';progress=1;caption.textContent='Whenever you’re ready.';layer.classList.add('is-ready');pin.hidden=false;}
 function pop(){if(mode!=='ready')return;mode='popped';popped=performance.now();pin.hidden=true;caption.textContent='Let it go.';layer.classList.add('is-popped');particles=Array.from({length:reduced()?0:35},(_,i)=>({dx:Math.cos(i*2.4)*(30+Math.random()*110),dy:Math.sin(i*2.4)*(30+Math.random()*100),r:1+Math.random()*4,color:i%2?'#e5b3ca':'#dbc391'}));popSound();if(setting('vibration'))navigator.vibrate?.(25);ending=setTimeout(()=>close(),1500);}
 const blocked='button,a,input,textarea,select,summary,details,img,.avatar,.bubble,[data-profile-name]';
-function start(x,y,id,target){if(mode!=='idle'||document.querySelector('dialog[open]')||target.closest(blocked))return;gesture={x,y,id,armed:false};hold=setTimeout(()=>{if(!gesture)return;gesture.armed=true;unlock();open();},350);}
+function start(x,y,id,target){if(window.OurTouch?.busy()||mode!=='idle'||document.querySelector('dialog[open]')||target.closest(blocked))return;gesture={x,y,id,armed:false};hold=setTimeout(()=>{if(!gesture)return;gesture.armed=true;unlock();open();},350);}
 function move(x,y){if(!gesture)return false;const dx=x-gesture.x,dy=gesture.y-y;if(!gesture.armed){if(Math.hypot(dx,dy)>9){clearTimeout(hold);gesture=null;}return false;}progress=Math.max(0,Math.min(1,dy/Math.min(230,h*.48)));return true;}
 function end(){clearTimeout(hold);if(!gesture)return;const armed=gesture.armed;gesture=null;if(!armed)return;suppressUntil=performance.now()+400;if(progress>=.97)ready();else close();}
 // Capture only after a deliberate stationary hold; ordinary scrolling remains native.
@@ -47,5 +47,6 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});document.
 new MutationObserver(()=>{if(document.querySelector('#chat').hidden||document.querySelector('#app').hidden)close(true);}).observe(document.querySelector('#app'),{attributes:true,subtree:true,attributeFilter:['hidden']});
 window.addEventListener('resize',()=>{if(mode!=='idle')resize();});
 // An accessible alternative to the gesture, placed in the existing menu.
-const button=document.createElement('button');button.type='button';button.textContent='Let it go · Balloon';button.onclick=()=>{unlock();open();progress=1;ready();document.querySelector('.room-tools').open=false;pin.focus();};document.querySelector('.tools-content').append(button);
+const button=document.createElement('button');button.type='button';button.textContent='Let it go · Balloon';button.onclick=()=>{if(window.OurTouch?.busy())return;unlock();open();progress=1;ready();document.querySelector('.room-tools').open=false;pin.focus();};document.querySelector('.tools-content').append(button);
+window.OurBalloon={busy:()=>mode!=='idle'||!!gesture?.armed,cancel:()=>close(true)};
 })();
