@@ -1,7 +1,7 @@
 #our-place-trial .crown-holder{position:relative;color:#e4c982!important;cursor:pointer}
 #our-place-trial .crown-holder::after{content:'👑';display:inline-block;color:#edcc78;font-size:15px;margin-left:5px;line-height:1;filter:drop-shadow(0 1px 3px #d8b76b40)}
 #our-place-trial .crown-avatar{border-color:#dabb75!important;box-shadow:0 0 0 2px #dabb7526;background:linear-gradient(145deg,#493b27,#292631)!important}
-#our-place-trial .crown-avatar::after{position:absolute;top:-12px;left:50%;transform:translateX(-50%);margin:0;font-size:18px}
+#our-place-trial .crown-avatar::after{position:absolute;top:-16px;left:50%;transform:translateX(-50%);margin:0;font-size:18px}
 #our-place-trial .crown-holder:focus-visible{outline:2px solid #edcc78;outline-offset:4px}
 #our-place-trial .crown-summary{display:flex;align-items:center;gap:16px;width:100%;text-align:left;padding:18px 20px;margin:0 0 20px;border:1px solid #ac8d4c70;border-radius:18px;background:linear-gradient(115deg,#322b20,#201e24 72%);color:#ecdfc1}
 #our-place-trial .crown-summary[hidden]{display:none}
