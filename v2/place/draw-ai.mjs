@@ -1,4 +1,5 @@
-import {MODEL,events} from './ai.mjs';
+import {events} from './ai.mjs';
+import {LIGHT_MODEL as MODEL} from './ai-models.mjs';
 import {check} from './domain.mjs';
 import {drawDeck} from './draw.mjs';
 export async function drawingWords({context,signal,fetcher=fetch}){

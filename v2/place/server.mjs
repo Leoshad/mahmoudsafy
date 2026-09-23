@@ -1,3 +1,4 @@
+import {verifyEchoModels} from './ai-models.mjs';
 import {storedNote} from './note-document.mjs';
 import {noteDocx} from './note-docx.mjs';
 import {searchChat} from './chat-search.mjs';
@@ -315,6 +316,7 @@ if(process.argv[1]===fileURLToPath(import.meta.url)){
   check(process.env.SUPABASE_PUBLISHABLE_KEY&&process.env.MAHMOUD_EMAIL&&process.env.SAFY_EMAIL,'Configure the V2 publishable key and both invited email addresses.',503);check(process.env.MAHMOUD_EMAIL.toLowerCase()!==process.env.SAFY_EMAIL.toLowerCase(),'Use two different invited accounts.',503);
   const store=new Store(join(dir,'our-place.sqlite'));const server=createApp({store,origin:resolveOrigin(),secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>console.log('Our Place server ready.'));
   if(process.env.YOUTUBE_API_KEY)youtubeService().resolve('M7lc1UVf-VE').then(()=>console.log('YouTube connection verified')).catch(()=>console.error('YouTube connection check failed; verify the configured key and API restrictions.'));
+  void verifyEchoModels();
   const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET);
   process.on('SIGTERM',()=>{stopMaintenance().then(()=>server.close(()=>{store.close();process.exit(0);}));});
 }

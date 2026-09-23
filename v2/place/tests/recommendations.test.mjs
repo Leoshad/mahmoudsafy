@@ -45,7 +45,7 @@ test('fresh video verification rejects restrictions for either partner and bypas
  await youtube.resolve(v.id);blocked=true;await assert.rejects(youtube.resolve(v.id,{fresh:true,regions:['SA','EG']}));assert.equal(calls,2);
 });
 test('search costs are counted for chat within the existing budget reservation',()=>{
- const s=new Store(':memory:');try{const id=s.tx(()=>s.reserve('Mahmoud','shared',{}));s.settle(id,{input_tokens:100,output_tokens:100,web_search_calls:2});assert.equal(s.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,25175);}finally{s.close();}
+ const s=new Store(':memory:');try{const id=s.tx(()=>s.reserve('Mahmoud','shared',{}));s.settle(id,{input_tokens:100,output_tokens:100,web_search_calls:2});assert.equal(s.db.prepare("SELECT used FROM budget WHERE key='lifetime'").get().used,26500);}finally{s.close();}
 });
 test('link validation blocks private networks, credentials, search pages and unsafe redirects',async()=>{
  for(const value of ['http://example.com/item','https://user:pass@example.com/item','https://127.0.0.1/item','https://localhost/item','https://example.com/search?q=x','https://example.com/'])assert.equal(contentURL(value),null);

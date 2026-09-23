@@ -1,3 +1,4 @@
+import {modelFor,ratesFor,LIGHT_MODEL} from './ai-models.mjs';
 import {drawState} from './draw.mjs';
 import {updateCrown} from './crown.mjs';
 import {DatabaseSync} from 'node:sqlite';
@@ -13,6 +14,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY,author TEXT NOT NULL,text TEXT NOT NULL,image TEXT,reply TEXT,aiAllowed INTEGER NOT NULL,status TEXT NOT NULL,createdAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS receipts(id TEXT PRIMARY KEY,actor TEXT NOT NULL,digest TEXT NOT NULL,result TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS jobs(id TEXT PRIMARY KEY,actor TEXT NOT NULL,scope TEXT NOT NULL,status TEXT NOT NULL,body TEXT NOT NULL,createdAt TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS echo_usage(job TEXT PRIMARY KEY,model TEXT NOT NULL,purpose TEXT NOT NULL,inputTokens INTEGER NOT NULL,outputTokens INTEGER NOT NULL,searches INTEGER NOT NULL,estimatedMicroUSD INTEGER NOT NULL,budgetMicroUSD INTEGER NOT NULL,createdAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS budget(key TEXT PRIMARY KEY,used INTEGER NOT NULL DEFAULT 0);
       CREATE TABLE IF NOT EXISTS photos(id TEXT PRIMARY KEY,mime TEXT NOT NULL,bytes BLOB NOT NULL,createdAt TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS photo_orphans(id TEXT PRIMARY KEY,since INTEGER NOT NULL);
@@ -38,17 +40,21 @@ export class Store {
   reserve(actor,scope,body){
     const keys=[new Date().toISOString().slice(0,7),'lifetime'];const caps=[4_000_000,Number(process.env.AI_LIFETIME_USD??'3')*1_000_000];
     check(Number.isFinite(caps[1])&&caps[1]>=0&&caps[1]<=100_000_000,'Invalid AI budget configuration.',503);
-    // $0.05 per request conservatively covers bounded Luna input/output, including a downscaled image.
-    const charge=body.searchBudget?100_000:50_000;for(let j=0;j<keys.length;j++){this.db.prepare('INSERT OR IGNORE INTO budget(key) VALUES(?)').run(keys[j]);const b=this.db.prepare('SELECT used FROM budget WHERE key=?').get(keys[j]);check(b.used+charge<=caps[j],'Echo has reached the budget limit. Your chat still works.',429);}
+    // Reserve more for Sol; retain all existing monthly/lifetime limits.
+    const model=modelFor(body.purpose);
+    const charge=model===LIGHT_MODEL?50_000:body.searchBudget?500_000:250_000;for(let j=0;j<keys.length;j++){this.db.prepare('INSERT OR IGNORE INTO budget(key) VALUES(?)').run(keys[j]);const b=this.db.prepare('SELECT used FROM budget WHERE key=?').get(keys[j]);check(b.used+charge<=caps[j],'Echo has reached the budget limit. Your chat still works.',429);}
     check(!this.db.prepare("SELECT 1 FROM jobs WHERE status='running' AND (scope='shared' OR actor=?)").get(actor),'Echo is already working. You can keep chatting.',409);
     for(const key of keys)this.db.prepare('UPDATE budget SET used=used+? WHERE key=?').run(charge,key);
-    const id=randomUUID();this.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,actor,scope,'running',JSON.stringify({...body,reservedCharge:charge,budgetKeys:keys}),new Date().toISOString());return id;
+    const id=randomUUID();this.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,actor,scope,'running',JSON.stringify({...body,model,reservedCharge:charge,budgetKeys:keys}),new Date().toISOString());return id;
   }
   settle(id,usage){
     if(!usage||!Number.isInteger(usage.input_tokens)||!Number.isInteger(usage.output_tokens)||usage.input_tokens<0||usage.output_tokens<0)return;
-    const b=JSON.parse(this.job(id).body);if(!b.budgetKeys)return;
+    const j=this.job(id);if(!j)return;const b=JSON.parse(j.body);if(!b.budgetKeys||this.db.prepare('SELECT 1 FROM echo_usage WHERE job=?').get(id))return;
     const searches=Math.max(0,Number.isInteger(usage.web_search_calls)?usage.web_search_calls:b.searchBudget?2:0);
-    const cost=Math.max(100,Math.ceil((usage.input_tokens*.2+usage.output_tokens*1.2+searches*10000)*1.25));
+    const model=b.model??LIGHT_MODEL,rates=ratesFor(model);
+    const estimated=Math.ceil(usage.input_tokens*rates.input+usage.output_tokens*rates.output+searches*10000);
+    const cost=Math.max(100,Math.ceil(estimated*1.25));
+    this.db.prepare('INSERT INTO echo_usage VALUES(?,?,?,?,?,?,?,?,?)').run(id,model,b.purpose??'chat',usage.input_tokens,usage.output_tokens,searches,estimated,cost,new Date().toISOString());
     for(const k of b.budgetKeys)this.db.prepare('UPDATE budget SET used=MAX(0,used+?) WHERE key=?').run(cost-(b.reservedCharge??50000),k);
   }
   job(id){return this.db.prepare('SELECT * FROM jobs WHERE id=?').get(id);}
