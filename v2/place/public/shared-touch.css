@@ -6,7 +6,7 @@
 #shared-touch.touch-open .touch-stage{transform:translateY(0) scale(1)}
 #our-place-trial #shared-touch .touch-thumb{position:relative;width:clamp(115px,35vw,164px);height:clamp(130px,40vw,184px);min-height:0;flex-shrink:0;display:block;border:0;padding:0;background:transparent;touch-action:none;pointer-events:auto;color:#a08496;box-shadow:none;border-radius:30%;}
 #shared-touch .touch-finger{position:absolute;inset:0;display:grid;place-items:center}#shared-touch .touch-finger svg{width:126.445%;height:127.776%;stroke-width:.85;transform:scaleX(-1)}
-#shared-touch .touch-base{color:#a48698;opacity:.65}#shared-touch .touch-warmth{color:#edc894;opacity:var(--single,0);filter:drop-shadow(0 0 7px #efb789);transition:opacity .4s,color .5s}#shared-touch.touch-safy .touch-warmth{color:#f2accb;filter:drop-shadow(0 0 9px #ed96c3)}#shared-touch .touch-filling{color:#ffe0d2;clip-path:inset(calc(100% - var(--fill,0%)) 0 0);filter:drop-shadow(0 0 7px #f1b4c3) drop-shadow(0 0 20px #f3bc9b)}
+#shared-touch .touch-base{color:#a48698;opacity:.65}#shared-touch .touch-warmth{color:#edc894;opacity:var(--single,0);filter:drop-shadow(0 0 7px #efb789);transition:opacity .4s,color .5s}#shared-touch.touch-safy .touch-warmth{color:#f2accb;filter:drop-shadow(0 0 9px #ed96c3)}#shared-touch .touch-filling{color:#ffe0d2;mask-image:linear-gradient(to top,#000 0%,#000 max(0%,calc(var(--fill,0%) - 8%)),transparent var(--fill,0%));filter:drop-shadow(0 0 7px #f1b4c3) drop-shadow(0 0 20px #f3bc9b)}
 #shared-touch .touch-light{position:absolute;width:90%;height:75%;left:5%;top:8%;transform:scale(calc(.8 + var(--amount,0)*.5));background:radial-gradient(ellipse,#f2a8be36,#dc8b9e15 40%,transparent 68%);opacity:var(--amount,0);pointer-events:none}
 #shared-touch .touch-names{display:flex;gap:24px;font-size:12px;margin:0 0 32px;color:#9e8495}#shared-touch [data-touch-name="Mahmoud"].on{color:#f3d1a1;text-shadow:0 0 12px #eab76b}#shared-touch [data-touch-name="Safy"].on{color:#f5b1d0;text-shadow:0 0 12px #e6a1c4}
 #our-place-trial #shared-touch .touch-status{margin:15px 0 0;color:#dec4d3;font-size:13px;min-height:18px;line-height:1.4;text-align:center}
@@ -20,4 +20,12 @@
 #shared-touch{container-type:size}
 @container(max-height:330px){#our-place-trial #shared-touch .touch-thumb{width:70px;height:80px}#shared-touch .touch-stage{padding:38px 8px 8px}#shared-touch .touch-names{margin:0 0 18px;font-size:11px}#our-place-trial #shared-touch .touch-status{margin-top:4px;font-size:11px;min-height:15px}#our-place-trial #shared-touch .touch-ending{margin-top:7px;font-size:16px;line-height:1.3}#shared-touch .touch-heart{font-size:35px}}
 
-#our-place-trial .message.shared-touch-memory{display:block;margin:18px auto;max-width:88%;text-align:center;padding:13px 18px;border:1px solid #ac809450;border-radius:18px;background:linear-gradient(120deg,#382735e8,#302b36e8);color:#efd2df}#our-place-trial .shared-touch-memory .touch-memory-icon{width:24px;height:27px;display:block;margin:0 auto 6px;color:#dbb784}#our-place-trial .shared-touch-memory p{margin:4px 0;font-size:14px}#our-place-trial .shared-touch-memory small{display:block;color:#c4afbd;font-size:11px;margin-top:5px}
+/* More specific than the chat's three-column message layout. */
+#our-place-trial #feed .message.shared-touch-memory{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;box-sizing:border-box;width:fit-content;max-width:calc(100% - 24px);margin:16px auto;padding:12px 22px;text-align:center;border:1px solid #ac809432;border-radius:22px;background:linear-gradient(120deg,#382735b8,#302b36b8);color:#efd2df}
+#our-place-trial #feed .shared-touch-memory .touch-memory-icon{width:24px;height:27px;display:block;margin:0 0 2px;color:#dbb784;flex-shrink:0}
+#our-place-trial #feed .shared-touch-memory p{margin:0;font-size:14px;line-height:1.5}
+#our-place-trial #feed .shared-touch-memory small{display:block;width:auto;max-width:100%;color:#c4afbd;font-size:11px;line-height:1.5;margin:0;overflow-wrap:normal}
+#shared-touch.touch-finishing{opacity:0;transition:opacity .85s ease;pointer-events:none}
+#shared-touch.touch-finishing .touch-stage{transform:translateY(-6px) scale(.98);transition:transform .85s ease}
+#shared-touch .touch-finger{overflow:visible}
+#our-place-trial #shared-touch .touch-thumb:focus:not(:focus-visible){outline:none}
