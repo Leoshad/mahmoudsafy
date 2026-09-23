@@ -1,3 +1,4 @@
+import {crownSnapshot} from './crown.mjs';
 import {randomUUID} from 'node:crypto';
 import {check,project} from './domain.mjs';
 import {personalSnapshot} from './personal.mjs';
@@ -28,7 +29,8 @@ export function memoryData(store,who,opt){
  check(messages.length<=10000,'Choose a shorter period (up to 10,000 messages per PDF).',413);
  for(const m of messages){m.reactions=view.messageReactions[m.id]||{};if(m.reply){const r=byId.get(m.reply);m.source=r?{id:r.id,author:r.author,text:r.text,image:!!r.image,audio:!!r.audio,inRange:inside(r.createdAt)}:null;}}
  const listening=store.db.prepare('SELECT * FROM shared_listening ORDER BY startedAt').all().filter(m=>inside(m.startedAt));
- const data={...opt,generatedAt:new Date().toISOString(),who,invitations:store.db.prepare('SELECT * FROM memory_media_invites ORDER BY startedAt').all().filter(m=>inside(m.startedAt)),profiles:Object.fromEntries(Object.entries(personalSnapshot(s,who).profiles).map(([name,p])=>[name,{photo:p.photo}])),messages,listening,items:[],files:[],activities:[],games:[],dates:[],cases:[],drawing:null};
+ const data={...opt,generatedAt:new Date().toISOString(),who,crown:crownSnapshot(s,who),invitations:store.db.prepare('SELECT * FROM memory_media_invites ORDER BY startedAt').all().filter(m=>inside(m.startedAt)),profiles:Object.fromEntries(Object.entries(personalSnapshot(s,who).profiles).map(([name,p])=>[name,{photo:p.photo}])),messages,listening,items:[],files:[],activities:[],games:[],dates:[],cases:[],drawing:null};
+ data.crown.events=(data.crown.events||[]).filter(e=>inside(e.at));
  if(opt.scope==='all'){
   if(!dated&&s.draw?.shared?.strokes?.length)data.drawing=s.draw.shared;
   data.items=view.items.filter(i=>inside(i.createdAt)||(i.comments||[]).some(c=>inside(c.createdAt))).map(i=>({...i,comments:(i.comments||[]).filter(c=>inside(c.createdAt))}));
