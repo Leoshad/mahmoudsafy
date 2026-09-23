@@ -18,16 +18,16 @@ export async function renderMemoryPDF(data,store,{origin='',signal}={}){
  try{
   signal?.throwIfAborted();let size=0;const cache=new Map(),requested=new Map();
   // Discover only images referenced by rendered, authorized content. Resize one at a time.
-  memoryHTML(data,{photo:id=>{requested.set('p:'+id,()=>store.db.prepare('SELECT mime,bytes FROM photos WHERE id=?').get(id));return null;},filePhoto:id=>{requested.set('f:'+id,()=>store.db.prepare('SELECT mime,bytes FROM shared_files WHERE id=?').get(id));return null;}});
+  memoryHTML(data,{avatarPhoto:id=>{requested.set('a:'+id,()=>store.db.prepare('SELECT mime,bytes FROM photos WHERE id=?').get(id));return null;},photo:id=>{requested.set('p:'+id,()=>store.db.prepare('SELECT mime,bytes FROM photos WHERE id=?').get(id));return null;},filePhoto:id=>{requested.set('f:'+id,()=>store.db.prepare('SELECT mime,bytes FROM shared_files WHERE id=?').get(id));return null;}});
   const {default:sharp}=await import('sharp');
   for(const [key,read]of requested){
    signal?.throwIfAborted();const p=read();if(!p){cache.set(key,null);continue;}
    check(/^image\/(jpeg|png|webp|gif)$/.test(p.mime),'An image format cannot be exported.',400);
    size+=p.bytes.length;check(size<=32*1024*1024,'This selection has too many images for one PDF. Choose a shorter period.',413);
-   let bytes;try{bytes=await sharp(Buffer.from(p.bytes),{limitInputPixels:25000000}).rotate().resize({width:1400,height:1600,fit:'inside',withoutEnlargement:true}).flatten({background:'#fcfaf6'}).jpeg({quality:85}).toBuffer();}catch{check(false,'A photo could not be prepared. Try exporting a period without that attachment.',422);}
+   let bytes;try{bytes=await sharp(Buffer.from(p.bytes),{limitInputPixels:25000000}).rotate().resize(key.startsWith('a:')?{width:96,height:96,fit:'cover'}:{width:1400,height:1600,fit:'inside',withoutEnlargement:true}).flatten({background:'#fcfaf6'}).jpeg({quality:85}).toBuffer();}catch{check(false,'A photo could not be prepared. Try exporting a period without that attachment.',422);}
    cache.set(key,'data:image/jpeg;base64,'+bytes.toString('base64'));
   }
-  const html=memoryHTML(data,{origin,fontCSS:fontStyles(),photo:id=>cache.get('p:'+id),filePhoto:id=>cache.get('f:'+id)});
+  const html=memoryHTML(data,{origin,fontCSS:fontStyles(),avatarPhoto:id=>cache.get('a:'+id),photo:id=>cache.get('p:'+id),filePhoto:id=>cache.get('f:'+id)});
   check(Buffer.byteLength(html)<55*1024*1024,'Choose a shorter period for this export.',413);
   const [{default:chromium},{default:puppeteer}]=await Promise.all([import('@sparticuz/chromium'),import('puppeteer-core')]);
   chromium.setGraphicsMode=false;
