@@ -184,24 +184,7 @@
 @keyframes domino-result-reveal{from{opacity:.35;transform:translateY(12px) scale(.97);box-shadow:0 0 0 #d1b07800}to{opacity:1;transform:none;box-shadow:0 0 20px #d1b07820}}
 @media(prefers-reduced-motion:reduce){#our-place-trial .domino-result-enter{animation:none}}
 
-#our-place-trial .domino-connections{position:absolute;inset:0;pointer-events:none}
-#our-place-trial .domino-focused .domino-hand{max-height:98px;padding:4px;gap:4px}
-#our-place-trial .domino-focused #domino-records{display:none}
-@media(max-height:650px){#our-place-trial .domino-focused .domino-head{min-height:28px}#our-place-trial .domino-focused .domino-tabs{margin:0}#our-place-trial .domino-focused #domino-game{grid-template-rows:42px 20px 0 0 minmax(235px,1fr) 0 32px 0 auto 30px}#our-place-trial .domino-focused .domino-zone-meta,#our-place-trial .domino-focused .domino-zone-last{overflow:hidden}#our-place-trial .domino-focused .domino-scoreboard{height:42px}#our-place-trial .domino-focused .domino-hand{max-height:72px}}
-
+/* The original path needs real table space once the 20px tile-size floor is reached. */
 #our-place-trial #domino-panel.domino-focused{overflow-y:auto}
-#our-place-trial .domino-focused #domino-game{grid-template-rows:72px 22px minmax(30px,auto) 0 minmax(250px,1fr) 20px 36px 0 auto 34px}
-#our-place-trial .domino-focused .domino-scoreboard{height:72px}
-@media(max-height:650px){#our-place-trial .domino-focused #domino-game{grid-template-rows:42px 20px 0 0 minmax(235px,1fr) 0 32px 0 auto 30px}#our-place-trial .domino-focused .domino-scoreboard{height:42px}#our-place-trial .domino-focused .domino-player-score span{font-size:11px;line-height:13px}#our-place-trial .domino-focused .domino-player-score strong{font-size:20px;line-height:22px}}
-@media(max-height:500px) and (min-width:600px){
-#our-place-trial .domino-focused #domino-game{grid-template-columns:minmax(0,1fr) 140px;grid-template-rows:42px minmax(160px,1fr) 34px 32px}
-#our-place-trial .domino-focused .domino-zone-score{grid-row:1!important;grid-column:1 / -1}
-#our-place-trial .domino-focused .domino-zone-table{grid-row:2!important;grid-column:1}
-#our-place-trial .domino-focused .domino-hand{grid-row:2!important;grid-column:2;max-height:none;overflow-y:auto;align-content:start}
-#our-place-trial .domino-focused .domino-zone-actions{grid-row:3!important;grid-column:1}
-#our-place-trial .domino-focused .domino-zone-status{grid-row:3!important;grid-column:2}
-#our-place-trial .domino-focused .domino-footer{grid-row:4!important;grid-column:1 / -1}
-#our-place-trial .domino-focused .domino-zone-meta,#our-place-trial .domino-focused .domino-zone-ends,#our-place-trial .domino-focused .domino-zone-last,#our-place-trial .domino-focused .domino-zone-handTitle{display:none}
-}
-
-#our-place-trial .domino-board .domino-placement,#our-place-trial .domino-board .domino-piece,#our-place-trial .domino-board .domino-half{transition:none}
+#our-place-trial .domino-focused #domino-game{grid-template-rows:72px 24px minmax(46px,auto) 0 minmax(var(--domino-table-min,110px),1fr) 22px 40px 0 auto 44px}
+#our-place-trial .domino-focused #domino-game.domino-ended{grid-template-rows:72px 0 0 0 minmax(var(--domino-table-min,80px),1fr) 0 minmax(0,auto) 0 0 44px}

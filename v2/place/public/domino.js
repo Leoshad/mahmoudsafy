@@ -54,16 +54,32 @@ function piece(tile,root,interactive=false){
 }
 let boardObserver=null,historySignature='',view=null;
 const drawSeen=new Map();
-function tableLayout(chain,columns=10){
- // Connected serpentine rows, fixed spacing, crosswise doubles. Chain order never changes.
- const rows=[];let row=[],used=0;
- for(const tile of chain){const len=tile.a===tile.b?1:2;if(row.length&&used+.12+len>columns){rows.push(row);row=[];used=0;}row.push(tile);used+=(used?.12:0)+len;}if(row.length)rows.push(row);
- const out=[];
- rows.forEach((tiles,r)=>{const reverse=r%2===1;let x=reverse?columns/2:-columns/2;for(const tile of tiles){const double=tile.a===tile.b,w=double?1:2,h=double?2:1;x+=(reverse?-1:1)*w/2;out.push({tile,x,y:r*2.35,dir:reverse?2:0,len:w,cross:h,double,w,h,angle:(reverse?180:0)+(double?90:0)});x+=(reverse?-1:1)*(w/2+.12);}});
- return out;
+function tableLayout(chain){
+ if(!chain.length)return [];
+ const rootIndex=chain.reduce((best,t,i)=>(t.order??Infinity)<(chain[best].order??Infinity)?i:best,0),root=chain[rootIndex];
+ const pose=(tile,dir,previous)=>{
+  const double=tile.a===tile.b,len=double?1:2,cross=double?2:1,dx=[1,0,-1,0][dir],dy=[0,1,0,-1][dir];let x=0,y=0;
+  if(previous){
+   if(dir===previous.dir){x=previous.x+dx*(previous.len/2+len/2+.08);y=previous.y+dy*(previous.len/2+len/2+.08);}
+   else{const half=previous.double?0:previous.len/2-.5;x=previous.x+[1,0,-1,0][previous.dir]*half+dx*(previous.cross/2+len/2+.08);y=previous.y+[0,1,0,-1][previous.dir]*half+dy*(previous.cross/2+len/2+.08);}
+  }
+  return {tile,x,y,dir,len,cross,double,w:dir%2?cross:len,h:dir%2?len:cross,angle:dir*90+(double?90:0)};
+ };
+ const center=pose(root,0),out=[center];
+ function arm(tiles,left){
+  let direction=left?2:0,horizontal=direction,rowY=0,previous={...center,dir:direction};const vertical=left?3:1;
+  for(const original of tiles){
+   const tile=left?{...original,a:original.b,b:original.a}:original;
+   let next=pose(tile,direction,previous);
+   if(direction%2===0&&(next.x+next.w/2>5.6||next.x-next.w/2< -5.6)){horizontal=direction;direction=vertical;next=pose(tile,direction,previous);}
+   else if(direction===vertical&&Math.abs(previous.y-rowY)>=3){direction=horizontal===0?2:0;next=pose(tile,direction,previous);rowY=next.y;}
+   out.push(next);previous=next;
+  }
+ }
+ arm(chain.slice(rootIndex+1),false);arm(chain.slice(0,rootIndex).reverse(),true);
+ const byId=new Map(out.map(p=>[p.tile.id,p]));return chain.map(t=>byId.get(t.id));
 }
-function layoutBounds(poses){return {minX:Math.min(...poses.map(p=>p.x-p.w/2))-.35,maxX:Math.max(...poses.map(p=>p.x+p.w/2))+.35,minY:Math.min(...poses.map(p=>p.y-p.h/2)),maxY:Math.max(...poses.map(p=>p.y+p.h/2))};}
-function placementChoices(g,columns=10){
+function placementChoices(g){
  if(!picked||busy||g?.status!=='active'||g.paused||g.turn!==who)return [];
  const tile=g.hand.find(t=>t.id===picked);if(!tile)return [];
  const chain=g.chain.map((t,i)=>({...t,order:t.order??i+1})),order=Math.max(0,...chain.map(t=>t.order))+1;
@@ -71,34 +87,30 @@ function placementChoices(g,columns=10){
   let {a,b}=tile;
   if(chain.length&&((move.side==='left'&&b!==chain[0].a)||(move.side==='right'&&a!==chain.at(-1).b)))[a,b]=[b,a];
   const next={...tile,a,b,order},future=move.side==='left'?[next,...chain]:[...chain,next];
-  return {...tableLayout(future,columns).find(p=>p.tile.id===tile.id),move};
+  return {...tableLayout(future).find(p=>p.tile.id===tile.id),move};
  });
 }
-function tableScene(chain,g,columns){
- const moves=placementChoices(g,columns),projected=[...chain];
- for(const p of moves){const tile={...p.tile,id:'preview-'+p.move.side};if(p.move.side==='left')projected.unshift(tile);else projected.push(tile);}
- const all=tableLayout(projected,columns),poses=all.filter(p=>!p.tile.id.startsWith('preview-')),choices=moves.map(move=>({...all.find(p=>p.tile.id==='preview-'+move.move.side),tile:move.tile,move:move.move}));return {poses,choices};
-}
 function arrangeBoard(board,chain,lastMove,key){
- const width=board.clientWidth||280,height=focused()?(board.clientHeight||300):Math.max(300,Math.min(400,width*1.15)),layoutKey=width+':'+height+':'+key+':'+chain.length+':'+game()?.status+':'+!!game()?.paused+':'+picked+':'+busy;
+ const width=board.clientWidth||280;let height=focused()?(board.clientHeight||300):Math.max(300,Math.min(400,width*1.15)),layoutKey=width+':'+height+':'+key+':'+chain.length+':'+game()?.status+':'+!!game()?.paused+':'+picked+':'+busy;
  if(board.dataset.layout===layoutKey)return;board.dataset.layout=layoutKey;
  if(!focused())board.style.height=height+'px';
- if(!chain.length){if(!board._empty)board._empty=make('span','Your table is ready.',board,'domino-board-empty');return;}
+ if(!chain.length){board.style.minHeight='';$('#domino-panel').style.setProperty('--domino-table-min','110px');if(!board._empty)board._empty=make('span','Your table is ready.',board,'domino-board-empty');return;}
  board._empty?.remove?.();board._empty=null;
- const measure=columns=>{const {poses,choices}=tableScene(chain,game(),columns),bounds=layoutBounds([...poses,...choices]);return {columns,poses,choices,...bounds,fit:Math.min(32,(width-20)/(bounds.maxX-bounds.minX),(height-20)/(bounds.maxY-bounds.minY))};};
- let layout=measure(board._columns||10);
- // Reflow only when the current row width would force unreadable pieces.
- if(layout.fit<24||!board._columns){for(let columns=6;columns<=22;columns+=.5){const candidate=measure(columns);if(candidate.fit>layout.fit+.01)layout=candidate;}}
- // Reserve the minimum readable height for this width, including after rotation.
- let required=Infinity,minimumLayout=layout;for(let columns=6;columns<=22;columns+=.5){const candidate=measure(columns);if((candidate.maxX-candidate.minX)*20<=width-20){const need=(candidate.maxY-candidate.minY)*20+20;if(need<required){required=need;minimumLayout=candidate;}}}
- if(Number.isFinite(required))board.style.minHeight=Math.ceil(required)+'px';if(layout.fit<20)layout=minimumLayout;
- board._columns=layout.columns;
- const {poses,choices,minX,maxX,minY,maxY}=layout;
- const unit=Math.max(20,layout.fit);board._unit=unit;board.style.setProperty('--domino-unit',unit+'px');
- board._cx=(width-(minX+maxX)*unit)/2;board._cy=(height-(minY+maxY)*unit)/2;
- board._links??=make('div',undefined,board,'domino-connections');
- let paths='';for(let i=1;i<poses.length;i++){const p=poses[i-1],q=poses[i],d=p.dir===0?1:-1,nd=q.dir===0?1:-1,x1=board._cx+(p.x+d*p.w/2)*unit,y1=board._cy+p.y*unit,x2=board._cx+(q.x-nd*q.w/2)*unit,y2=board._cy+q.y*unit;const bend=d===1?Math.max(x1,x2)+unit*.25:Math.min(x1,x2)-unit*.25;paths+='<path d="M '+x1+' '+y1+(p.y===q.y?' L '+x2+' '+y2:' H '+bend+' V '+y2+' H '+x2)+'"/>';}
- board._links.innerHTML='<svg width="100%" height="100%" aria-hidden="true"><g fill="none" stroke="#c6b68a" stroke-opacity=".65" stroke-width="1.5" stroke-linejoin="round">'+paths+'</g></svg>';
+ const poses=tableLayout(chain),choices=placementChoices(game()),bounds=[...poses,...choices],minX=Math.min(...bounds.map(p=>p.x-p.w/2)),maxX=Math.max(...bounds.map(p=>p.x+p.w/2)),minY=Math.min(...bounds.map(p=>p.y-p.h/2)),maxY=Math.max(...bounds.map(p=>p.y+p.h/2));
+ // Keep the original stable path. Reserve space rather than shrinking below a readable size.
+ const minimumUnit=20,requiredHeight=Math.ceil((maxY-minY)*minimumUnit+52);
+ board.style.minHeight=requiredHeight+'px';
+ $('#domino-panel').style.setProperty('--domino-table-min',(requiredHeight+40)+'px');
+ height=Math.max(height,requiredHeight);
+ if(!focused())board.style.height=height+'px';
+ const padding=Math.min(26,Math.max(4,(width-(maxX-minX)*minimumUnit)/2));
+ const fit=Math.min(25,(width-padding*2)/(maxX-minX),(height-52)/(maxY-minY));
+ board._unit??=25;
+ if(fit<board._unit)board._unit=Math.max(minimumUnit,fit*.98);
+ const unit=board._unit;board.style.setProperty('--domino-unit',unit+'px');
+ // Move the camera only enough to keep the new endpoint inside the table.
+ board._cx=Math.max(padding-minX*unit,Math.min(board._cx??width/2,width-padding-maxX*unit));
+ board._cy=Math.max(26-minY*unit,Math.min(board._cy??height/2,height-26-maxY*unit));
  board._nodes??=new Map();
  for(const [index,p] of poses.entries()){
   let wrap=board._nodes.get(p.tile.id),fresh=!wrap;
