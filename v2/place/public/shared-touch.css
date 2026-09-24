@@ -70,3 +70,6 @@
 #shared-touch.shared-hug .touch-names{top:clamp(52px,14cqh,70px);min-width:156px}
 #shared-touch.shared-hug .touch-names span{white-space:nowrap}
 @container(max-height:330px){#shared-touch.shared-hug .touch-names{top:40px}}
+
+#our-place-trial #shared-touch.shared-hug .touch-close{display:none}
+
