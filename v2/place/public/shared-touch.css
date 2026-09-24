@@ -71,8 +71,6 @@
 #shared-touch.shared-hug .touch-names span{white-space:nowrap}
 @container(max-height:330px){#shared-touch.shared-hug .touch-names{top:40px}}
 
-#our-place-trial #shared-touch.shared-hug .touch-close{display:none}
-
 /* Both participants explicitly hold the heart after the shared reveal completes. */
 #shared-touch.shared-hug .touch-thumb{inset:auto auto 74px 50%!important;width:50.6px!important;height:50.6px!important;transform:translateX(-50%);border-radius:50%!important}
 #shared-touch.shared-hug .hug-hold{inset:0;box-sizing:border-box;width:50.6px;height:50.6px;font-size:26.4px;transform:none}
