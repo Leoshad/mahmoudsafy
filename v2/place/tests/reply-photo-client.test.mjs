@@ -26,7 +26,7 @@ test('reply preview includes author, caption and thumbnail; navigation loads and
  const row={dataset:{message:'old'},scrollIntoView(o){this.scrolled=o.block;}};let highlighted;
  const c={el,sessionEpoch:0,state:{messages:[]},older:[],pending:new Map(),api:async()=>({id:'old',sequence:1,text:'Original',image:'photo'}),goto(){},paintFeed(){},$:()=>({children:[row]}),showSourceHighlight:r=>highlighted=r};vm.createContext(c);
  vm.runInContext(source.slice(source.indexOf('function paintQuote('),source.indexOf('function paintReply(')),c);c.paintQuote(root,{author:'Safy',text:'Caption',image:'photo'});assert.equal(root.children[0].children[0].text,'Safy');assert.equal(root.children[0].children[1].text,'Caption');assert.equal(root.children[1].src,'/api/photos/photo');
- vm.runInContext(source.slice(source.indexOf('async function openSource('),source.indexOf("$('#continue-play')")),c);await c.openSource('old');assert.equal(row.scrolled,'center');assert.equal(highlighted,row);assert.equal(c.older[0].id,'old');
+ vm.runInContext(source.slice(source.indexOf('async function loadMessageContext('),source.indexOf("$('#continue-play')")),c);await c.openSource('old');assert.equal(row.scrolled,'center');assert.equal(highlighted,row);assert.equal(c.older[0].id,'old');
 });
 
 test('MP3 attachment sends its audio id and title through the durable outbox',async()=>{const {c,sent}=fixture();c.attachment={id:'music-1',kind:'audio',name:'Song.mp3'};await c.$('#composer').onsubmit({preventDefault(){}});assert.equal(sent.length,1);assert.equal(sent[0].audioMime,'audio/mpeg');assert.deepEqual(JSON.parse(JSON.stringify(sent[0].payload)),{text:'Song.mp3',audio:'music-1',reply:'original'});});
