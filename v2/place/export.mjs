@@ -15,6 +15,8 @@ export async function exportArchive(store, snapshot, res) {
     }
     await write('},"voices":{');first=true;
     for(const id of new Set(value.messages.map(m=>m.audio).filter(Boolean))){const voice=store.db.prepare('SELECT mime,bytes,createdAt FROM voices WHERE id=?').get(id);if(!voice)continue;await write((first?'':',')+JSON.stringify(id)+':'+JSON.stringify({mime:voice.mime,data:Buffer.from(voice.bytes).toString('base64'),createdAt:voice.createdAt}));first=false;}
+    await write('},"videos":{');first=true;
+    for(const id of new Set(value.messages.map(m=>m.video).filter(Boolean))){const video=store.db.prepare('SELECT name,mime,bytes,poster,createdAt FROM chat_videos WHERE id=? AND deleted=0').get(id);if(!video)continue;await write((first?'':',')+JSON.stringify(id)+':'+JSON.stringify({name:video.name,mime:video.mime,data:Buffer.from(video.bytes).toString('base64'),poster:video.poster?Buffer.from(video.poster).toString('base64'):null,createdAt:video.createdAt}));first=false;}
     res.end('}}');
   } finally {res.off('close',closed);}
 }

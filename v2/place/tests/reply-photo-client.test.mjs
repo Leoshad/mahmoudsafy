@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 function fixture(){
  const nodes=new Map(),sent=[],errors=[];
- const c={state:{who:'Mahmoud'},sessionEpoch:0,sending:false,attachment:null,reply:{id:'original'},pending:new Map(),crypto:{randomUUID:()=> 'id'},Date,URL:{createObjectURL:()=> 'blob:preview',revokeObjectURL(){}},info(){},error:e=>errors.push(e),sendTyping(){},paintReply(){},paintAttachment(){},paintFeed(){},saveOutbox:m=>{sent.push(m);return true;},drainOutbox:async()=>{},$:id=>{if(!nodes.has(id))nodes.set(id,{value:'',files:[]});return nodes.get(id);},createImageBitmap:async()=>({width:100,height:100,close(){}}),document:{createElement:()=>({getContext:()=>({drawImage(){}}),toDataURL:()=> 'data:image/jpeg;base64,PHOTO'})}};
+ const c={window:{},state:{who:'Mahmoud'},sessionEpoch:0,sending:false,attachment:null,reply:{id:'original'},pending:new Map(),crypto:{randomUUID:()=> 'id'},Date,URL:{createObjectURL:()=> 'blob:preview',revokeObjectURL(){}},info(){},error:e=>errors.push(e),sendTyping(){},paintReply(){},paintAttachment(){},paintFeed(){},saveOutbox:m=>{sent.push(m);return true;},drainOutbox:async()=>{},$:id=>{if(!nodes.has(id))nodes.set(id,{value:'',files:[]});return nodes.get(id);},createImageBitmap:async()=>({width:100,height:100,close(){}}),document:{createElement:()=>({getContext:()=>({drawImage(){}}),toDataURL:()=> 'data:image/jpeg;base64,PHOTO'})}};
  vm.createContext(c);
  vm.runInContext(source.slice(source.indexOf("$('#composer').onsubmit="),source.indexOf("$('#compose').onkeydown=")),c);
  vm.runInContext(source.slice(source.indexOf("$('#upload').onchange="),source.indexOf("$('#ask').onchange=")),c);

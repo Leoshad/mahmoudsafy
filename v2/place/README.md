@@ -257,3 +257,12 @@ Optional shared-touch readiness requests coalesce instead of accumulating every 
 Timing-only diagnostics log slow state, presence, command and SSE-opening requests, plus client waiting/recovered durations. No chat content, credentials or account identifiers enter these reports.
 
 Validation: 581 automated tests passed, including regressions that failed on the prior source for cold startup and resuming an inherited CONNECTING stream, concurrent verification/refresh and revocation during authentication. Two-process Chromium checks passed with SSE blocked, HTTP snapshots stalled, and offline/online transitions; both-direction message delivery and foreground-only presence were verified with simulated device focus. This is not a physical Android/iPhone test or proof that every observed production delay has the same cause. Inspect connection_client and connection_server logs if a phone reproduces a delay.
+
+
+## Chat video attachments — 2026-09-24
+
+Attachment menu now offers Video (MP4/MOV, maximum 20 MiB) and Video storage (200 MiB aggregate, including previews). Videos have their own message attachment field; native playback requests bytes only after tapping the preview. The authenticated endpoint supports byte ranges and HEAD. JPEG previews are validated and resized. Browser-incompatible codecs prompt for an H.264 MP4; this version does not transcode.
+
+Uploads are limited on both client and server, with one active upload per account, a second quota check after receiving data, and a physical free-space check reserving room for existing SQLite recovery backups. Pending drafts remain private to their uploader; shared videos are accessible to both members. Only the uploader can delete a video. Deletion releases blob pages for reuse and video quota, broadcasts removal to both clients, and retains the chat message. Storage management also lists unsent uploads. Referenced videos are included in the private JSON export and existing encrypted SQLite recovery backups. No automatic deletion of shared videos was introduced.
+
+Validation: 583 tests passed, including media validation, oversize/aggregate/concurrent upload boundaries, two-account access, byte ranges, deletion and export. Actual two-process Chromium test verified upload, thumbnail creation, zero recipient video-file requests before Play, playback, and remote removal at 390px width. Physical phone/codec-specific playback remains dependent on the device.
