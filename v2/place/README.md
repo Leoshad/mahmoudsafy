@@ -246,3 +246,14 @@ MP3 attachments: tap + to choose Photo or Audio file (MP3 up to 20 MB); holding 
 - MP3 messages now contain compact play/pause, title, elapsed/total time and seek controls. The active message and compact strip share one persistent hidden native audio element. The strip sits below navigation when the active card is out of view or on another tab; it does not cover the composer. No native white control bar or bottom padding is used. Playback remains independent per device, with Media Session actions and best-effort background playback. Track duration appears once loaded; old attachments need no migration.
 - Shared-touch events retain their searchable stored text and now provide the text element used by search highlighting. The message API decodes encoded IDs, including the colon in shared-touch IDs, so selecting a search result actually opens the event. Search tests cover `touch`, `Touch` and `A shared touch` beyond the latest message window.
 - Validation uses in-memory data and mocked providers/media/visibility. No real messages or test invitations were sent to either account; physical phone visual/audio validation remains outstanding.
+
+
+## Connection recovery — 2026-09-24
+
+Cold startup now opens SSE in parallel with the HTTP snapshot. The first valid snapshot releases the welcome screen (retaining its existing brief intro), even if the other request is stalled. Returning from the background discards a pre-existing CONNECTING stream immediately; a healthy OPEN stream retains its short verification grace. HTTP snapshot fallback now also works before the first state exists, and a successful HTTP snapshot establishes receive readiness.
+
+Optional shared-touch readiness requests coalesce instead of accumulating every second on a slow link. Concurrent provider verification/token-refresh calls share an in-flight request without extending the existing authorization cache lifetime. Local revocation is checked again after provider work.
+
+Timing-only diagnostics log slow state, presence, command and SSE-opening requests, plus client waiting/recovered durations. No chat content, credentials or account identifiers enter these reports.
+
+Validation: 581 automated tests passed, including regressions that failed on the prior source for cold startup and resuming an inherited CONNECTING stream, concurrent verification/refresh and revocation during authentication. Two-process Chromium checks passed with SSE blocked, HTTP snapshots stalled, and offline/online transitions; both-direction message delivery and foreground-only presence were verified with simulated device focus. This is not a physical Android/iPhone test or proof that every observed production delay has the same cause. Inspect connection_client and connection_server logs if a phone reproduces a delay.

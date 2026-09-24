@@ -17,7 +17,7 @@ test('a slow 10-second connection survives the 8-second watchdog and opens',asyn
 });
 test('failed initial load recovers without a pre-existing state; a rejected session stops retrying',async()=>{
  let tries=0;const h=transport({initialState:null,load:async c=>{if(++tries===1)throw Error('offline');c.state={who:'Safy'};}});
- await h.c.recoverConnection();assert.equal(h.streams.length,0);h.time(8000);await h.c.recoverConnection();assert.equal(h.streams.length,1);assert.equal(h.c.state.who,'Safy');
+ await h.c.recoverConnection();assert.equal(h.streams.length,1);h.time(8000);await h.c.recoverConnection();assert.equal(h.streams.length,1);assert.equal(h.c.state.who,'Safy');
  const loggedOut=transport({initialState:null,load:async c=>{c.connectionWanted=false;throw Object.assign(Error('Sign in'),{status:401});}});await loggedOut.c.recoverConnection();loggedOut.time(60000);await loggedOut.c.recoverConnection();assert.equal(loggedOut.syncs,1);
 });
 test('visibility and online events share one recovery request and do not replace healthy transport',async()=>{
@@ -82,4 +82,16 @@ test('fallback continues receiving with blocked SSE, stops after live events, an
 test('a live socket survives returning from background when its next real event arrives',async()=>{
  const h=transport();h.c.connect();const old=h.streams[0];old.emit('open');h.c.document.hidden=true;h.documentEvents.visibilitychange();h.time(30000);h.c.document.hidden=false;h.documentEvents.visibilitychange();
  assert.equal(old.closed,false);h.time(30500);old.emit('heartbeat');await new Promise(r=>setImmediate(r));h.time(32000);h.runTimers(1500);assert.equal(old.closed,false);assert.equal(h.streams.length,1);
+});
+
+test('cold start opens its receive stream without waiting for the first HTTP snapshot',()=>{
+ const h=transport({initialState:null});h.c.connect();assert.equal(h.streams.length,1);
+ h.streams[0].emit('snapshot',{who:'Mahmoud',messages:[]});assert.equal(h.c.state.who,'Mahmoud');
+});
+test('resume discards a CONNECTING stream inherited from the previous network immediately',async()=>{
+ const h=transport();h.c.connect();const old=h.streams[0];
+ h.c.document.hidden=true;h.documentEvents.visibilitychange();h.time(1000);
+ h.c.document.hidden=false;h.documentEvents.visibilitychange();
+ assert.equal(old.closed,true);assert.equal(h.streams.length,2);
+ await new Promise(r=>setImmediate(r));assert.equal(h.streams.length,2);
 });

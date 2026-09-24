@@ -59,7 +59,14 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   const key=Buffer.from(hash(secret),'hex'),cookieName=testing?'ms_place':'__Host-ms_place';
   initMemories(store);
   const sharedTouch=new SharedTouch({onComplete:(moment,now)=>{if(saveTouchMemory(store,moment,now))queueMicrotask(()=>refresh());}});
-  const streams=new Map(),running=new Map(),cache=new Map(),rates=new Map();
+  const streams=new Map(),running=new Map(),cache=new Map(),rates=new Map(),authFlights=new Map();
+  // Concurrent state, presence and stream requests share provider work. Keep the
+  // existing authorization lifetime; never extend it on a failed verification.
+  async function authOnce(key,run){
+    if(authFlights.has(key))return authFlights.get(key);
+    const task=run();authFlights.set(key,task);
+    try{return await task;}finally{if(authFlights.get(key)===task)authFlights.delete(key);}
+  }
   const youtube=youtubeService({fetcher:mediaFetch,reserve:()=>{const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Los_Angeles',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),key='youtube-search:'+day;store.tx(()=>{store.db.prepare('INSERT OR IGNORE INTO budget(key) VALUES(?)').run(key);check(store.db.prepare('SELECT used FROM budget WHERE key=?').get(key).used<80,'Today’s song-search allowance is used. Try again tomorrow.',429);store.db.prepare('UPDATE budget SET used=used+1 WHERE key=?').run(key);});}});
   function seal(value){const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key,iv);const data=Buffer.concat([cipher.update(JSON.stringify(value)),cipher.final()]);return Buffer.concat([iv,cipher.getAuthTag(),data]).toString('base64url');}
   function open(value){try{const b=Buffer.from(value,'base64url'),d=createDecipheriv('aes-256-gcm',key,b.subarray(0,12));d.setAuthTag(b.subarray(12,28));return JSON.parse(Buffer.concat([d.update(b.subarray(28)),d.final()]).toString());}catch{throw new Fault('Please sign in again.',401);}}
@@ -70,8 +77,12 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   function issue(res,t,who,keep){const sid=keep||randomUUID(),until=Date.now()+604800000;store.db.prepare('INSERT OR REPLACE INTO sessions VALUES(?,?)').run(sid,until);bindSession(store,sid,who,{fresh:true});cookie(res,seal({sid,token:t.access_token,refresh:t.refresh_token,exp:Date.now()+t.expires_in*1000,until}));return sid;}
   async function auth(req,res){
     const raw=(req.headers.cookie??'').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='))?.slice(cookieName.length+1);check(raw,'Please sign in.',401);let session=open(raw);check(session.until>Date.now()&&store.db.prepare('SELECT 1 FROM sessions WHERE id=? AND expires>?').get(session.sid,Date.now()),'Please sign in again.',401);req.sessionId=session.sid;
-    if(session.exp<Date.now()+30000){const t=await sb('token?grant_type=refresh_token',{refresh_token:session.refresh});session={...session,token:t.access_token,refresh:t.refresh_token,exp:Date.now()+t.expires_in*1000};cookie(res,seal(session));}
-    let c=cache.get(hash(session.token));if(!c||c.until<Date.now()){const user=await sb('user',null,session.token);c={name:member(user),until:Date.now()+30000};cache.set(hash(session.token),c);if(cache.size>100)cache.clear();}
+    const authStarted=performance.now();
+    if(session.exp<Date.now()+30000){const t=await authOnce('refresh:'+hash(session.refresh),()=>sb('token?grant_type=refresh_token',{refresh_token:session.refresh}));session={...session,token:t.access_token,refresh:t.refresh_token,exp:Date.now()+t.expires_in*1000};cookie(res,seal(session));}
+    let c=cache.get(hash(session.token));if(!c||c.until<Date.now()){c=await authOnce('user:'+hash(session.token),async()=>{const user=await sb('user',null,session.token);return {name:member(user),until:Date.now()+30000};});cache.set(hash(session.token),c);if(cache.size>100)cache.clear();}
+    // A logout/password change may have revoked this session during the await.
+    check(store.db.prepare('SELECT 1 FROM sessions WHERE id=? AND expires>?').get(session.sid,Date.now()),'Please sign in again.',401);
+    req.authMs=Math.round(performance.now()-authStarted);
     bindSession(store,session.sid,c.name);req.authSession=session;return c.name;
   }
   const send=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};
@@ -157,6 +168,13 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
     if(path==='/api/logout'&&req.method==='POST'){const who=await auth(req,res);sharedTouch.disconnect(req.sessionId);notifications.logout(req.sessionId);store.db.prepare('DELETE FROM sessions WHERE id=?').run(req.sessionId);cookie(res,'',0);for(const [r,m]of streams)if(m.who===who)r.end();return send(res,200,{ok:true});}
     if(path.startsWith('/api/')){
       const who=await auth(req,res);
+      if(path==='/api/connection-report'&&req.method==='POST'){
+        limit('connection-report:'+who,12);const d=await body(req,1000);
+        check(['waiting','ready'].includes(d.stage)&&['open','resume','network'].includes(d.reason),'Invalid timing report.');
+        check([d.elapsedMs,d.eventAgeMs].every(n=>Number.isFinite(n)&&n>=0&&n<=86400000)&&[0,1,2].includes(d.streamState)&&typeof d.focused==='boolean','Invalid timing report.');
+        console.info(JSON.stringify({event:'connection_client',stage:d.stage,reason:d.reason,elapsed_ms:d.elapsedMs,stream_state:d.streamState,event_age_ms:d.eventAgeMs,focused:d.focused}));
+        return send(res,200,{ok:true});
+      }
       if(path==='/api/shared-touch'&&req.method==='POST'){limit('shared-touch:'+who,360);const p=await body(req,2000);const before=JSON.stringify(sharedTouch.view());const moment=sharedTouch.action(who,req.sessionId,p);if(!moment?.localOnly&&(p.action!=='ready'||JSON.stringify(moment)!==before))emit('shared-touch',{moment});return send(res,200,{moment});}
       if(path==='/api/memories.pdf'&&req.method==='GET'){
         limit('memories:'+who,4,60000);const opt=memoryOptions(url.searchParams),data=memoryData(store,who,opt),controller=new AbortController();const close=()=>controller.abort();res.on('close',close);
@@ -318,7 +336,13 @@ publishPresence(true);});return;
     if(path==='/hug-motion.mp4'){check(['GET','HEAD'].includes(req.method),'Method not allowed.',405);const file=join(here,'public','hug-motion.mp4');check(existsSync(file),'The hug animation is not available yet.',404);return serveVideo(req,res,file);}
     check(req.method==='GET','Method not allowed.',405);const files={'/hug-motion.mp4':['hug-motion.mp4','video/mp4'],'/music.js':['music.js','text/javascript'],'/shared-touch.js':['shared-touch.js','text/javascript'],'/shared-touch.css':['shared-touch.css','text/css'],'/memories.js':['memories.js','text/javascript'],'/memories.css':['memories.css','text/css'],'/voice.js':['voice.js','text/javascript'],'/voice.css':['voice.css','text/css'],'/balloon.js':['balloon.js','text/javascript'],'/balloon.css':['balloon.css','text/css'],'/support-preview.html':['support-preview.html','text/html'],'/support-preview.css':['support-preview.css','text/css'],'/notes.js':['notes.js','text/javascript'],'/notes.css':['notes.css','text/css'],'/note-format.mjs':['note-format.mjs','text/javascript'],'/note-pdf.mjs':['note-pdf.mjs','text/javascript'],'/chat-tools.js':['chat-tools.js','text/javascript'],'/files.js':['files.js','text/javascript'],'/files.css':['files.css','text/css'],'/buzz.js':['buzz.js','text/javascript'],'/buzz.css':['buzz.css','text/css'],'/comfort.js':['comfort.js','text/javascript'],'/race.js':['race.js','text/javascript'],'/race-engine.mjs':['race-engine.mjs','text/javascript'],'/race.css':['race.css','text/css'],'/game-ui.js':['game-ui.js','text/javascript'],'/account.js':['account.js','text/javascript'],'/reads.js':['reads.js','text/javascript'],'/sw.js':['sw.js','text/javascript'],'/notifications.js':['notifications.js','text/javascript'],'/draw.js':['draw.js','text/javascript'],'/draw.css':['draw.css','text/css'],'/court-export.js':['court-export.js','text/javascript'],'/court-print.css':['court-print.css','text/css'],'/court.js':['court.js','text/javascript'],'/court.css':['court.css','text/css'],'/personal.js':['personal.js','text/javascript'],'/personal.css':['personal.css','text/css'],'/crown.js':['crown.js','text/javascript'],'/crown.css':['crown.css','text/css'],'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);if(path==='/hug-motion.mp4')check(existsSync(join(here,'public',f[0])),'The hug animation is not available yet.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
-  const server=http.createServer((req,res)=>{route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
+  const server=http.createServer((req,res)=>{
+    const started=performance.now(),path=req.url?.split('?')[0];
+    if(['/api/state','/api/notifications/presence','/api/command','/api/events'].includes(path)){
+      let logged=false;const report=(status)=>{if(logged)return;logged=true;const elapsed=Math.round(performance.now()-started);if(elapsed>=1000)console.info(JSON.stringify({event:'connection_server',route:path,status:status??res.statusCode,elapsed_ms:elapsed,auth_ms:req.authMs??null}));};
+      if(path==='/api/events'){const writeHead=res.writeHead;res.writeHead=function(...args){report(args[0]);return writeHead.apply(this,args);};}else res.once('finish',report);
+    }
+    route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   const dominoTimer=setInterval(()=>{try{const current=store.state();if(!drawDue(current)&&!dominoDue(current)&&!ochoDue(current))return;const changed=store.tx(()=>{const s=store.state();const a=drawTick(s),d=dominoTick(s),o=ochoTick(s);if(!d&&!o&&!a)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
   const raceSaveTimer=setInterval(()=>{if(race.matches.size)try{saveRaces();}catch{console.error('Race save failed.');}},2000);raceSaveTimer.unref();
   const raceTimer=setInterval(()=>{try{race.tick();}catch{console.error('Race update failed.');}},16);raceTimer.unref();
@@ -335,7 +359,6 @@ if(process.argv[1]===fileURLToPath(import.meta.url)){
   const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET);
   process.on('SIGTERM',()=>{stopMaintenance().then(()=>server.close(()=>{store.close();process.exit(0);}));});
 }
-
 
 
 

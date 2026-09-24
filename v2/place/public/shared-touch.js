@@ -21,7 +21,19 @@ const blocked='button,a,input,textarea,select,summary,details,audio,video,.avata
 const visible=()=>connected&&inChat&&!!who&&!document.hidden&&document.hasFocus()&&!document.querySelector('#chat').hidden&&!document.querySelector('#app').hidden;
 const available=()=>visible()&&!document.querySelector('dialog[open]')&&!window.OurBalloon?.busy();
 const bottom=()=>timeline.scrollHeight-timeline.clientHeight-timeline.scrollTop<=5;
-function ready(beacon=false){if(!who||!hooks)return;const data={action:'ready',id:client,client,seq:++seq,active:visible(),hugReady:hugLoaded};if(beacon){void fetch('/api/shared-touch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),keepalive:true}).catch(()=>{});}else void hooks.api('shared-touch',data).catch(()=>{});}
+let readyFlight=null;
+function ready(beacon=false){
+ if(!who||!hooks)return;const active=visible();
+ // Readiness is a heartbeat, not a queue: slow requests must not consume every
+ // browser connection while the chat is trying to recover.
+ if(!beacon&&readyFlight?.active===active&&readyFlight.hugReady===hugLoaded)return;
+ readyFlight?.controller.abort();readyFlight=null;
+ const data={action:'ready',id:client,client,seq:++seq,active,hugReady:hugLoaded};
+ if(beacon){void fetch('/api/shared-touch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),keepalive:true}).catch(()=>{});return;}
+ const controller=new AbortController(),flight={controller,active,hugReady:hugLoaded};readyFlight=flight;
+ const timer=setTimeout(()=>controller.abort(),4000);
+ void hooks.api('shared-touch',data,controller.signal).catch(()=>{}).finally(()=>{clearTimeout(timer);if(readyFlight===flight)readyFlight=null;});
+}
 setInterval(()=>{ready();if(current?.localPreview)void invite();},1000);
 function fadeAway(){if(!current)return;release(true);layer.classList.add('touch-finishing');clearTimeout(finishHideTimer);finishHideTimer=setTimeout(()=>{current=null;pending=null;hide();},1400);}
 function leave(){const id=current?.id||pending;if(id){dismissed.add(id);void post('close',id,{quiet:true,beacon:true});}if(current){current=null;pending=null;hide();}else end();ready(true);}
@@ -102,6 +114,6 @@ function press(){if(!current||!available()||held||(!sceneReady&&!swipeHold))retu
 thumb.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();thumb.setPointerCapture(e.pointerId);press();});for(const type of ['pointerup','pointercancel','lostpointercapture'])thumb.addEventListener(type,()=>release());thumb.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();press();}});thumb.addEventListener('keyup',()=>release());thumb.addEventListener('blur',()=>release());layer.querySelector('.touch-close').onclick=()=>cancel();
 layer.addEventListener('contextmenu',e=>e.preventDefault());document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!layer.hidden)cancel();});document.addEventListener('visibilitychange',()=>{if(document.hidden){leave();}else ready();});window.addEventListener('blur',()=>leave());window.addEventListener('focus',()=>ready());window.addEventListener('pagehide',()=>leave());window.addEventListener('offline',()=>{leave();if(current){current={...current,hands:{},progress:0};paint();say('Waiting for connection…');}});
 host.addEventListener('click',e=>{if(performance.now()-closedAt<450||performance.now()<suppressClickUntil){e.preventDefault();e.stopPropagation();}},true);
-window.OurTouch={init(h){hooks=h;},sync(s){if(who!==s.who){this.reset();who=s.who;loadHug();ready();}if(s.sharedTouch&&!current&&!pending&&visible())receive(s.sharedTouch);},receive,reset(){release(true);clientEpoch++;who=null;current=null;pending=null;clearTimeout(stale);clearInterval(pulse);hide();},tab(next){inChat=next==='chat';if(!inChat)leave();queueMicrotask(()=>ready());},connection(ok){connected=!!ok;ready();if(!ok){release(true);if(current){current=null;pending=null;hide();}}},ownsGesture(){return !!gesture?.claimed||performance.now()<suppressClickUntil;},busy(){return !!current||!!pending||!!gesture?.claimed;}};
+window.OurTouch={init(h){hooks=h;},sync(s){if(who!==s.who){this.reset();who=s.who;loadHug();ready();}if(s.sharedTouch&&!current&&!pending&&visible())receive(s.sharedTouch);},receive,reset(){readyFlight?.controller.abort();readyFlight=null;release(true);clientEpoch++;who=null;current=null;pending=null;clearTimeout(stale);clearInterval(pulse);hide();},tab(next){inChat=next==='chat';if(!inChat)leave();queueMicrotask(()=>ready());},connection(ok){connected=!!ok;ready();if(!ok){release(true);if(current){current=null;pending=null;hide();}}},ownsGesture(){return !!gesture?.claimed||performance.now()<suppressClickUntil;},busy(){return !!current||!!pending||!!gesture?.claimed;}};
 })();
 
