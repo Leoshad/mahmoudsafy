@@ -16,7 +16,7 @@ export class SharedTouch {
   if(!s.done){s.progress=both?Math.min(1,s.progress+dt/SHARED_MOMENT_FILL_MS):Math.max(0,s.progress-dt/1100);if(s.progress===1){this.onComplete(s,now);s.done=true;}}
   this.settle(now);
  }
- settle(now){const s=this.session;if(!s)return;const any=names.some(n=>s.hands[n]?.until>now);if(any){s.releaseAt=null;return;}if(!s.done&&!s.engaged)return;s.releaseAt??=now;if(now-s.releaseAt>=(s.done?SHARED_MOMENT_RELEASE_MS:0)+SHARED_MOMENT_FADE_MS)this.close(now);}
+ settle(now){const s=this.session;if(!s)return;const any=names.some(n=>s.hands[n]?.until>now);if(any){s.releaseAt=null;return;}if(!s.done&&(s.kind!=='hug'||!s.engaged))return;s.releaseAt??=now;if(now-s.releaseAt>=(s.done?SHARED_MOMENT_RELEASE_MS:0)+SHARED_MOMENT_FADE_MS)this.close(now);}
  close(now=Date.now()){if(this.session)this.closed.set(this.session.id,now);this.session=null;}
  action(who,sid,p,now=Date.now()){
   check(names.includes(who),'Please sign in.',401);

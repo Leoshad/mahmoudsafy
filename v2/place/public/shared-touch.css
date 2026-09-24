@@ -60,3 +60,13 @@
 #shared-touch.shared-hug.hug-entering .touch-status{opacity:0}
 #shared-touch.shared-hug .touch-status{transition:opacity .25s}
 #shared-touch.shared-hug .hug-hold{transition:opacity .25s,background .2s,box-shadow .2s,transform .2s}
+
+/* Names follow the illustrated people: Safy on the left, Mahmoud on the right. */
+#shared-touch.shared-hug .touch-names{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:min(calc(100% - 24px),calc(100cqh - 218px));text-align:center}
+#shared-touch.shared-hug [data-touch-name="Safy"]{order:0}
+#shared-touch.shared-hug [data-touch-name="Mahmoud"]{order:1}
+@container(max-height:330px){#shared-touch.shared-hug .touch-names{width:min(calc(100% - 24px),calc(100cqh - 171px))}}
+/* Move only the participant names; retain the original invitation and motion positions. */
+#shared-touch.shared-hug .touch-names{top:clamp(52px,14cqh,70px);min-width:156px}
+#shared-touch.shared-hug .touch-names span{white-space:nowrap}
+@container(max-height:330px){#shared-touch.shared-hug .touch-names{top:40px}}
