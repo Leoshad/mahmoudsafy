@@ -35,7 +35,7 @@
 
 /* Hug uses the same synchronized four-second interaction, with a continuous clip. */
 #shared-touch.shared-hug .touch-stage{padding:68px 10px 48px}
-#shared-touch.shared-hug .touch-ending{opacity:1;transform:none}
+#our-place-trial #shared-touch.shared-hug .touch-ending{opacity:1;transform:none}
 #shared-touch.shared-hug .touch-names{position:absolute;top:clamp(60px,18cqh,88px);margin:0;z-index:2}
 #shared-touch .hug-scene{position:absolute;inset:90px 4px 78px;display:flex;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;mask-image:linear-gradient(transparent,#000 8%,#000 86%,transparent)}
 #shared-touch .hug-scene[hidden]{display:none}
@@ -46,3 +46,17 @@
 #shared-touch.shared-hug.touch-done .hug-scene{animation:shared-hug-breathe 4s ease-in-out infinite}
 @keyframes shared-hug-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.012)}}
 @container(max-height:330px){#shared-touch.shared-hug .hug-scene{inset:65px 4px 64px}#shared-touch.shared-hug .touch-names{top:44px}#shared-touch.shared-hug .touch-thumb{inset:65px 4px 48px!important}}
+
+/* Keep a dedicated hold area beneath the artwork for both people. */
+#shared-touch .hug-hold{display:none;pointer-events:none}
+#shared-touch.shared-hug .hug-hold{position:absolute;display:grid;place-items:center;left:50%;bottom:26px;transform:translateX(-50%);width:46px;height:46px;border-radius:50%;border:1px solid #edbfd4aa;background:#382531ed;color:#f1c0d4;font:24px/1 Georgia,serif;box-shadow:0 0 14px #efb5d02b,inset 0 0 10px #efb5d014;transition:background .2s,box-shadow .2s,transform .2s}
+#shared-touch.shared-hug .hug-scene{bottom:128px}
+#shared-touch.shared-hug.touch-holding .hug-hold{background:#765066;color:#fff0f6;box-shadow:0 0 24px #efb5d079,inset 0 0 12px #ffe4ef44;transform:translateX(-50%) scale(1.08)}
+@container(max-height:330px){#shared-touch.shared-hug .hug-scene{bottom:106px}#shared-touch.shared-hug .hug-hold{width:36px;height:36px;bottom:22px;font-size:20px}}
+
+/* Present the whole scene before inviting the receiving person to hold. */
+#shared-touch.shared-hug.hug-entering .hug-hold{opacity:0;transform:translateX(-50%) scale(.85)}
+#shared-touch.shared-hug.hug-entering .touch-thumb{pointer-events:none}
+#shared-touch.shared-hug.hug-entering .touch-status{opacity:0}
+#shared-touch.shared-hug .touch-status{transition:opacity .25s}
+#shared-touch.shared-hug .hug-hold{transition:opacity .25s,background .2s,box-shadow .2s,transform .2s}

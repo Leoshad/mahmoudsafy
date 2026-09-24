@@ -16,7 +16,7 @@ export class SharedTouch {
   if(!s.done){s.progress=both?Math.min(1,s.progress+dt/SHARED_MOMENT_FILL_MS):Math.max(0,s.progress-dt/1100);if(s.progress===1){this.onComplete(s,now);s.done=true;}}
   this.settle(now);
  }
- settle(now){const s=this.session;if(!s)return;const any=names.some(n=>s.hands[n]?.until>now);if(any){s.releaseAt=null;return;}if(!s.done)return;s.releaseAt??=now;if(now-s.releaseAt>=SHARED_MOMENT_RELEASE_MS+SHARED_MOMENT_FADE_MS)this.close(now);}
+ settle(now){const s=this.session;if(!s)return;const any=names.some(n=>s.hands[n]?.until>now);if(any){s.releaseAt=null;return;}if(!s.done&&!s.engaged)return;s.releaseAt??=now;if(now-s.releaseAt>=(s.done?SHARED_MOMENT_RELEASE_MS:0)+SHARED_MOMENT_FADE_MS)this.close(now);}
  close(now=Date.now()){if(this.session)this.closed.set(this.session.id,now);this.session=null;}
  action(who,sid,p,now=Date.now()){
   check(names.includes(who),'Please sign in.',401);
@@ -46,7 +46,7 @@ export class SharedTouch {
   if(p.action==='hold'){
    check(!this.requireReady||s.participants.includes(key),'Your touch is active on another device.',409);
    const h=s.hands[who];check(!h||h.until<=now||h.key===key,'Your touch is active on another device.',409);
-   s.hands[who]={key,sid,until:now+1200};s.activity=now;
+   s.hands[who]={key,sid,until:now+1200};s.engaged=true;s.activity=now;
   }else if(s.hands[who]?.key===key){delete s.hands[who];s.activity=now;}
   this.settle(now);return this.view(now);
  }
