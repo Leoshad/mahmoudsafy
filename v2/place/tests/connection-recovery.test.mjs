@@ -6,7 +6,7 @@ const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 function transport({initialState={who:'Mahmoud'},load=async()=>{}}={}){
  let now=0,watchdog,syncs=0,drains=0;const streams=[],windowEvents={},documentEvents={};
  class Stream{constructor(){this.readyState=0;this.events={};this.closed=false;streams.push(this);}addEventListener(t,f){this.events[t]=f;}close(){this.closed=true;this.readyState=2;}emit(t,data={}){if(t==='open')this.readyState=1;this.events[t]?.({data:JSON.stringify(data)});}}
- const c={state:initialState,source:null,lastEvent:0,reconnectTimer:null,sessionEpoch:0,connectionWanted:true,recoveryTask:null,recoveryAfter:0,recoveryFailures:0,typingUntil:0,online:[],EventSource:Stream,Date:{now:()=>now},navigator:{onLine:true},document:{hidden:false,addEventListener:(t,f)=>documentEvents[t]=f},window:{addEventListener:(t,f)=>windowEvents[t]=f},setInterval:f=>watchdog=f,setTimeout:()=>1,clearTimeout(){},paintPresence(){},paintTyping(){},receiveTyping(){},absorb(s){c.state=s;},signOutUI(){c.connectionWanted=false;},drainOutbox:async()=>{drains++;},sync:async()=>{syncs++;await load(c);},older:[],paintFeed(){}};
+ const c={state:initialState,source:null,lastEvent:0,reconnectTimer:null,sessionEpoch:0,connectionWanted:true,recoveryTask:null,recoveryAfter:0,recoveryFailures:0,typingUntil:0,online:[],presenceReceivedAt:0,receivePresence(){},EventSource:Stream,Date:{now:()=>now},navigator:{onLine:true},document:{hidden:false,addEventListener:(t,f)=>documentEvents[t]=f},window:{addEventListener:(t,f)=>windowEvents[t]=f},setInterval:f=>watchdog=f,setTimeout:()=>1,clearTimeout(){},paintPresence(){},paintTyping(){},receiveTyping(){},absorb(s){c.state=s;},signOutUI(){c.connectionWanted=false;},drainOutbox:async()=>{drains++;},sync:async()=>{syncs++;await load(c);},older:[],paintFeed(){}};
  vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function connect(){'),source.indexOf("$('#login-form').onsubmit")),c);
  vm.runInContext(source.slice(source.indexOf('async function recoverConnection('),source.indexOf('window.OurComfort?.init')),c);
  return {c,streams,windowEvents,documentEvents,get syncs(){return syncs;},get drains(){return drains;},time:n=>now=n,tick:()=>watchdog()};
@@ -30,8 +30,8 @@ test('offline closes the transport; online reopens it; stale events cannot alter
  h.c.sessionEpoch++;h.streams[1].emit('snapshot',{who:'Wrong account'});assert.equal(h.c.state.who,'Mahmoud');
 });
 test('native reconnect is allowed; a silent stuck connection is replaced after the heartbeat deadline',async()=>{
- const h=transport();h.c.connect();h.streams[0].emit('open');h.time(15000);h.streams[0].emit('heartbeat');h.c.source.readyState=0;h.time(40000);h.tick();assert.equal(h.streams.length,1);
- h.time(64000);await h.c.recoverConnection();assert.equal(h.streams.length,2);assert.equal(h.streams[0].closed,true);
+ const h=transport();h.c.connect();h.streams[0].emit('open');h.time(15000);h.streams[0].emit('heartbeat');h.c.source.readyState=0;h.time(24000);h.tick();assert.equal(h.streams.length,1);
+ h.time(32000);await h.c.recoverConnection();assert.equal(h.streams.length,2);assert.equal(h.streams[0].closed,true);
 });
 
 function storage(){const values=new Map();return {get length(){return values.size;},key:i=>[...values.keys()][i],getItem:k=>values.get(k)??null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)};}

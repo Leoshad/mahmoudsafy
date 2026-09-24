@@ -20,7 +20,7 @@ test('online requires foreground lease; background SSE, buzz and receipts do not
  async function presence(){for(;;){let split=buffer.indexOf('\n\n');if(split<0){const chunk=await reader.read();assert.equal(chunk.done,false);buffer+=decoder.decode(chunk.value);continue;}const event=buffer.slice(0,split);buffer=buffer.slice(split+2);if(event.startsWith('event: presence'))return JSON.parse(event.split('data: ')[1]).online;}}
  async function expectOnline(expected){const until=Date.now()+3500;do{const current=await presence();if(JSON.stringify(current)===JSON.stringify(expected))return;}while(Date.now()<until);assert.fail('presence did not become '+JSON.stringify(expected));}
  await expectOnline([]);
- const client=randomUUID(),update=async(visible,sequence)=>{assert.equal((await req('safy','/api/notifications/presence',{client,visible,sequence})).status,200);};
+ const client=randomUUID(),update=async(visible,sequence)=>{const response=await req('safy','/api/notifications/presence',{client,visible,sequence});assert.equal(response.status,200);const ack=await response.json();assert.equal(ack.who,'Safy');assert.ok(Array.isArray(ack.online));assert.ok(ack.serverNow>0);if(sequence===1)assert.deepEqual(ack.online,['Safy']);if(sequence===3)assert.deepEqual(ack.online,[]);};
  await update(true,1);await expectOnline(['Safy']);
  await update(false,3);await expectOnline([]);
  await update(true,2);await expectOnline([]);
@@ -32,3 +32,4 @@ test('online requires foreground lease; background SSE, buzz and receipts do not
  await update(false,5);await expectOnline(['Safy']);
  await req('safy','/api/notifications/presence',{client:other,visible:false,sequence:2});await expectOnline([]);
 });
+

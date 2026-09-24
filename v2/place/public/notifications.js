@@ -1,15 +1,23 @@
 (()=>{'use strict';
-let who=null,registration=null,bound=null,pending=null,busy=false,epoch=0,sequence=0;
+let who=null,registration=null,bound=null,pending=null,busy=false,epoch=0,sequence=0,presenceFlight=null,realtime=false,realtimeAt=0;
 const client=crypto.randomUUID(),supported='serviceWorker'in navigator&&'PushManager'in window&&'Notification'in window;
 const $=s=>document.querySelector(s),dialog=$('#notifications-dialog'),status=$('#notifications-status'),enable=$('#notifications-enable'),disable=$('#notifications-disable'),testButton=$('#notifications-test');
 const iphone=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const installed=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
 const ready=supported?navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(()=>navigator.serviceWorker.ready).then(r=>(registration=r,r)).catch(()=>null):Promise.resolve(null);
-async function request(path,data,keepalive=false){const r=await fetch('/api/notifications'+path,{method:data?'POST':'GET',headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined,keepalive});if(!r.ok){const v=await r.json();throw Error(v.error||'Could not update notifications. Try again.');}return r.json();}
+async function request(path,data,keepalive=false,signal){const r=await fetch('/api/notifications'+path,{method:data?'POST':'GET',headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined,keepalive,signal});if(!r.ok){const v=await r.json();throw Error(v.error||'Could not update notifications. Try again.');}return r.json();}
 // hasFocus includes focused descendants (including the embedded player).
 // Do not infer focus from a remembered iframe or fullscreen element.
 function foreground(){return document.visibilityState==='visible'&&document.hasFocus()&&navigator.onLine!==false;}
-function presence(){const visible=foreground();if(who)request('/presence',{client,visible,sequence:++sequence},true).catch(()=>{});if(visible)clearShown().catch(()=>{});}
+function presence(){
+ const visible=foreground()&&realtime&&Date.now()-realtimeAt<5000;if(foreground())clearShown().catch(()=>{});if(!who)return;
+ if(presenceFlight?.visible===visible)return;
+ presenceFlight?.controller.abort();const controller=new AbortController(),current=epoch,owner=who,order=++sequence;
+ const flight={controller,visible};presenceFlight=flight;const timer=setTimeout(()=>controller.abort(),4000);
+ request('/presence',{client,visible,sequence:order},true,controller.signal).then(data=>{
+  if(current===epoch&&owner===who&&order===sequence&&visible&&foreground()&&Array.isArray(data.online))window.dispatchEvent(new CustomEvent('our-place-presence',{detail:data}));
+ }).catch(()=>{}).finally(()=>{clearTimeout(timer);if(presenceFlight===flight)presenceFlight=null;});
+}
 async function clearShown(){const r=await ready;if(r)for(const n of await r.getNotifications())n.close();}
 async function refresh(){
  const r=await ready,sub=r?await r.pushManager.getSubscription():null;
@@ -62,7 +70,7 @@ if(supported)navigator.serviceWorker.addEventListener('message',e=>{if(e.data?.t
 window.addEventListener('focus',presence);window.addEventListener('blur',()=>queueMicrotask(presence));window.addEventListener('online',presence);window.addEventListener('offline',presence);document.addEventListener('fullscreenchange',()=>queueMicrotask(presence));
 document.addEventListener('visibilitychange',presence);window.addEventListener('pageshow',presence);window.addEventListener('pagehide',()=>{if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});});
 setInterval(()=>{if(who&&!document.hidden)presence();},1500);
-window.OurNotifications={refreshPresence:presence,sync(state){if(who!==state.who){who=state.who;epoch++;bound=null;presence();bind().catch(()=>{});}deliver();},reset(){if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});who=null;bound=null;epoch++;dialog.close();clearShown().catch(()=>{});}};
+window.OurNotifications={connection(ok){const changed=realtime!==!!ok;realtime=!!ok;if(ok)realtimeAt=Date.now();if(changed)presence();},refreshPresence:presence,sync(state){if(who!==state.who){presenceFlight?.controller.abort();presenceFlight=null;who=state.who;epoch++;bound=null;presence();bind().catch(()=>{});}deliver();},reset(){if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});presenceFlight?.controller.abort();presenceFlight=null;realtime=false;who=null;bound=null;epoch++;dialog.close();clearShown().catch(()=>{});}};
 receive(location.href);if(new URL(location.href).searchParams.has('notice'))history.replaceState(history.state,'','/');
 })();
 

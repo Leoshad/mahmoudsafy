@@ -81,7 +81,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   function emit(event,data,who){for(const [res,meta] of streams){if(!who||meta.who===who)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);}}
   let lastTouchWire='',lastTouchEmit=0;const touchTimer=setInterval(()=>{try{sharedTouch.tick();}catch{console.error('Shared touch memory could not be saved.');return;}const value=sharedTouch.view(),wire=JSON.stringify(value);if(wire!==lastTouchWire||(value&&Date.now()-lastTouchEmit>650)){lastTouchEmit=Date.now();lastTouchWire=wire;emit('shared-touch',{moment:value});}},100);touchTimer.unref();
   let presenceTimer=null;
-  function publishPresence(delayed=false){clearTimeout(presenceTimer);const publish=()=>emit('presence',{online:['Mahmoud','Safy'].filter(who=>notifications.visible(who))});if(delayed){presenceTimer=setTimeout(publish,1500);presenceTimer.unref();}else publish();}
+  function publishPresence(delayed=false){clearTimeout(presenceTimer);const publish=()=>emit('presence',{online:['Mahmoud','Safy'].filter(who=>notifications.visible(who)),serverNow:Date.now()});if(delayed){presenceTimer=setTimeout(publish,1500);presenceTimer.unref();}else publish();}
   const presenceSweep=setInterval(()=>publishPresence(),1000);presenceSweep.unref();
   function refresh(actor){try{notifications.scan(actor);}catch{console.error('Notification update failed.');}for(const [res,meta]of streams)res.write(`event: snapshot\ndata: ${JSON.stringify(snapshot(meta.who))}\n\n`);}
   function cancel(who,all=false){for(const [id,job]of running)if(all&&job.scope==='shared'||job.actor===who){store.status(id,'cancelled');job.controller.abort();}}
@@ -178,7 +178,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         const data=await body(req,8000);
         if(path.endsWith('/status'))return send(res,200,{registered:notifications.registered(who,req.sessionId,data.endpoint)});
         if(path.endsWith('/read')){notifications.readInbox(who,data.id);refresh(who);return send(res,200,{ok:true});}
-        if(path.endsWith('/presence')){notifications.presence(who,req.sessionId,data);publishPresence();}
+        if(path.endsWith('/presence')){notifications.presence(who,req.sessionId,data);publishPresence();return send(res,200,{ok:true,who,online:['Mahmoud','Safy'].filter(name=>notifications.visible(name)),serverNow:Date.now()});}
         else if(path.endsWith('/subscribe')){limit('push:'+who,30);notifications.subscribe(who,req.sessionId,data);}
         else if(path.endsWith('/unsubscribe'))notifications.unsubscribe(who,data.endpoint);
         else if(path.endsWith('/test')){limit('push-test:'+who,3,60000);notifications.test(who,req.sessionId,data.endpoint);}
