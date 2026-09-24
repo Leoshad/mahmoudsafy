@@ -12,14 +12,15 @@ Authorized target: existing Our Place, `Leoshad/mahmoudsafy`, branch `v2/first-s
 - Hug invitation names the actual initiating partner. A continuously animated MP4 follows shared progress; completing the embrace retains its final pose with gentle breathing. This is not the rejected slideshow or cartoon prototype.
 - `A shared hug ♥` is recorded once, using the fingerprint memory layout/time treatment and a different embrace icon; literal search works for either kind.
 
-## Blocked media prerequisite — do not deploy this checkpoint yet
+## Approved animation and validation
 
-`public/hug-motion.mp4` is intentionally absent. The approved first illustration is the reference; no portrait/derived art has been added to GitHub. Both clients must finish loading the clip before the server permits a hug, preventing a blank or fake shared scene.
+The user explicitly approved transferring only the derived illustrations to Higgsfield and spending 6 existing credits, with no purchase or subscription. The four-second continuous embrace was generated, reviewed, stripped of audio and compressed to a 720 x 720 H.264 MP4 (725,805 bytes). Original portraits and upload credentials are not included in the repository.
 
-Automatic approval review rejected uploading image crops derived from the user's portrait references to external Higgsfield/S3 because explicit authorization for that external transfer was missing. Do not bypass or reroute that rejection. The user must explicitly approve sending the derived illustrations to Higgsfield to generate the animation. Four-second Wan 2.7 at 720p was quoted at 6 credits; account balance read 10 credits. No generation job was submitted and no purchase was made. Recheck upload expiry/pricing when continuing. Use only the approved derived illustrations as input, not original portraits unless separately authorized.
+The asset is served with byte ranges and HEAD support for mobile playback and seeking. Both clients must load it before a hug can start.
 
-## Validation and next step
+- `npm run check` passed, including the memory PDF renderer.
+- `npm test`: 553 passed, zero failed.
+- `node tests/shared-hug-browser-check.mjs`: two independent Chromium processes loaded and played the actual clip, verified both initiator invitations, four-second dual holding, persistence while one holds, release grace/re-press/fade, leaving chat and rejection when a partner is away. Foreground was simulated to represent separate devices; this is not a physical iOS/Android test.
+- Existing fingerprint browser check at 390 px confirmed its completion message is above the unchanged fingerprint and re-press cancels fading.
 
-Run `node --test tests/shared-touch.test.mjs tests/shared-touch-client.test.mjs tests/chat-search.test.mjs`. These cover authenticated two-account HTTP requests, distinct accounts/devices, readiness/foreground gates, four-second progress, completion persistence/search, release/re-press races, gesture separation and replay rejection. Browser check at 390 px verifies message placement above the finger and cancellation of pending fade. This does not establish final hug animation quality or physical phone behavior.
-
-After explicit media-transfer approval: generate the four-second continuous approach/embrace animation, inspect it, place it at the configured asset path, rerun interaction tests and full existing deployment checks, then trigger the existing Render service `srv-daj8d0fqj5pc73ckf5o0` and verify the live deployment. Current service has auto-deploy disabled. No application deployment was performed for this checkpoint.
+Deploy only this authorized branch to the existing Render service `srv-daj8d0fqj5pc73ckf5o0` (auto-deploy disabled). Verify the completed deployment and `/api/health` after triggering it.
