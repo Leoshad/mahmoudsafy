@@ -62,6 +62,7 @@ if(supported)navigator.serviceWorker.addEventListener('message',e=>{if(e.data?.t
 window.addEventListener('focus',presence);window.addEventListener('blur',()=>queueMicrotask(presence));window.addEventListener('online',presence);window.addEventListener('offline',presence);document.addEventListener('fullscreenchange',()=>queueMicrotask(presence));
 document.addEventListener('visibilitychange',presence);window.addEventListener('pageshow',presence);window.addEventListener('pagehide',()=>{if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});});
 setInterval(()=>{if(who&&!document.hidden)presence();},1500);
-window.OurNotifications={sync(state){if(who!==state.who){who=state.who;epoch++;bound=null;presence();bind().catch(()=>{});}deliver();},reset(){if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});who=null;bound=null;epoch++;dialog.close();clearShown().catch(()=>{});}};
+window.OurNotifications={refreshPresence:presence,sync(state){if(who!==state.who){who=state.who;epoch++;bound=null;presence();bind().catch(()=>{});}deliver();},reset(){if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});who=null;bound=null;epoch++;dialog.close();clearShown().catch(()=>{});}};
 receive(location.href);if(new URL(location.href).searchParams.has('notice'))history.replaceState(history.state,'','/');
 })();
+
