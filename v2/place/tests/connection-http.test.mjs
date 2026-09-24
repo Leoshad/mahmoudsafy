@@ -19,9 +19,11 @@ test('real HTTP reconnect catches missed messages for both accounts and retrying
    const id=randomUUID(),payload={id,type:'message',data:{text:'message sent during disconnect '+who}};
    const accepted=await request(who,'command',payload);assert.equal(accepted.status,200);await accepted.arrayBuffer(); // Treat this response as lost at the client.
    const retry=await request(who,'command',JSON.parse(JSON.stringify(payload)));assert.equal(retry.status,200);await retry.json();
+   const fallback=await (await request(other,'state')).json();assert.equal(fallback.messages.filter(m=>m.id===id).length,1);assert.equal(fallback.messages.find(m=>m.id===id).text,payload.data.text);
    const resumed=await stream(other),view=await resumed.snapshot();assert.equal(view.messages.filter(m=>m.id===id).length,1);assert.equal(view.messages.find(m=>m.id===id).text,payload.data.text);
    assert.equal(store.db.prepare('SELECT count(*) AS n FROM messages WHERE id=?').get(id).n,1);resumed.close();
   }
   const logout=await request('mahmoud','logout',{});await logout.json();const rejected=await request('mahmoud','state');assert.equal(rejected.status,401);await rejected.json();
  }finally{for(const c of controllers)c.abort();await new Promise(r=>server.close(r));store.close();}
 });
+

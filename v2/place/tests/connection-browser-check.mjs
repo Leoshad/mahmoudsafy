@@ -1,0 +1,20 @@
+// Optional full-app check: node tests/connection-browser-check.mjs
+// Uses local fixture accounts; foreground is simulated for two devices.
+import {Store} from '../store.mjs';import {createApp} from '../server.mjs';import puppeteer from 'puppeteer-core';import chromium from '@sparticuz/chromium';import assert from 'node:assert/strict';
+process.env.MAHMOUD_EMAIL='mahmoud@example.test';process.env.SAFY_EMAIL='safy@example.test';
+const store=new Store(':memory:');let base;const server=createApp({store,origin:'http://localhost',secret:'connection-browser-test-only-secret-long',testing:true,pushSend:async()=>{},authFetch:async(url,o)=>{const name=url.includes('/token?')?JSON.parse(o.body).email.split('@')[0]:o.headers.Authorization.split(' ')[1];const user={id:name,email:name+'@example.test',email_confirmed_at:'2026-01-01'};return Response.json(url.includes('/token?')?{user,access_token:name,refresh_token:name,expires_in:3600}:user);}});
+await new Promise(r=>server.listen(0,'127.0.0.1',r));base='http://127.0.0.1:'+server.address().port;const browsers=[],pages=[];
+try{
+ for(const who of ['mahmoud','safy']){
+  const login=await fetch(base+'/api/login',{method:'POST',headers:{Origin:'http://localhost','Content-Type':'application/json'},body:JSON.stringify({email:who+'@example.test',password:'test-only'})});const cookie=login.headers.get('set-cookie').split(';')[0];
+  const browser=await puppeteer.launch({executablePath:await chromium.executablePath(),args:chromium.args,headless:true});browsers.push(browser);const page=await browser.newPage();pages.push(page);await page.setViewport({width:390,height:740,isMobile:true,hasTouch:true});await page.setCookie({name:cookie.split('=')[0],value:cookie.slice(cookie.indexOf('=')+1),url:base});
+  await page.evaluateOnNewDocument(()=>{window.testHidden=false;Object.defineProperty(document,'hidden',{get:()=>window.testHidden});Object.defineProperty(document,'visibilityState',{get:()=>window.testHidden?'hidden':'visible'});Object.defineProperty(document,'hasFocus',{value:()=>true});window.addEventListener('blur',e=>e.stopImmediatePropagation(),true);});
+  await page.setRequestInterception(true);page.on('request',r=>{if(r.url().includes('/api/events'))return r.abort();const headers={...r.headers()};if(r.method()==='POST')headers.origin='http://localhost';return r.continue({headers});});await page.goto(base,{waitUntil:'domcontentloaded'});await page.waitForSelector('#app:not([hidden])');
+ }
+ for(const p of pages)await p.waitForFunction(()=>document.querySelectorAll('#presence .online').length===2,{timeout:10000});
+ for(const [i,text]of [[0,'Mahmoud fallback message'],[1,'Safy fallback reply']]){const started=Date.now();await pages[i].type('#compose',text);await pages[i].click('#send');await pages[1-i].waitForFunction(text=>document.querySelector('#feed').textContent.includes(text),{timeout:6000},text);console.log('Delivered with SSE blocked:',text,Date.now()-started,'ms');}
+ await pages[0].evaluate(()=>{window.testHidden=true;document.dispatchEvent(new Event('visibilitychange'));});await pages[1].waitForFunction(()=>document.querySelectorAll('#presence .online').length===1,{timeout:6000});
+ const ack=new Promise(resolve=>pages[0].on('response',async r=>{if(r.url().endsWith('/api/notifications/presence')&&r.request().postData()&&JSON.parse(r.request().postData()).visible){const v=await r.json();if(v.online?.length===2)resolve();}}));
+ const resumed=Date.now();await pages[0].evaluate(()=>{window.testHidden=false;document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('focus'));});await pages[0].waitForFunction(()=>document.querySelectorAll('#presence .online').length===2,{timeout:6000});await ack;console.log('Foreground online via verified HTTP fallback:',Date.now()-resumed,'ms');assert.ok(Date.now()-resumed<6000);
+ console.log('PASS: actual app in two Chromium processes, SSE deliberately blocked, both-direction messages and foreground recovery. Simulated device focus.');
+}finally{await Promise.all(browsers.map(b=>b.close()));server.closeAllConnections();await new Promise(r=>server.close(r));store.close();}
