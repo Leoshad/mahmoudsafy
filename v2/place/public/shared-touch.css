@@ -77,3 +77,11 @@
 #shared-touch.shared-hug.touch-holding .hug-hold{transform:scale(1.08)}
 #shared-touch.shared-hug.hug-entering .hug-hold{transform:scale(.85)}
 @container(max-height:330px){#shared-touch.shared-hug .touch-thumb{inset:auto auto 70px 50%!important;width:39.6px!important;height:39.6px!important}#shared-touch.shared-hug .hug-hold{width:39.6px;height:39.6px;font-size:22px}}
+
+/* Shared embrace progress warms from gold to rose on both screens, including pauses. */
+#shared-touch.shared-hug{--hug-progress:0;--hug-glow:239 193 129}
+#shared-touch.shared-hug .touch-light{background:radial-gradient(ellipse,rgb(var(--hug-glow) / .34),rgb(var(--hug-glow) / .12) 42%,transparent 70%);opacity:calc(.22 + var(--hug-progress)*.7);transform:scale(calc(.85 + var(--hug-progress)*.45))}
+#shared-touch.shared-hug [data-touch-name].on{color:rgb(var(--hug-glow));text-shadow:0 0 calc(10px + var(--hug-progress)*10px) rgb(var(--hug-glow) / .85)}
+#shared-touch.shared-hug .hug-hold{border-color:rgb(var(--hug-glow) / .7);color:rgb(var(--hug-glow));background:rgb(var(--hug-glow) / .13);box-shadow:0 0 calc(14px + var(--hug-progress)*18px) rgb(var(--hug-glow) / calc(.18 + var(--hug-progress)*.32)),inset 0 0 12px rgb(var(--hug-glow) / .12)}
+#shared-touch.shared-hug.touch-holding .hug-hold{background:rgb(var(--hug-glow) / .28);color:#fff0f6;box-shadow:0 0 calc(20px + var(--hug-progress)*20px) rgb(var(--hug-glow) / calc(.3 + var(--hug-progress)*.35)),inset 0 0 12px rgb(var(--hug-glow) / .22)}
+#shared-touch.shared-hug .touch-particles span{color:rgb(var(--hug-glow))}

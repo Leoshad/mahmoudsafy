@@ -54,3 +54,6 @@ Latest correction supersedes earlier header and fingerprint-hold notes: fingerpr
 - Validation: syntax and memory PDF checks passed; all 568 tests passed. Two independent Chromium processes with native touchscreen input verified partial reveal/cancel, full-swipe persistence without holds, enlarged heart, single/both holding, pause/resume, completion/re-press/fade, either initiator, solo preview and fingerprint regression. Foreground was simulated for two devices; no physical phone test is claimed. Completed scene screenshot reviewed.
 
 Latest user correction: restore the hug close X beneath the scene in the same position and size as the fingerprint close control, including solo previews. This supersedes the earlier request to hide it. The existing close handler cancels the preview/shared session; all other hug behavior stays unchanged.
+
+Hug glow now starts gold and gradually becomes stronger rose as shared embrace progress advances. Ambient light, active name labels, heart and particles share the same progress-driven color on both clients; pausing retains the current hue/intensity. Fingerprint glow is unchanged.
+Validation: 25 client tests passed; the native two-browser hug scenario passed with gold/rose color assertions on both clients. Gold-start and rose-completion screenshots reviewed. Solo native close-X tap was also verified.
