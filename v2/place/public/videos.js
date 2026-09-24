@@ -19,10 +19,25 @@ input.onchange=async()=>{const file=input.files[0];input.value='';if(!file||!who
  finally{clearTimeout(timeout);if(saved&&!current())void hooks.api('videos/'+uploadId+'/discard',{}).catch(()=>{});}
 };
 function cancelDraft(draft){if(draft?.kind!=='video')return;draft.controller?.abort();if(draft.id)void hooks.api('videos/'+draft.id+'/discard',{}).catch(()=>{});}
-function markRemoved(id){removed.add(id);for(const root of document.querySelectorAll('[data-chat-video]'))if(root.dataset.chatVideo===id){root.querySelector('video')?.pause();root.replaceChildren();make('span','Video removed',root);}}
-function mount(parent,id,retained){if(retained?.dataset.chatVideo===id){parent.append(retained);if(removed.has(id))markRemoved(id);return;}const root=make('div',undefined,parent);root.className='chat-video';root.dataset.chatVideo=id;if(removed.has(id)){make('span','Video removed',root);return;}const play=make('button',undefined,root);play.type='button';play.className='video-preview';play.setAttribute('aria-label','Play shared video');const image=make('img',undefined,play);image.src='/api/videos/'+id+'/poster';image.alt='Video preview';image.loading='lazy';image.onerror=()=>image.remove();make('span','▶',play);const caption=make('small','Video · Tap to play',play);
- play.onclick=()=>{const v=make('video',undefined,root);v.controls=true;v.playsInline=true;v.preload='none';v.setAttribute('aria-label','Shared video');v.src='/api/videos/'+id;play.hidden=true;v.onerror=()=>{const note=make('p','Cannot play this video here. You can download it to open it.',root);note.className='video-error';};void v.play().catch(()=>{});};
- const download=make('a','Download video',root);download.href='/api/videos/'+id;download.download='';
+const viewer=make('dialog',undefined,document.body);viewer.className='video-viewer';viewer.setAttribute('aria-label','Shared video player');
+let activeVideo=null,returnFocus=null;
+function stopPlayback(){if(activeVideo){activeVideo.pause();activeVideo.removeAttribute('src');activeVideo.load();activeVideo=null;}viewer.replaceChildren();delete viewer.dataset.video;}
+function closeViewer(){if(viewer.open)viewer.close();stopPlayback();returnFocus?.focus({preventScroll:true});returnFocus=null;}
+viewer.addEventListener('close',stopPlayback);
+viewer.addEventListener('cancel',e=>{e.preventDefault();closeViewer();});
+viewer.addEventListener('click',e=>{if(e.target===viewer)closeViewer();});
+function openVideo(id,trigger){if(removed.has(id))return;stopPlayback();returnFocus=trigger;viewer.dataset.video=id;
+ const v=make('video',undefined,viewer);activeVideo=v;v.controls=true;v.playsInline=true;v.preload='none';v.setAttribute('aria-label','Shared video');v.poster='/api/videos/'+id+'/poster';v.src='/api/videos/'+id;
+ v.onerror=()=>{if(activeVideo!==v)return;const note=make('p','This video cannot play on this device.',viewer);note.className='video-error';};
+ viewer.showModal();void v.play().catch(()=>{});
 }
-window.OurVideos={init(h){hooks=h;},choose(){input.click();},storage:showStorage,mount,removed:markRemoved,cancelDraft,sync(s){if(who!==s.who){generation++;who=s.who;removed=new Set();}for(const id of s.deletedVideos||[])markRemoved(id);},reset(){for(const v of document.querySelectorAll('.chat-video video')){v.pause();v.removeAttribute('src');v.load();}generation++;who=null;manager.close();removed=new Set();},};
+function markRemoved(id){removed.add(id);if(viewer.dataset.video===id)closeViewer();for(const root of document.querySelectorAll('[data-chat-video]'))if(root.dataset.chatVideo===id){root.replaceChildren();make('span','Video removed',root);}}
+function mount(parent,id,retained,createdAt){parent.classList.add('video-bubble');if(retained?.dataset.chatVideo===id){parent.append(retained);if(removed.has(id))markRemoved(id);return;}
+ const root=make('div',undefined,parent);root.className='chat-video';root.dataset.chatVideo=id;if(removed.has(id)){make('span','Video removed',root);return;}
+ const play=make('button',undefined,root);play.type='button';play.className='video-preview';play.setAttribute('aria-label','Play shared video');
+ const image=make('img',undefined,play);image.src='/api/videos/'+id+'/poster';image.alt='Video preview';image.loading='lazy';image.onerror=()=>image.remove();make('span','▶',play);
+ const date=new Date(createdAt);if(Number.isFinite(date.getTime())){const time=make('time',new Intl.DateTimeFormat('en',{hour:'2-digit',minute:'2-digit'}).format(date),root);time.dateTime=date.toISOString();time.className='video-sent-time';}
+ play.onclick=()=>openVideo(id,play);
+}
+window.OurVideos={init(h){hooks=h;},choose(){input.click();},storage:showStorage,mount,removed:markRemoved,cancelDraft,sync(s){if(who!==s.who){generation++;who=s.who;removed=new Set();}for(const id of s.deletedVideos||[])markRemoved(id);},reset(){closeViewer();generation++;who=null;manager.close();removed=new Set();},};
 })();
