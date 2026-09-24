@@ -344,9 +344,9 @@ function reconcileReads(next){
  next.unreadMessages=(next.unreadMessages||[]).filter(m=>!confirmedReads.has(m.id));
 }
 let unreadOwner=null,unreadKnown=new Set(),unreadPulse=null;
-function resetUnread(){confirmedReads.clear();confirmedReadOwner=null;unreadOwner=null;unreadKnown.clear();clearTimeout(unreadPulse);const b=$('[data-tab="chat"]');b.classList.remove('chat-arrival');b.querySelector('.chat-unread')?.remove();b.setAttribute('aria-label','Our Chat');}
+function resetUnread(){window.OurGameUI?.unread?.(0);confirmedReads.clear();confirmedReadOwner=null;unreadOwner=null;unreadKnown.clear();clearTimeout(unreadPulse);const b=$('[data-tab="chat"]');b.classList.remove('chat-arrival');b.querySelector('.chat-unread')?.remove();b.setAttribute('aria-label','Our Chat');}
 function paintUnread(){
- const b=$('[data-tab="chat"]'),messages=state?.unreadMessages||[];
+ const b=$('[data-tab="chat"]'),messages=state?.unreadMessages||[];window.OurGameUI?.unread?.(messages.length);
  const arrival=unreadOwner===state?.who&&messages.some(m=>!unreadKnown.has(m.id));
  unreadOwner=state?.who;unreadKnown=new Set(messages.map(m=>m.id));
  let badge=b.querySelector('.chat-unread');if(!badge){badge=el('span',null,b,'chat-unread');badge.setAttribute('aria-hidden','true');}

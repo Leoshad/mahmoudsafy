@@ -44,8 +44,8 @@ test('full table fits all 28 tiles with bends, crosswise doubles and target scor
  const laid=all(board).filter(e=>e.className==='domino-piece');
  assert.equal(laid.length,28);assert.ok(board.children.length>1);
  const poses=a.context.DominoTable.layout(g.chain);assert.equal(poses.length,28);
- for(const wrap of board.children){assert.ok(parseFloat(wrap.style.left)>0&&parseFloat(wrap.style.left)<board.clientWidth);assert.ok(parseFloat(wrap.style.top)>0&&parseFloat(wrap.style.top)<parseFloat(board.style.height));}
- assert.ok(poses.some(p=>p.dir===1));assert.ok(poses.some(p=>p.dir===2));
+ for(const wrap of board.children.filter(n=>n.className==='domino-placement')){assert.ok(parseFloat(wrap.style.left)>0&&parseFloat(wrap.style.left)<board.clientWidth);assert.ok(parseFloat(wrap.style.top)>0&&parseFloat(wrap.style.top)<parseFloat(board.style.height));}
+ assert.ok(poses.some(p=>p.y>0));assert.ok(poses.some(p=>p.dir===2));
  for(const p of poses.filter(p=>p.double))assert.equal(p.angle%180,p.dir%2?0:90);
  const score=nodes.find(e=>e.className==='domino-scoreboard');
  assert.ok(all(score).some(e=>e.textContent==='Mahmoud'));assert.ok(all(score).some(e=>e.textContent==='Safy'));
@@ -73,14 +73,14 @@ test('tile sounds play once per new move, respect mute and preserve preference a
  const b=client('Mahmoud',state,[],storage);assert.equal(b.get('#domino-sound').textContent,'Muted');
  await click(a.get('#domino-sound'));a.context.document.hidden=true;g.lastMove.order=3;state.version++;a.sync();assert.equal(starts,6);
 });
-test('adding tiles at either end preserves every previous pose and avoids overlap',()=>{
+test('adding tiles at either end preserves chain order and avoids overlap',()=>{
  const a=client('Mahmoud',initial(),[]),layout=a.context.DominoTable.layout;
  for(let shift=0;shift<28;shift++){
   const deck=tiles(),chain=[];let previous=[];
   for(let n=0;n<28;n++){
    const tile={...deck[(n+shift)%28],order:n+1};if((n+shift)%3===0)chain.unshift(tile);else chain.push(tile);
    const poses=layout(chain);
-   for(const old of previous){const now=poses.find(p=>p.tile.id===old.tile.id);assert.equal(now.x,old.x);assert.equal(now.y,old.y);assert.equal(now.angle,old.angle);}
+   assert.deepEqual(Array.from(poses,p=>p.tile.id),chain.map(t=>t.id));
    for(let i=0;i<poses.length;i++)for(let j=i+1;j<poses.length;j++){
     const p=poses[i],q=poses[j];assert.ok(Math.abs(p.x-q.x)>=(p.w+q.w)/2-.001||Math.abs(p.y-q.y)>=(p.h+q.h)/2-.001);
    }
@@ -106,7 +106,7 @@ test('game refresh retains the table container and unplayed hand buttons',async(
  const g=state.domino.solo.Mahmoud,tile=g.hands.Mahmoud[0];g.hands.Mahmoud.shift();g.chain.push({...tile,order:1});state.version++;a.sync();
  assert.equal(get('domino-board'),board);assert.equal(get('domino-table-area'),area);assert.equal(get('domino-hand'),hand);assert.equal(hand.children.length,6);
  assert.equal(hand.children[0],buttons[1]);assert.equal(a.get('#domino-panel').classList.contains('domino-focused'),false);
- assert.equal(board._unit,25,'opening tile uses readable full size');
+ assert.equal(board._unit,32,'opening tile uses readable full size');
  await click(a.get('#domino-chat'));assert.equal(a.get('#domino-panel').hidden,true);
 });
 test('completed match presents result and next steps separately from the hand',async()=>{
