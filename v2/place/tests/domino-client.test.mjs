@@ -42,7 +42,7 @@ test('full table fits all 28 tiles with bends, crosswise doubles and target scor
  const a=client('Mahmoud',state,[]);a.get('#domino-shared-tab').onclick();
  const nodes=all(a.get('#domino-game')),board=nodes.find(e=>e.className==='domino-board');
  const laid=all(board).filter(e=>e.className==='domino-piece');
- assert.equal(laid.length,28);assert.ok(board.children.length>1);assert.ok(board._unit>=20,'all tiles retain a readable short edge');
+ assert.equal(laid.length,28);assert.ok(board.children.length>1);
  const poses=a.context.DominoTable.layout(g.chain);assert.equal(poses.length,28);
  for(const wrap of board.children){assert.ok(parseFloat(wrap.style.left)>0&&parseFloat(wrap.style.left)<board.clientWidth);assert.ok(parseFloat(wrap.style.top)>0&&parseFloat(wrap.style.top)<parseFloat(board.style.height));}
  assert.ok(poses.some(p=>p.dir===1));assert.ok(poses.some(p=>p.dir===2));

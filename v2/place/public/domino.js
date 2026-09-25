@@ -91,25 +91,18 @@ function placementChoices(g){
  });
 }
 function arrangeBoard(board,chain,lastMove,key){
- const width=board.clientWidth||280;let height=focused()?(board.clientHeight||300):Math.max(300,Math.min(400,width*1.15)),layoutKey=width+':'+height+':'+key+':'+chain.length+':'+game()?.status+':'+!!game()?.paused+':'+picked+':'+busy;
+ const width=board.clientWidth||280,height=focused()?(board.clientHeight||300):Math.max(300,Math.min(400,width*1.15)),layoutKey=width+':'+height+':'+key+':'+chain.length+':'+game()?.status+':'+!!game()?.paused+':'+picked+':'+busy;
  if(board.dataset.layout===layoutKey)return;board.dataset.layout=layoutKey;
  if(!focused())board.style.height=height+'px';
- if(!chain.length){board.style.minHeight='';$('#domino-panel').style.setProperty('--domino-table-min','110px');if(!board._empty)board._empty=make('span','Your table is ready.',board,'domino-board-empty');return;}
+ if(!chain.length){if(!board._empty)board._empty=make('span','Your table is ready.',board,'domino-board-empty');return;}
  board._empty?.remove?.();board._empty=null;
  const poses=tableLayout(chain),choices=placementChoices(game()),bounds=[...poses,...choices],minX=Math.min(...bounds.map(p=>p.x-p.w/2)),maxX=Math.max(...bounds.map(p=>p.x+p.w/2)),minY=Math.min(...bounds.map(p=>p.y-p.h/2)),maxY=Math.max(...bounds.map(p=>p.y+p.h/2));
- // Keep the original stable path. Reserve space rather than shrinking below a readable size.
- const minimumUnit=20,requiredHeight=Math.ceil((maxY-minY)*minimumUnit+52);
- board.style.minHeight=requiredHeight+'px';
- $('#domino-panel').style.setProperty('--domino-table-min',(requiredHeight+40)+'px');
- height=Math.max(height,requiredHeight);
- if(!focused())board.style.height=height+'px';
- const padding=Math.min(26,Math.max(4,(width-(maxX-minX)*minimumUnit)/2));
- const fit=Math.min(25,(width-padding*2)/(maxX-minX),(height-52)/(maxY-minY));
+ const fit=Math.min(25,(width-52)/(maxX-minX),(height-52)/(maxY-minY));
  board._unit??=25;
- if(fit<board._unit)board._unit=Math.max(minimumUnit,fit*.98);
+ if(fit<board._unit)board._unit=fit*.98;
  const unit=board._unit;board.style.setProperty('--domino-unit',unit+'px');
  // Move the camera only enough to keep the new endpoint inside the table.
- board._cx=Math.max(padding-minX*unit,Math.min(board._cx??width/2,width-padding-maxX*unit));
+ board._cx=Math.max(26-minX*unit,Math.min(board._cx??width/2,width-26-maxX*unit));
  board._cy=Math.max(26-minY*unit,Math.min(board._cy??height/2,height-26-maxY*unit));
  board._nodes??=new Map();
  for(const [index,p] of poses.entries()){

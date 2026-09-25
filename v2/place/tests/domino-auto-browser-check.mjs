@@ -17,7 +17,7 @@ try{
    for(const size of [{width:390,height:740},{width:360,height:640},{width:740,height:390}]){
     await page.setViewport({...size,isMobile:true,hasTouch:true});await new Promise(r=>setTimeout(r,400));
     const result=await page.$eval('.domino-board',n=>{const r=n.getBoundingClientRect();return {unit:n._unit,count:n._nodes.size,viewFits:r.top>=0&&r.bottom<=innerHeight,inside:[...n._nodes.values()].every(w=>{const p=w._piece.getBoundingClientRect();return p.left>=r.left&&p.right<=r.right&&p.top>=r.top&&p.bottom<=r.bottom;})};});
-    assert.equal(result.count,28);assert.ok(result.unit>=20);assert.equal(await page.$('.domino-board svg'),null);assert.ok(result.inside,JSON.stringify({index,mode,size,result}));assert.equal(await page.$('.domino-camera-controls'),null);
+    assert.equal(result.count,28);assert.ok(result.unit>0);assert.equal(await page.$('.domino-board svg'),null);assert.ok(result.inside,JSON.stringify({index,mode,size,result}));assert.equal(await page.$('.domino-camera-controls'),null);
    }
    await page.setViewport({width:390,height:740,isMobile:true,hasTouch:true});await new Promise(r=>setTimeout(r,450));await page.screenshot({path:'/tmp/domino-auto-'+index+'-'+mode+'.png'});
   }
@@ -30,5 +30,5 @@ try{
  await b.evaluate(()=>document.querySelector('[data-tab="together"]').click());await b.click('#ocho-open');await b.click('#ocho-size');
  await a.type('#compose','Message during Ocho');await a.click('#send');await b.waitForFunction(()=>!document.querySelector('.ocho-head .game-chat-unread').hidden);assert.equal(await b.$eval('.ocho-head .game-chat-unread span',n=>n.textContent),'1');
  await b.click('.ocho-head .game-chat-unread');await b.waitForSelector('#ocho-panel[hidden]');await b.waitForFunction(()=>document.querySelector('.ocho-head .game-chat-unread').hidden);assert.ok(await b.$('.draw-head .game-chat-unread'));
- assert.deepEqual(errors,[]);console.log('PASS: original connected 28-tile layouts with readable size floor in solo/shared across mobile and landscape; fullscreen message badge opens chat and clears only after read.');
+ assert.deepEqual(errors,[]);console.log('PASS: restored original connected 28-tile layouts in solo/shared across mobile and landscape; fullscreen message badge opens chat and clears only after read.');
 }finally{await Promise.all(browsers.map(b=>b.close()));server.closeAllConnections();await new Promise(r=>server.close(r));store.close();await rm(directory,{recursive:true,force:true});}
