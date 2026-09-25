@@ -115,3 +115,51 @@ test('a late failed writer cannot mark an already delivered reserve failed',asyn
  // Avoid retrying a finished slot after the deadline delivery.
  f.wall.generate=async()=>{throw Error('provider down');};await task;assert.equal(f.wall.view().runs[0].status,'posted');assert.equal(f.store.state().items.length,1);f.close();
 });
+
+test('the reported afternoon puzzle cannot reappear at night with paragraph breaks',async()=>{
+ const {nightFallback}=await import('../daily-fallback.mjs');
+ const f=fixture();const day='2026-09-17',history=[];
+ for(let i=0;i<3;i++)history.push(nightFallback(history,day+':night'));
+ const puzzle=nightFallback(history,day+':night');
+ const s=f.store.state();s.items=history.map((p,i)=>({...p,id:'old'+i,by:'Echo',daily:{key:'old'+i,slot:'night'}}));f.store.save(s);
+ const at=Date.parse(day+'T19:00Z'),cfg=s.daily;
+ // Simulate the actual legacy prepared content, before the new guard existed.
+ f.store.db.prepare('INSERT INTO echo_daily_content VALUES(?,?,?,?,?,1)').run(day+':afternoon',JSON.stringify({...puzzle,title:'From the reserve · not current news\n\n'+puzzle.title}),'reserve',cfg.revision,at-18000000);
+ f.store.db.prepare('INSERT INTO echo_daily_content VALUES(?,?,?,?,?,0)').run(day+':night',JSON.stringify({...puzzle,title:puzzle.title.replace(' How many','\n\nHow many').replace(' Compare','\n\nCompare')}),'puzzle',cfg.revision,at);
+ f.store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?)').run(day+':night','ready',null,null,new Date(at-3600000).toISOString());
+ f.set(at);await f.wall.tick();await f.wall.tick();
+ const {sameDailyContent}=await import('../daily-content.mjs');
+ const posts=f.store.state().items.filter(p=>p.daily.key===day+':night');assert.equal(posts.length,1);assert.equal(sameDailyContent(posts[0].title,puzzle.title),false);assert.equal(f.wall.view().runs[0].status,'posted');assert.equal(f.store.db.prepare('SELECT COUNT(*) n FROM jobs').get().n,0);f.close();
+});
+test('afternoon reserve leaves an already prepared night candidate available for its own time',async()=>{
+ const {nightFallback}=await import('../daily-fallback.mjs');const {sameDailyContent}=await import('../daily-content.mjs');
+ const f=fixture(),day='2026-09-17',at=Date.parse(day+'T19:00Z'),value=nightFallback([],day+':night'),cfg=f.store.state().daily;
+ f.store.db.prepare('INSERT INTO echo_daily_content VALUES(?,?,?,?,?,0)').run(day+':night',JSON.stringify(value),'night',cfg.revision,at);
+ f.store.db.prepare('INSERT INTO echo_daily_runs VALUES(?,?,?,?,?)').run(day+':night','ready',null,null,new Date(at-3600000).toISOString());
+ f.set(at-6*3600000);assert.equal(f.wall.reserve({key:day+':afternoon',id:'afternoon',at:at-6*3600000}),true);
+ assert.equal(sameDailyContent(f.store.state().items[0].title,value.title),false);
+ f.set(at);await f.wall.tick();assert.equal(f.store.state().items.length,2);assert.equal(f.store.state().items[0].title,value.title);f.close();
+});
+test('deleted and old archived content still blocks reserve and generated copies across restart',()=>{
+ const f=fixture(),cfg=f.store.state().daily,at=base+5400000;
+ const value={title:'A specific original story about two travellers sharing a whole evening beneath the stars and deciding where their next journey will take them.',sources:[]};
+ f.store.db.prepare('INSERT INTO echo_daily_content VALUES(?,?,?,?,?,1)').run('2025-01-01:night',JSON.stringify(value),'night',cfg.revision,1);
+ for(let i=0;i<185;i++)f.store.db.prepare('INSERT INTO echo_daily_content VALUES(?,?,?,?,?,1)').run('old'+i,JSON.stringify({title:'Archive item '+i}),'night',cfg.revision,i+2);
+ const restarted=new DailyWall(f.store,{now:()=>at,connected:()=>false});
+ for(const reserve of [false,true])assert.equal(f.store.tx(()=>restarted.publish({key:'2026-09-17:morning',id:'morning'},{...value,reserve,title:'From the reserve · not current news\n\n'+value.title.toUpperCase().replaceAll(' ','\n')},'reserve',cfg)),false);
+ assert.equal(f.store.state().items.length,0);restarted.stop();f.close();
+});
+test('concurrent slots returning the same content publish distinct posts at the same deadline',async()=>{
+ const value={title:'A concrete idea about how a couple can plan their next weekend together.',sources:[]};
+ const f=fixture(async()=>({value,usage})),s=f.store.state();s.daily.slots=s.daily.slots.map(x=>({...x,time:'09:30'}));f.store.save(s);
+ f.set(base+5400000);await f.wall.tick();await f.wall.tick();
+ const {dailyContentKey}=await import('../daily-content.mjs');const posts=f.store.state().items;assert.equal(posts.length,3);assert.equal(new Set(posts.map(p=>dailyContentKey(p.title))).size,3);assert.equal(f.wall.view().runs.every(x=>x.status==='posted'),true);f.close();
+});
+
+test('published history survives deletion and replacement of the original prepared row',async()=>{
+ const value={title:'Which small shared ritual would you choose for your next evening together?',sources:[]};
+ const f=fixture(async()=>({value,usage}));f.set(base+5400000);await f.wall.tick();
+ const s=f.store.state();s.items=[];updateDaily(s,{...s.daily,slots:s.daily.slots.map(x=>x.id==='morning'?{...x,time:'09:45'}:x)},base+5400001);f.store.save(s);
+ f.set(base+6300000);await f.wall.tick();assert.equal(f.store.state().items.length,1);assert.notEqual(f.store.state().items[0].title,value.title);
+ assert.ok(f.store.db.prepare('SELECT 1 FROM echo_daily_published_content WHERE title=?').get(value.title));f.close();
+});

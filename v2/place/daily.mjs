@@ -1,3 +1,4 @@
+import {dailyContentKey,repeatedDailyContent} from './daily-content.mjs';
 import {scheduledReserve} from './daily-reserve.mjs';
 import {morningFallback} from './daily-editorial.mjs';
 import {nightFallback} from './daily-fallback.mjs';
@@ -21,6 +22,11 @@ export class DailyWall{
  constructor(store,{generate=dailyGenerate,refresh=()=>{},now=Date.now,connected=()=>!!process.env.OPENAI_API_KEY}={}){
   Object.assign(this,{store,generate,refresh,now,connected});this.active=new Map();this.stopped=false;
   store.db.exec(`CREATE TABLE IF NOT EXISTS echo_daily_content(key TEXT PRIMARY KEY,value TEXT NOT NULL,variant TEXT NOT NULL,revision INTEGER NOT NULL,at INTEGER NOT NULL,published INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS echo_daily_retry(key TEXT PRIMARY KEY,attempts INTEGER NOT NULL,nextAt INTEGER NOT NULL,revision INTEGER NOT NULL,at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS echo_daily_replacements(key TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS echo_daily_runs(key TEXT PRIMARY KEY,status TEXT NOT NULL,job TEXT,detail TEXT,createdAt TEXT NOT NULL); UPDATE echo_daily_runs SET status='interrupted',detail='Server restarted during preparation.' WHERE status='running';`);
+  store.db.exec('CREATE TABLE IF NOT EXISTS echo_daily_published_content(contentKey TEXT PRIMARY KEY,title TEXT NOT NULL)');
+  store.tx(()=>{
+   const remember=store.db.prepare('INSERT OR IGNORE INTO echo_daily_published_content VALUES(?,?)');
+   for(const value of [...store.state().items.filter(x=>x.daily||x.by==='Echo'),...store.db.prepare('SELECT value FROM echo_daily_content WHERE published=1').all().map(x=>JSON.parse(x.value))])if(value.title)remember.run(dailyContentKey(value.title),value.title);
+  });
   store.tx(()=>{const s=store.state();if(!s.daily){s.daily=dailyDefaults(now());s.version++;store.save(s);}else if(s.daily.editorialVersion!==2){
    const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Riyadh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(now())),key=day+':morning';
    s.daily.slots=s.daily.slots.map(x=>x.id==='morning'?{...x,time:'09:30'}:x);s.daily.editorialVersion=2;s.daily.revision++;
@@ -39,31 +45,30 @@ export class DailyWall{
    if(this.stopped||!cfg.enabled||s.pauses.length||!cfg.slots.some(x=>x.id===slot.id&&x.enabled)||this.now()<slot.at||slot.at<=cfg.after)return;
    const run=this.store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key);
    if(run?.status==='posted'||run?.status==='cancelled'||s.items.some(x=>x.daily?.key===slot.key))return;
-   const archived=this.store.db.prepare('SELECT value FROM echo_daily_content WHERE published=1 ORDER BY at DESC LIMIT 180').all().map(x=>JSON.parse(x.value));
-   const value=scheduledReserve(slot.id,[...s.items,...archived],slot.key);if(!value)return;
+   // A reserve must not consume another slot's already prepared post.
+   const value=scheduledReserve(slot.id,this.history({prepared:true,excludeKey:slot.key}),slot.key);if(!value)return;
    this.store.db.prepare('INSERT OR IGNORE INTO echo_daily_runs VALUES(?,?,?,?,?)').run(slot.key,'ready',null,null,new Date(this.now()).toISOString());
    this.store.db.prepare('INSERT OR REPLACE INTO echo_daily_content VALUES(?,?,?,?,?,0)').run(slot.key,JSON.stringify(value),'editorial reserve',cfg.revision,slot.at);
    posted=this.publish(slot,value,'editorial reserve',cfg);
    if(posted)this.store.db.prepare("UPDATE echo_daily_runs SET detail=? WHERE key=?").run(slot.id==='afternoon'?'Published a labelled reserve discovery; current news could not be verified.':'Published an editorial reserve at the scheduled time.',slot.key);
   });if(posted)this.refresh();return posted;
  }
+ // All recovery paths use the same publication gate and durable history.
  recoverNight(slot){
-  this.store.tx(()=>{
-   const s=this.store.state(),run=this.store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key);
-   const nightTime=s.daily.slots.find(x=>x.id==='night')?.time;if(nightTime&&this.now()<Date.parse(slot.key.slice(0,10)+'T'+nightTime+':00+03:00'))return;
-   if(!run||!['failed','interrupted'].includes(run.status)||s.pauses.length||!s.daily.enabled||!s.daily.slots.some(x=>x.id==='night'&&x.enabled)||s.items.length>=500)return;
-   if(!s.items.some(x=>x.daily?.key===slot.key)){
-    const value=nightFallback(s.items,slot.key);if(!value)return;
-    s.items.unshift({id:randomUUID(),type:'Discussion',...value,by:'Echo',images:[],steps:[],approvals:[],comments:[],revision:1,aiAllowed:false,echoComments:s.daily.comments,echoEpoch:0,createdAt:new Date(this.now()).toISOString(),daily:{slot:'night',key:slot.key,variant:'editorial reserve',notify:s.daily.notifications}});s.version++;this.store.save(s);
-   }
-   this.store.db.prepare("UPDATE echo_daily_runs SET status='posted',detail='Published a verified reserve item or original puzzle after a failed attempt.' WHERE key=?").run(slot.key);
-   console.info('Daily Echo recovered: '+slot.key);
-  });this.refresh();
+  const time=this.store.state().daily.slots.find(x=>x.id==='night')?.time;
+  if(time)return this.reserve({...slot,id:'night',at:Date.parse(slot.key.slice(0,10)+'T'+time+':00+03:00')});
+ }
+ history({prepared=false,excludeKey}={}){
+  const archived=this.store.db.prepare('SELECT key,value FROM echo_daily_content WHERE published=1'+(prepared?' OR published=0':'')+' ORDER BY at DESC').all()
+   .filter(x=>x.key!==excludeKey).map(x=>({...JSON.parse(x.value),daily:{key:x.key,slot:x.key.split(':')[1]}}));
+  return [...this.store.state().items.filter(x=>x.daily||x.by==='Echo'),...archived,...this.store.db.prepare('SELECT title FROM echo_daily_published_content').all()];
  }
  publish(slot,value,variant,cfg){
   const current=this.store.state();if(current.daily.revision!==cfg.revision||!current.daily.enabled||current.pauses.length)return false;
-  if(!value||current.items.length>=500||current.items.some(x=>x.daily&&(x.daily.key===slot.key||(!value.reserve&&x.title===value.title))))return false;
+  if(!value||current.items.length>=500||current.items.some(x=>x.daily?.key===slot.key))return false;
+  if(repeatedDailyContent(value,this.history())){console.warn(JSON.stringify({event:'echo_daily_duplicate_blocked',key:slot.key}));return false;}
   current.items.unshift({id:randomUUID(),type:'Discussion',title:value.title,by:'Echo',images:[],steps:[],approvals:[],comments:[],revision:1,aiAllowed:false,echoComments:cfg.comments,echoEpoch:0,createdAt:new Date(this.now()).toISOString(),sources:value.sources,publishedDate:value.publishedDate,daily:{slot:slot.id,key:slot.key,variant,reserveFormat:value.reserveFormat,notify:cfg.notifications}});current.version++;this.store.save(current);
+  this.store.db.prepare('INSERT OR IGNORE INTO echo_daily_published_content VALUES(?,?)').run(dailyContentKey(value.title),value.title);
   this.store.db.prepare("UPDATE echo_daily_runs SET status='posted',detail=NULL WHERE key=?").run(slot.key);
   this.store.db.prepare('UPDATE echo_daily_content SET published=1 WHERE key=?').run(slot.key);console.info(JSON.stringify({event:'echo_daily_posted',key:slot.key}));return true;
  }
@@ -135,7 +140,7 @@ export class DailyWall{
        }catch{}
       }
       if(slot.id==='afternoon')throw e;
-      store.status(id,'running');result={value:slot.id==='morning'?morningFallback(recent):nightFallback(recent,slot.key)};break;
+      store.status(id,'running');result={value:slot.id==='morning'?morningFallback(this.history({prepared:true,excludeKey:slot.key})):nightFallback(this.history({prepared:true,excludeKey:slot.key}),slot.key)};break;
      }
     }
     store.tx(()=>{store.settle(id,result.usage);if(store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key)?.status==='posted'){store.status(id,'done');return;}const current=store.state();if(controller.signal.aborted||store.job(id).status!=='running'||current.daily.revision!==cfg.revision||!current.daily.enabled||current.pauses.length){store.status(id,'cancelled');store.db.prepare("UPDATE echo_daily_runs SET status='cancelled',detail='Settings changed or Echo was paused.' WHERE key=?").run(slot.key);return;}

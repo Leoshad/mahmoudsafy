@@ -1,3 +1,4 @@
+import {repeatedDailyContent} from './daily-content.mjs';
 import {MODEL} from './ai.mjs';
 export const slotBriefs={
  morning:'For Mahmoud and Safy as a couple: connection, adult attraction, a believable imagined relationship scene, or a genuinely discussable relationship question. Never generic observations about buses, seats, bags, mugs, household objects, work routines or life hacks. Do not invent their history or claim Echo has human experiences.',
@@ -6,7 +7,7 @@ export const slotBriefs={
 };
 export function editorialIssue(value,kind,history=[]){
  const t=value?.title||'';if(!t.trim())return 'Empty post';
- if(history.some(h=>h.trim().toLowerCase()===t.trim().toLowerCase()))return 'Repeated post';
+ if(repeatedDailyContent(value,history.map(title=>({title}))))return 'Repeated post';
  const words=t.toLowerCase().match(/[a-z]{3,}/g)||[],set=new Set(words);
  for(const h of history){const other=new Set(h.toLowerCase().match(/[a-z]{3,}/g)||[]),common=[...set].filter(w=>other.has(w)).length;if(set.size>12&&common/Math.max(set.size,other.size)>.72)return 'Too similar to a recent post';}
  if(kind==='morning'&&/\b(bus|backpack|window seat|household object|ceremonial use|rename your|name your mug)\b/i.test(t))return 'Off-topic morning filler';
@@ -27,4 +28,4 @@ const morningReserve=[
  {format:'message',title:'A message for a busy day: “You don’t owe me an entertaining version of yourself tonight. Come tired. We can order something and complain together.”'},
  {format:'question',title:'If you could replay one ordinary hour together, which would you choose? An actual hour—not the most impressive date, just one you’d happily have again.'}
 ];
-export function morningFallback(items){const recent=items.filter(x=>x.daily?.slot==='morning'),used=new Set(items.map(x=>x.title));const item=morningReserve.find(x=>!used.has(x.title)&&x.format!==recent[0]?.daily?.reserveFormat)||morningReserve.find(x=>!used.has(x.title));return item?{title:item.title,sources:[],publishedDate:null,reserveFormat:item.format}:null;}
+export function morningFallback(items){const recent=items.filter(x=>x.daily?.slot==='morning');const item=morningReserve.find(x=>!repeatedDailyContent(x,items)&&x.format!==recent[0]?.daily?.reserveFormat)||morningReserve.find(x=>!repeatedDailyContent(x,items));return item?{title:item.title,sources:[],publishedDate:null,reserveFormat:item.format}:null;}
