@@ -1,3 +1,4 @@
+import {configureConnectionServer,observeConnection} from './connection-http.mjs';
 import {ChatVideos} from './chat-videos.mjs';
 import {serveVideo} from './static-video.mjs';
 import {isMP3} from './audio-format.mjs';
@@ -348,12 +349,9 @@ publishPresence(true);});return;
     check(req.method==='GET','Method not allowed.',405);const files={'/videos.js':['videos.js','text/javascript'],'/videos.css':['videos.css','text/css'],'/hug-motion.mp4':['hug-motion.mp4','video/mp4'],'/music.js':['music.js','text/javascript'],'/shared-touch.js':['shared-touch.js','text/javascript'],'/shared-touch.css':['shared-touch.css','text/css'],'/memories.js':['memories.js','text/javascript'],'/memories.css':['memories.css','text/css'],'/voice.js':['voice.js','text/javascript'],'/voice.css':['voice.css','text/css'],'/balloon.js':['balloon.js','text/javascript'],'/balloon.css':['balloon.css','text/css'],'/support-preview.html':['support-preview.html','text/html'],'/support-preview.css':['support-preview.css','text/css'],'/notes.js':['notes.js','text/javascript'],'/notes.css':['notes.css','text/css'],'/note-format.mjs':['note-format.mjs','text/javascript'],'/note-pdf.mjs':['note-pdf.mjs','text/javascript'],'/chat-tools.js':['chat-tools.js','text/javascript'],'/files.js':['files.js','text/javascript'],'/files.css':['files.css','text/css'],'/buzz.js':['buzz.js','text/javascript'],'/buzz.css':['buzz.css','text/css'],'/comfort.js':['comfort.js','text/javascript'],'/race.js':['race.js','text/javascript'],'/race-engine.mjs':['race-engine.mjs','text/javascript'],'/race.css':['race.css','text/css'],'/game-ui.js':['game-ui.js','text/javascript'],'/account.js':['account.js','text/javascript'],'/reads.js':['reads.js','text/javascript'],'/sw.js':['sw.js','text/javascript'],'/notifications.js':['notifications.js','text/javascript'],'/draw.js':['draw.js','text/javascript'],'/draw.css':['draw.css','text/css'],'/court-export.js':['court-export.js','text/javascript'],'/court-print.css':['court-print.css','text/css'],'/court.js':['court.js','text/javascript'],'/court.css':['court.css','text/css'],'/personal.js':['personal.js','text/javascript'],'/personal.css':['personal.css','text/css'],'/crown.js':['crown.js','text/javascript'],'/crown.css':['crown.css','text/css'],'/journey.js':['journey.js','text/javascript'],'/journey.css':['journey.css','text/css'],'/ocho-art.svg':['ocho-art.svg','image/svg+xml'],'/ocho.js':['ocho.js','text/javascript'],'/ocho.css':['ocho.css','text/css'],'/disclosures.js':['disclosures.js','text/javascript'],'/wall.js':['wall.js','text/javascript'],'/wall.css':['wall.css','text/css'],'/domino.js':['domino.js','text/javascript'],'/domino.css':['domino.css','text/css'],'/':['index.html','text/html'],'/app.js':['app.js','text/javascript'],'/style.css':['style.css','text/css'],'/suede.svg':['suede.svg','image/svg+xml'],'/scroll.js':['scroll.js','text/javascript'],'/media.js':['media.js','text/javascript'],'/media.css':['media.css','text/css'],'/install.js':['install.js','text/javascript'],'/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'],'/icon-192.png':['icon-192.png','image/png'],'/icon-512.png':['icon-512.png','image/png']};const f=files[path];check(f,'Not found.',404);if(path==='/hug-motion.mp4')check(existsSync(join(here,'public',f[0])),'The hug animation is not available yet.',404);res.writeHead(200,{'Content-Type':f[1]+(f[1].startsWith('image/')?'':'; charset=utf-8')});res.end(readFileSync(join(here,'public',f[0])));
   }
   const server=http.createServer((req,res)=>{
-    const started=performance.now(),path=req.url?.split('?')[0];
-    if(['/api/state','/api/notifications/presence','/api/command','/api/events'].includes(path)){
-      let logged=false;const report=(status)=>{if(logged)return;logged=true;const elapsed=Math.round(performance.now()-started);if(elapsed>=1000)console.info(JSON.stringify({event:'connection_server',route:path,status:status??res.statusCode,elapsed_ms:elapsed,auth_ms:req.authMs??null}));};
-      if(path==='/api/events'){const writeHead=res.writeHead;res.writeHead=function(...args){report(args[0]);return writeHead.apply(this,args);};}else res.once('finish',report);
-    }
+    observeConnection(req,res);
     route(req,res).catch(e=>{if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
+  configureConnectionServer(server);
   const dominoTimer=setInterval(()=>{try{const current=store.state();if(!drawDue(current)&&!dominoDue(current)&&!ochoDue(current))return;const changed=store.tx(()=>{const s=store.state();const a=drawTick(s),d=dominoTick(s),o=ochoTick(s);if(!d&&!o&&!a)return false;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
   const raceSaveTimer=setInterval(()=>{if(race.matches.size)try{saveRaces();}catch{console.error('Race save failed.');}},2000);raceSaveTimer.unref();
   const raceTimer=setInterval(()=>{try{race.tick();}catch{console.error('Race update failed.');}},16);raceTimer.unref();
@@ -370,7 +368,6 @@ if(process.argv[1]===fileURLToPath(import.meta.url)){
   const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET);
   process.on('SIGTERM',()=>{stopMaintenance().then(()=>server.close(()=>{store.close();process.exit(0);}));});
 }
-
 
 
 
