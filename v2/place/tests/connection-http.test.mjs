@@ -14,6 +14,8 @@ test('real HTTP reconnect catches missed messages for both accounts and retrying
  async function stream(who){const controller=new AbortController();controllers.push(controller);const r=await fetch(base+'/api/events',{headers:{Cookie:cookies[who]},signal:controller.signal});assert.equal(r.status,200);const reader=r.body.getReader();let buffer='';return {close:()=>controller.abort(),snapshot:async()=>{while(true){const end=buffer.indexOf('\n\n');if(end>=0){const frame=buffer.slice(0,end);buffer=buffer.slice(end+2);if(frame.startsWith('event: snapshot'))return JSON.parse(frame.split('data: ')[1]);continue;}const chunk=await reader.read();assert.equal(chunk.done,false);buffer+=new TextDecoder().decode(chunk.value);}}};}
  try{
   for(const who of ['mahmoud','safy']){const r=await request(who,'login',{email:who+'@example.test',password:'test-only'});cookies[who]=r.headers.get('set-cookie').split(';')[0];await r.json();}
+  const script=await fetch(base+'/connection-trace.js');assert.equal(script.status,200);assert.match(await script.text(),/OurConnectionTrace/);
+  const report=await request('mahmoud','connection-report',{version:2,records:[{id:randomUUID(),attempt:randomUUID(),at:Date.now(),kind:'request',route:'/api/state',phase:'timeout',focused:true,online:true,elapsed:15000}]});assert.equal(report.status,200);await report.json();
   for(const who of ['mahmoud','safy']){
    const other=who==='mahmoud'?'safy':'mahmoud',before=await stream(other);await before.snapshot();before.close();
    const id=randomUUID(),payload={id,type:'message',data:{text:'message sent during disconnect '+who}};
