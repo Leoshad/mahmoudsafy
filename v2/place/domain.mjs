@@ -1,3 +1,4 @@
+import {participantsOf} from './activity-participants.mjs';
 import {randomUUID} from 'node:crypto';
 
 export class Fault extends Error {constructor(message,status=400){super(message);this.status=status;}}
@@ -13,8 +14,11 @@ export function initial(){return {version:0,pauses:[],activity:null,items:[]};}
 export function publicActivity(a,who){
   if(!a)return null;
   const {qs,...visible}=a;
+  const participants=participantsOf(a),answeredBy=a.answers.filter(v=>v.index===a.index).map(v=>v.by),waitingFor=participants.filter(n=>!answeredBy.includes(n));
+  visible.answers=a.answers.filter(v=>a.status!=='active'||v.index!==a.index||v.by===who).map(({points,...v})=>v);
+  if(a.target==='Both')visible.score=a.answers.filter(v=>a.status!=='active'||v.index<a.index).reduce((sum,v)=>sum+(v.points||0),0);
   // Solutions and future questions never leave the server, even for the author after launch.
-  return {...visible,total:qs.length,max:qs.filter(q=>q.correct>=0).length,current:a.status==='active'?{q:qs[a.index].q,options:qs[a.index].options}:null};
+  return {...visible,participants,answeredBy,waitingFor,canAnswer:a.status==='active'&&waitingFor.includes(who)&&!a.pauses.length,total:qs.length,max:qs.filter(q=>q.correct>=0).length*participants.length,current:a.status==='active'?{q:qs[a.index].q,options:qs[a.index].options}:null};
 }
 export function project(s,who){return {version:s.version,messageReactions:s.messageReactions??{},pauses:s.pauses,activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items,wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
 export function change(s,who,type,p={}){
@@ -43,20 +47,20 @@ export function change(s,who,type,p={}){
     case 'pause': if(p.value)s.echoInvited=false;s.pauses=p.value?[...new Set([...s.pauses,who])]:s.pauses.filter(x=>x!==who);break;
     case 'quiz.launch': {
       check(s.activities.filter(a=>a.status==='active').length<10,'Finish an activity before starting more than 10.',409);
-      check(names.includes(p.target),'Choose Mahmoud or Safy.');
+      check([...names,'Both'].includes(p.target),'Choose Mahmoud, Safy, or both.');
       const qs=questions(p.questions);addActivity({id:randomUUID(),createdAt:new Date().toISOString(),owner:who,host:p.host==='Echo'?'Echo':who,target:p.target,qs,index:0,answers:[],score:0,pauses:[],status:'active',afterSequence:p.afterSequence??0,title:p.title||'Quiz'});break;
     }
     case 'quiz.pause': {const a=selected();check(a?.status==='active','No active quiz.',409);a.pauses=p.value?[...new Set([...a.pauses,who])]:a.pauses.filter(n=>n!==who);break;}
     case 'quiz.answer': {
       const a=selected();check(a?.status==='active'&&a.id===p.activity&&a.index===p.index,'This question has changed.',409);
-      check(who===a.target,'This question is for your partner.',403);check(!a.pauses.length&&!s.pauses.length,'The activity is paused.',409);
+      check(participantsOf(a).includes(who),'This question is for your partner.',403);check(!a.answers.some(v=>v.index===a.index&&v.by===who),'Your answer is already saved.',409);check(!a.pauses.length&&!s.pauses.length,'The activity is paused.',409);
       const q=a.qs[a.index];let answer;
       if(q.options.length){check(Number.isInteger(p.option)&&p.option>=0&&p.option<q.options.length,'Choose an option.');answer=q.options[p.option];if(q.correct===p.option)a.score++;}
       else answer=text(p.answer,1000);
-      a.answers.push({q:q.q,answer,by:who});a.index++;a.afterSequence=p.afterSequence??a.afterSequence;if(a.index===a.qs.length){a.status='completed';}break;
+      a.answers.push({q:q.q,answer,by:who,index:a.index,...(a.target==='Both'?{points:q.correct>=0&&q.correct===p.option?1:0}:{})});if(participantsOf(a).every(n=>a.answers.some(v=>v.index===a.index&&v.by===n)))a.index++;a.afterSequence=p.afterSequence??a.afterSequence;if(a.index===a.qs.length){a.status='completed';}break;
     }
     case 'quiz.end': {const a=selected();check(a?.status==='active','No active quiz.',409);a.status='abandoned';break;}
-    case 'quiz.share': {const a=selected();check(a&&a.status!=='active','Finish or end the round before sharing.',409);check(who===a.target,'Only the answering person can share this round.',403);if(!a.sharedPost){check(s.items.length<500,'Your space is full.',409);archive(s,a,who);}break;}
+    case 'quiz.share': {const a=selected();check(a&&a.status!=='active','Finish or end the round before sharing.',409);check(participantsOf(a).includes(who),'Only an answering participant can share this round.',403);if(!a.sharedPost){check(s.items.length<500,'Your space is full.',409);archive(s,a,who);}break;}
     case 'item.save': {
       check(categories.includes(p.type),'Choose a category.');
       const item=p.id?s.items.find(i=>i.id===p.id):null;
@@ -91,8 +95,8 @@ export function change(s,who,type,p={}){
   if(s.activity)s.activity=s.activities.find(a=>a.id===s.activity.id)??s.activity;s.version++;return s;
 }
 function archive(s,a,who){
- const max=a.qs.filter(q=>q.correct>=0).length,id=randomUUID();
+ const max=a.qs.filter(q=>q.correct>=0).length*participantsOf(a).length,id=randomUUID();
  const summary=a.feedback?.findLast(f=>f.final&&f.status==='sent')?.text;
- s.items.unshift({id,type:'Result',title:[`${a.title||'Round'} · ${a.host||a.owner} → ${a.target}`,a.status==='completed'?'Completed':'Ended early',...a.answers.map(v=>v.q+' → '+v.answer),...(max?[`${a.score} / ${max} points`]:[]),...(summary?['Echo: '+summary]:[])].join('\n'),by:who,source:a.id,status:a.status,done:a.status==='completed',approvals:[],revision:1,aiAllowed:false,createdAt:new Date().toISOString()});a.sharedPost=id;
+ s.items.unshift({id,type:'Result',title:[`${a.title||'Round'} · ${a.host||a.owner} → ${participantsOf(a).join(' & ')}`,a.status==='completed'?'Completed':'Ended early',...a.answers.map(v=>v.by+': '+v.q+' → '+v.answer),...(max?[`${a.score} / ${max} points`]:[]),...(summary?['Echo: '+summary]:[])].join('\n'),by:who,source:a.id,status:a.status,done:a.status==='completed',approvals:[],revision:1,aiAllowed:false,createdAt:new Date().toISOString()});a.sharedPost=id;
 }
 

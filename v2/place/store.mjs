@@ -1,3 +1,4 @@
+import {repairSharedActivities} from './activity-participants.mjs';
 import {modelFor,ratesFor,LIGHT_MODEL} from './ai-models.mjs';
 import {drawState} from './draw.mjs';
 import {updateCrown} from './crown.mjs';
@@ -28,7 +29,7 @@ export class Store {
     this.db.prepare('INSERT OR IGNORE INTO state VALUES(1,?)').run(JSON.stringify(initial()));
     // Unknown request cost stays charged after crashes/cancellation. Never blindly retry a billed request.
     this.db.exec("UPDATE jobs SET status='interrupted' WHERE status='running'; UPDATE messages SET status='interrupted' WHERE status='streaming'");
-    const recovered=this.state();let changed=recovered.competition?.schema!==1||!recovered.draw;drawState(recovered);for(const item of recovered.items)for(const c of item.comments??[])if(c.by==='Echo'&&c.status==='streaming'){c.status='interrupted';c.text=c.text||'Echo was interrupted. You can ask again.';changed=true;}for(const c of recovered.court?.cases??[])if(c.pending){c.pending=null;c.error='Echo was interrupted. Your case is saved. Retry when ready.';c.revision++;recovered.version++;changed=true;}if(recovered.draw?.match?.pending){recovered.draw.match.pending=null;recovered.draw.match.error='Echo was interrupted. Retry when ready.';changed=true;}for(const a of recovered.activities??[])for(const f of a.feedback??[])if(f.status==='running'){f.status='interrupted';changed=true;}if(changed)this.save(recovered);
+    const recovered=this.state();let changed=recovered.competition?.schema!==1||!recovered.draw;if(repairSharedActivities(recovered))changed=true;drawState(recovered);for(const item of recovered.items)for(const c of item.comments??[])if(c.by==='Echo'&&c.status==='streaming'){c.status='interrupted';c.text=c.text||'Echo was interrupted. You can ask again.';changed=true;}for(const c of recovered.court?.cases??[])if(c.pending){c.pending=null;c.error='Echo was interrupted. Your case is saved. Retry when ready.';c.revision++;recovered.version++;changed=true;}if(recovered.draw?.match?.pending){recovered.draw.match.pending=null;recovered.draw.match.error='Echo was interrupted. Retry when ready.';changed=true;}for(const a of recovered.activities??[])for(const f of a.feedback??[])if(f.status==='running'){f.status='interrupted';changed=true;}if(changed)this.save(recovered);
   }
   tx(fn){this.db.exec('BEGIN IMMEDIATE');try{const r=fn();this.db.exec('COMMIT');return r;}catch(e){this.db.exec('ROLLBACK');throw e;}}
   state(){return JSON.parse(this.db.prepare('SELECT body FROM state WHERE id=1').get().body);}

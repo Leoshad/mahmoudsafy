@@ -1,3 +1,4 @@
+import {participantsOf} from './activity-participants.mjs';
 const people=['Mahmoud','Safy'];
 const other=n=>people.find(p=>p!==n);
 // Only event metadata reaches notifications. Never include chat text, cards or secret words.
@@ -5,9 +6,9 @@ export function attentionEvents(before,after,actor){
  const out=[],add=(key,to,body,target,kind='activity',quiet=false)=>{if(people.includes(to)&&to!==actor)out.push({key,to,body,target,kind,quiet});};
  const both=(key,body,target)=>people.forEach(n=>add(key+':'+n,n,body,target));
  for(const a of after.activities??[]){const old=before.activities?.find(x=>x.id===a.id),target={tab:'chat',activity:a.id};
-  if(!old&&a.status==='active')add('quiz:'+a.id,a.target,(a.host||a.owner)+' started a round for you.',target);
+  if(!old&&a.status==='active')for(const person of participantsOf(a))add('quiz:'+a.id+':'+person,person,(a.host||a.owner)+' started a round for you.',target);
   if(old&&old.status==='active'&&a.status!=='active')both('quiz-end:'+a.id,'Your round has ended.',target);
-  for(const f of a.feedback??[])if(f.final&&f.status==='sent'&&!old?.feedback?.some(x=>x.id===f.id&&x.status==='sent'))add('reaction:'+f.id,a.target,'Echo’s round summary is ready.',target,'echo');
+  for(const f of a.feedback??[])if(f.final&&f.status==='sent'&&!old?.feedback?.some(x=>x.id===f.id&&x.status==='sent'))for(const person of participantsOf(a))add('reaction:'+f.id+':'+person,person,'Echo’s round summary is ready.',target,'echo');
  }
  for(const game of ['ocho','domino']){const g=after[game]?.shared,old=before[game]?.shared;if(!g)continue;const target={tab:'together',game};const title=game==='ocho'?'Ocho':'Dominoes';
   if(g.id!==old?.id&&g.status==='waiting')add(game+':invite:'+g.id,other(g.owner),g.owner+' invited you to '+title+'.',target);

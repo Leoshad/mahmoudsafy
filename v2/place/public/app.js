@@ -278,25 +278,26 @@ function paintActivity(){const feed=$('#feed'),loaded=[...older,...state.message
  for(const a of all){let node=activityNodes.get(a.id);if(!node){node=document.createElement('div');node.dataset.activity=a.id;activityNodes.set(a.id,node);}renderActivity(a,node);const after=[...feed.querySelectorAll('[data-message]')].find(m=>Number(m.dataset.sequence)>(a.afterSequence??0));feed.insertBefore(node,after||null);}
  updateActivityReminder();
 }
-function updateActivityReminder(){const active=activities().filter(a=>a.status==='active'),root=$('#activity-reminder');const pending=(state?.proposals||[]).filter(p=>p.type!=='quiz');const count=active.length+pending.length+(state?.pins?.length||0)+(state?.personal?.reminders?.length||0);if(!count)followupsOpen=false;$('#followup-count').textContent=count;$('#followups').disabled=!count;$('#followups').setAttribute('aria-label',count+' reminders');$('#followups').setAttribute('aria-expanded',String(followupsOpen));window.OurPersonal?.showReminders(followupsOpen&&tab==='chat');root.hidden=(!active.length&&!pending.length)||tab!=='chat'||!followupsOpen;$('#resume-activities').hidden=!active.length;if(root.hidden||!active.length)return;const a=active[0];$('#resume-activities').textContent=active.length>1?'Activities · '+active.length:a.target===state.who?'Continue quiz · '+(a.index+1)+'/'+a.total:'Waiting for '+a.target+' · '+(a.index+1)+'/'+a.total;
+function updateActivityReminder(){const active=activities().filter(a=>a.status==='active'),root=$('#activity-reminder');const pending=(state?.proposals||[]).filter(p=>p.type!=='quiz');const count=active.length+pending.length+(state?.pins?.length||0)+(state?.personal?.reminders?.length||0);if(!count)followupsOpen=false;$('#followup-count').textContent=count;$('#followups').disabled=!count;$('#followups').setAttribute('aria-label',count+' reminders');$('#followups').setAttribute('aria-expanded',String(followupsOpen));window.OurPersonal?.showReminders(followupsOpen&&tab==='chat');root.hidden=(!active.length&&!pending.length)||tab!=='chat'||!followupsOpen;$('#resume-activities').hidden=!active.length;if(root.hidden||!active.length)return;const a=active[0];$('#resume-activities').textContent=active.length>1?'Activities · '+active.length:(a.canAnswer??a.target===state.who)?'Continue quiz · '+(a.index+1)+'/'+a.total:'Waiting for '+(a.waitingFor||[a.target]).join(' & ')+' · '+(a.index+1)+'/'+a.total;
 }
 async function resumeActivity(id){closeFollowups();const epoch=sessionEpoch;while(!activityNodes.get(id)?.isConnected&&!historyEnd&&!historyBusy&&state&&epoch===sessionEpoch){const before=older.length;await loadOlder();if(older.length===before)break;}if(epoch!==sessionEpoch)return;const node=activityNodes.get(id);if(node?.isConnected){historyHold?.stop();const root=$('#timeline');root.scrollTop+=node.getBoundingClientRect().top-root.getBoundingClientRect().top;}updateActivityReminder();}
-$('#resume-activities').onclick=()=>{const active=activities().filter(a=>a.status==='active');if(active.length===1)return resumeActivity(active[0].id);const list=$('#activity-list');list.replaceChildren();list.hidden=!list.hidden;for(const a of active)btn((a.title||'Quiz')+' · '+a.target+' · '+(a.index+1)+'/'+a.total,list,()=>resumeActivity(a.id));};
+$('#resume-activities').onclick=()=>{const active=activities().filter(a=>a.status==='active');if(active.length===1)return resumeActivity(active[0].id);const list=$('#activity-list');list.replaceChildren();list.hidden=!list.hidden;for(const a of active)btn((a.title||'Quiz')+' · '+(a.participants||[a.target]).join(' & ')+' · '+(a.index+1)+'/'+a.total,list,()=>resumeActivity(a.id));};
 function renderActivity(a,parent){
  const signature=JSON.stringify([a,state.pauses,state.who]);if(parent.dataset.signature===signature)return;
  parent.dataset.signature=signature;const key=a?.id+':'+a?.index;
  const previousInput=parent.querySelector('.free-answer'),answer=parent.dataset.question===key?(previousInput?.value??''):'';
  const focused=previousInput&&document.activeElement===previousInput;parent.dataset.question=key;parent.replaceChildren();if(!a)return;
- const card=el('section',null,parent,'activity');if(!(a.afterSequence>0))el('p','Earlier round · original position unavailable',card,'muted');el('div',(a.host||a.owner)+' → '+a.target,card,'label');
+ const participants=a.participants||[a.target],label=participants.join(' & '),mine=participants.includes(state.who),answered=(a.answeredBy||[]).includes(state.who);
+ const card=el('section',null,parent,'activity');if(!(a.afterSequence>0))el('p','Earlier round · original position unavailable',card,'muted');el('div',(a.host||a.owner)+' → '+label,card,'label');
  const feedback=(a.feedback||[]).filter(f=>f.status==='sent').at(-1),pending=(a.feedback||[]).some(f=>f.status==='running');
  if(feedback){const reaction=el('div',null,card,'activity-reaction');el('div','✦ Echo',reaction,'label');el('p',feedback.text,reaction).dir='auto';}
  if(pending)el('p','Echo is reacting…',card,'muted');
  if(a.status!=='active'){
   el('h3',a.status==='completed'?'Round complete':'Round ended early',card);
-  el('p',a.answers.length+' / '+a.total+' answered'+(a.max?' · '+a.score+' / '+a.max+' points':' · Just for fun'),card);
-  if(a.answers.length){const history=el('details',null,card);el('summary','Your answers',history);
-  for(const v of a.answers)el('p',v.q+' → '+v.answer,history).dir='auto';}else el('p','No answers were submitted.',card,'muted');
-  if(state.who===a.target){
+  el('p',a.answers.length+' / '+(a.total*participants.length)+' answers'+(a.max?' · '+a.score+' / '+a.max+' points':' · Just for fun'),card);
+  if(a.answers.length){const history=el('details',null,card);el('summary',participants.length>1?'Your shared answers':'Your answers',history);
+  for(const v of a.answers)el('p',(participants.length>1?v.by+': ':'')+v.q+' → '+v.answer,history).dir='auto';}else el('p','No answers were submitted.',card,'muted');
+  if(mine){
    if(!pending&&a.answers.length&&!(a.feedback||[]).some(f=>f.final&&f.status==='sent'))btn('Ask Echo to wrap up',card,()=>command('quiz.react',{activity:a.id}).then(sync));
    if(a.sharedPost)el('p','Shared to wall',card,'muted');
    else btn('Share to wall',card,()=>command('quiz.share',{activity:a.id}).then(sync));
@@ -304,15 +305,17 @@ function renderActivity(a,parent){
   return;
  }
  const paused=a.pauses.length||state.pauses.length;
- el('h3',paused?'Paused — your place is kept':'A question for '+a.target,card);
+ el('h3',paused?'Paused — your place is kept':'A question for '+label,card);
  if(paused)el('p','Paused by '+[...new Set([...a.pauses,...state.pauses])].join(' & ')+'. Each person must release their own pause.',card,'muted');
  el('div','Question '+(a.index+1)+' of '+a.total+(a.max?' · '+a.score+' / '+a.max+' points':' · Just for fun'),card,'muted');
- el('h3',a.current.q,card).dir='auto';const disabled=!!paused||state.who!==a.target;
- if(state.who!==a.target)el('p','Waiting for '+a.target+' to answer.',card,'muted');
+ el('h3',a.current.q,card).dir='auto';const disabled=!!paused||!mine||answered;
+ if(participants.length>1)for(const name of participants)el('p',name+' · '+((a.answeredBy||[]).includes(name)?'Answered':'Waiting for an answer'),card,'muted');
+ if(!mine)el('p','Waiting for '+label+' to answer.',card,'muted');
+ if(answered)el('p','Your answer is saved. Waiting for '+(a.waitingFor||[]).join(' & ')+'.',card,'muted');
  const submit=async data=>{await command('quiz.answer',{activity:a.id,index:a.index,...data});await sync();};
- if(a.current.options.length){
+ if(mine&&!answered&&a.current.options.length){
   const opts=el('div',null,card,'options');a.current.options.forEach((o,i)=>{const b=btn(o,opts,()=>submit({option:i}));b.dir='auto';b.disabled=disabled;});
- }else{
+ }else if(mine&&!answered){
   const form=el('form',null,card,'row'),input=el('input',null,form,'grow');input.classList.add('free-answer');input.dir='auto';input.placeholder='Your answer…';input.setAttribute('aria-label','Your answer');input.required=true;input.maxLength=1000;input.value=answer;input.disabled=disabled;
   const b=el('button','Answer',form);b.disabled=disabled;form.onsubmit=e=>{e.preventDefault();submit({answer:input.value}).catch(error);};if(focused)input.focus({preventScroll:true});
  }

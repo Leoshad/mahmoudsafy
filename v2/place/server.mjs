@@ -1,3 +1,4 @@
+import {participantsOf,normalizeActivityTarget} from './activity-participants.mjs';
 import {configureConnectionServer,observeConnection} from './connection-http.mjs';
 import {ChatVideos} from './chat-videos.mjs';
 import {serveVideo} from './static-video.mjs';
@@ -109,7 +110,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         else if(j.scope==='shared'){emit('delta',{id,text:delta});if(Date.now()-lastSave>300){store.db.prepare('UPDATE messages SET text=? WHERE id=?').run(output,id);lastSave=Date.now();}}
       }});
       if(store.job(id).status!=='running'||controller.signal.aborted)return;
-      store.tx(()=>{const liveQuiz=!b.wallItem&&proposals.find(p=>p.type==='start');if(liveQuiz){check(j.scope==='shared','Live activities belong in shared chat.');const current=store.state();change(current,j.actor,'quiz.launch',{...liveQuiz,host:'Echo',afterSequence:store.messages().at(-1)?.sequence??0});store.save(current);proposals.splice(proposals.indexOf(liveQuiz),1);output=output||'Let’s begin — one question at a time.';}store.settle(id,usage);store.db.prepare('UPDATE jobs SET body=?,status=? WHERE id=?').run(JSON.stringify({proposals,accepted:false,latency:{firstTokenMs:first,totalMs:Date.now()-started}}),'done',id);
+      store.tx(()=>{const liveQuiz=!b.wallItem&&proposals.find(p=>p.type==='start');if(liveQuiz){check(j.scope==='shared','Live activities belong in shared chat.');const current=store.state();change(current,j.actor,'quiz.launch',{...liveQuiz,target:normalizeActivityTarget(b.prompt,j.actor,liveQuiz),host:'Echo',afterSequence:store.messages().at(-1)?.sequence??0});store.save(current);proposals.splice(proposals.indexOf(liveQuiz),1);output=output||'Let’s begin — one question at a time.';}store.settle(id,usage);store.db.prepare('UPDATE jobs SET body=?,status=? WHERE id=?').run(JSON.stringify({proposals,accepted:false,latency:{firstTokenMs:first,totalMs:Date.now()-started}}),'done',id);
         if(b.wallItem)saveWallReply(b.wallItem,id,output||'I could not produce a reply.','sent');
         else if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||(proposals.length?'I prepared something for you to review.':'I could not produce a reply.'),'sent',id);
       });
@@ -124,11 +125,12 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
     }
   }
   function activityFeedback(s,a,who,explicit=false){
+    if(a.status==='active'&&a.answers.some(v=>v.index===a.index))return null;
     if((!explicit&&(a.reactionsPaused||(a.host!=='Echo'&&!s.echoInvited)))||!a.answers.length||s.pauses.length||a.pauses.length||!process.env.OPENAI_API_KEY)return null;
     a.feedback??=[];const final=a.status!=='active',index=a.index;
     const existing=a.feedback.find(f=>f.index===index&&f.final===final);
     if(existing&&['running','sent'].includes(existing.status))return null;
-    let id;try{id=store.reserve(who,'shared',{purpose:'activity',activity:a.id,index,final,context:JSON.stringify({title:a.title,target:a.target,answers:a.answers,status:a.status,final,score:a.score,max:a.qs.filter(q=>q.correct>=0).length})});}
+    let id;try{id=store.reserve(who,'shared',{purpose:'activity',activity:a.id,index,final,context:JSON.stringify({title:a.title,target:a.target,answers:a.answers,status:a.status,final,score:a.score,max:a.qs.filter(q=>q.correct>=0).length*participantsOf(a).length})});}
     catch(e){if(![409,429,503].includes(e.status))throw e;return null;}
     const f={id,index,final,status:'running',text:''};if(existing)Object.assign(existing,f);else a.feedback.push(f);return id;
   }
@@ -141,7 +143,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
     }catch{if(store.job(id)?.status==='running')store.status(id,'failed');}
     finally{clearTimeout(timer);running.delete(id);store.tx(()=>{const s=store.state(),f=s.activities?.find(a=>a.id===b.activity)?.feedback?.find(f=>f.id===id);if(f?.status==='running'){f.status='interrupted';s.version++;store.save(s);}if(store.job(id)?.status==='running')store.status(id,'interrupted');store.db.prepare("UPDATE jobs SET body='{}' WHERE id=?").run(id);});
       // If answers arrived while Echo was busy, react to the newest progress once.
-      let next=null;if(store.job(id)?.status==='done')store.tx(()=>{const s=store.state(),a=s.activities?.find(a=>a.id===b.activity);if(a&&(a.index>b.index||(a.status!=='active')!==b.final)){next=activityFeedback(s,a,a.target);store.save(s);}});
+      let next=null;if(store.job(id)?.status==='done')store.tx(()=>{const s=store.state(),a=s.activities?.find(a=>a.id===b.activity);if(a&&(a.index>b.index||(a.status!=='active')!==b.final)){next=activityFeedback(s,a,a.answers.at(-1)?.by??a.owner);store.save(s);}});
       refresh();if(next)setImmediate(()=>run(next));}
   }
   async function runDraw(id){
@@ -332,7 +334,7 @@ publishPresence(true);});return;
           if(p.type==='item.save'){if(data.image)photoData(data.image);if(data.images){check(Array.isArray(data.images)&&data.images.length<=6,'Choose up to 6 photos.');for(const image of data.images)photoData(image);}}
           if(p.type==='item.delete'){daily.cancel(x=>x.postId===data.id);const item=s.items.find(i=>i.id===data.id);check(item&&item.revision===data.revision,'This post changed. Try deleting again.',409);for(const job of store.db.prepare("SELECT id,body FROM jobs WHERE status='running'").all())if(JSON.parse(job.body).wallItem===data.id){store.status(job.id,'cancelled');running.get(job.id)?.controller.abort();}}
           if(p.type==='pause'&&data.value){cancel(who,true);daily.cancel(()=>true);}
-          if(p.type==='quiz.react'){const a=s.activities?.find(a=>a.id===data.activity);check(a&&a.target===who,'This round belongs to your partner.',403);check(!s.pauses.length&&!a.pauses.length,'Resume Echo permissions before asking for a reaction.',409);const job=activityFeedback(s,a,who,true);check(job||a.feedback?.some(f=>f.index===a.index&&f.final===(a.status!=='active')&&['running','sent'].includes(f.status)),'Echo is unavailable right now. Your answers are saved.',409);store.save(s);return {ok:true,job};}
+          if(p.type==='quiz.react'){const a=s.activities?.find(a=>a.id===data.activity);check(a&&participantsOf(a).includes(who),'This round belongs to your partner.',403);check(!s.pauses.length&&!a.pauses.length,'Resume Echo permissions before asking for a reaction.',409);const job=activityFeedback(s,a,who,true);check(job||a.feedback?.some(f=>f.index===a.index&&f.final===(a.status!=='active')&&['running','sent'].includes(f.status)),'Echo is unavailable right now. Your answers are saved.',409);store.save(s);return {ok:true,job};}
           if(['quiz.answer','quiz.end'].includes(p.type)){
             data.afterSequence=store.messages().at(-1)?.sequence??0;change(s,who,p.type,data);
             const a=s.activities.find(a=>a.id===(data.activity??s.activity?.id));
