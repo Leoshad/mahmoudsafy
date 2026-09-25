@@ -205,7 +205,8 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       }
       if(path==='/api/notifications'&&req.method==='GET')return send(res,200,{who,publicKey:notifications.vapid.publicKey,visible:notifications.visible(who)});
       if(path.startsWith('/api/notifications/')&&req.method==='POST'){
-        const data=await body(req,8000);
+        const data=await body(req,path==='/api/notifications/seen'?32768:8000);
+        if(path==='/api/notifications/seen'){notifications.seenInbox(who,data.ids);refresh(who);return send(res,200,{ok:true});}
         if(path.endsWith('/status'))return send(res,200,{registered:notifications.registered(who,req.sessionId,data.endpoint)});
         if(path.endsWith('/read')){notifications.readInbox(who,data.id);refresh(who);return send(res,200,{ok:true});}
         if(path.endsWith('/presence')){notifications.presence(who,req.sessionId,data);publishPresence();return send(res,200,{ok:true,who,online:['Mahmoud','Safy'].filter(name=>notifications.visible(name)),serverNow:Date.now()});}

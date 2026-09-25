@@ -45,6 +45,7 @@ export class PushNotifications{
  this.enqueue({key,to:who,kind:'test',subscriptionId:digest(endpoint),body:'Your test notification arrived.',target:{tab:'space'}});
  }
  inbox(who){return this.db.prepare('SELECT id,body,created,readAt FROM notification_inbox WHERE owner=? ORDER BY created DESC LIMIT 100').all(who).map(r=>({...JSON.parse(r.body),id:r.id,created:r.created,readAt:r.readAt}));}
+ seenInbox(who,ids){check(Array.isArray(ids)&&ids.length<=100&&ids.every(id=>typeof id==='string'&&id.length>0&&id.length<=300),'Choose valid notifications.');const update=this.db.prepare('UPDATE notification_inbox SET readAt=COALESCE(readAt,?) WHERE owner=? AND id=?');const now=this.now();for(const id of new Set(ids))update.run(now,who,id);}
  readInbox(who,id){check(typeof id==='string'&&id.length<=300,'Choose a notification.');this.db.prepare('UPDATE notification_inbox SET readAt=? WHERE owner=? AND id=?').run(this.now(),who,id);}
  enqueue(e){if(!this.mark(e.key))return;
  if(['wall','daily','invitation'].includes(e.kind)||/invited you|mentioned you/.test(e.body)){this.db.prepare('INSERT OR IGNORE INTO notification_inbox VALUES(?,?,?,?,NULL)').run(e.key,e.to,JSON.stringify({body:e.body,target:e.target}),this.now());this.db.prepare('DELETE FROM notification_inbox WHERE owner=? AND id NOT IN (SELECT id FROM notification_inbox WHERE owner=? ORDER BY created DESC LIMIT 100)').run(e.to,e.to);}
