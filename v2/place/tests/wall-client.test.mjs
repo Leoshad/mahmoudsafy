@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {initial,change} from '../domain.mjs';
 const walk=e=>[e,...e.children.flatMap(walk)];
-function client(s){
+function client(s,storage=new Map(),who='Mahmoud'){
  let doc;const timers=new Map();let timerId=0;
  class Node{
   constructor(tag='div'){this.handlers={};this.tag=tag;this.children=[];this.dataset={};this.value='';this.className='';this.scrollTop=0;this.textContent='';this.classList={add:c=>this.className+=' '+c,remove:c=>this.className=this.className.split(' ').filter(x=>x!==c).join(' ')};}
@@ -24,8 +24,8 @@ function client(s){
  const nodes=new Map(),$=q=>{if(!nodes.has(q))nodes.set(q,new Node());return nodes.get(q);};doc={querySelector:$,querySelectorAll:q=>[...nodes.values()].flatMap(walk).filter(n=>q==='[data-post]'&&n.dataset.post),createElement:t=>new Node(t),activeElement:null};
  const el=(t,text,p,cls)=>{const n=new Node(t);n.textContent=text??'';n.className=cls??'';p?.append(n);return n;};const failures=[],btn=(t,p,fn,cls)=>{const n=el('button',t,p,cls);n.onclick=async()=>{try{await fn();}catch(e){failures.push(e);}};return n;};
  let wall,filter='All',tab='',commands=[];
- const context={setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),document:doc,URL,structuredClone,Intl,Date,crypto:{randomUUID},history:{back:()=>tab='space',replaceState(){}}};context.window=context;vm.createContext(context);vm.runInContext(readFileSync(new URL('../public/wall.js',import.meta.url),'utf8'),context);
- wall=context.OurWall({getState:()=>({...s,who:'Mahmoud'}),api:async()=>({}),command:async(type,data,id)=>{commands.push({type,data,id});if(type==='item.ask'){const item=s.items.find(i=>i.id===data.id);item.comments??=[];item.comments.push({id:randomUUID(),by:'Mahmoud',text:data.question,to:'Echo'},{id:'echo-test',by:'Echo',text:'',status:'streaming'});item.revision++;}else change(s,'Mahmoud',type,data);},sync:async()=>wall.paint(),goto:t=>tab=t,info(){},error:e=>failures.push(e),el,btn,categories:['Idea','Photo','Plan','Agreement'],getFilter:()=>filter,setFilter:v=>filter=v,openSource(){}});
+ const context={localStorage:{getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v)},setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),document:doc,URL,structuredClone,Intl,Date,crypto:{randomUUID},history:{back:()=>tab='space',replaceState(){}}};context.window=context;vm.createContext(context);vm.runInContext(readFileSync(new URL('../public/wall.js',import.meta.url),'utf8'),context);
+ wall=context.OurWall({getState:()=>({...s,who}),api:async()=>({}),command:async(type,data,id)=>{commands.push({type,data,id});if(type==='item.ask'){const item=s.items.find(i=>i.id===data.id);item.comments??=[];item.comments.push({id:randomUUID(),by:'Mahmoud',text:data.question,to:'Echo'},{id:'echo-test',by:'Echo',text:'',status:'streaming'});item.revision++;}else change(s,'Mahmoud',type,data);},sync:async()=>wall.paint(),goto:t=>tab=t,info(){},error:e=>failures.push(e),el,btn,categories:['Idea','Photo','Plan','Agreement'],getFilter:()=>filter,setFilter:v=>filter=v,openSource(){}});
  return {$,wall,failures,commands,timers,tab:()=>tab,doc};
 }
 const sheet=c=>c.$('#our-place-trial').querySelector('.wall-comment-sheet');
@@ -51,7 +51,7 @@ test('agreement guidance is conditional and empty photo posts require attachment
 });
 test('tab navigation and browser back restore each scrolling position',()=>{
  const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8'),start=source.indexOf('const tabPositions={};'),end=source.indexOf("history.replaceState({placeTab:'chat'}",start);
- const elements=new Map(),$=id=>{if(!elements.has(id))elements.set(id,{scrollTop:0});return elements.get(id);};const context={$,historyHold:null,window:{},document:{querySelectorAll:()=>[]},history:{pushState(){}},sendTyping(){},paintItems(){},paint(){},activities:()=>[]};
+ const elements=new Map(),$=id=>{if(!elements.has(id))elements.set(id,{scrollTop:0});return elements.get(id);};const context={$,wall:{saveDraft(){}},historyHold:null,window:{},document:{querySelectorAll:()=>[]},history:{pushState(){}},sendTyping(){},paintItems(){},paint(){},activities:()=>[]};
  vm.createContext(context);vm.runInContext("let tab='space';"+source.slice(start,end)+';this.go=goto;',context);
  $('.shell').scrollTop=650;context.go('editor');assert.equal($('.shell').scrollTop,0);$('.shell').scrollTop=95;context.go('space',true);assert.equal($('.shell').scrollTop,650);
  context.go('together');$('.shell').scrollTop=430;context.go('space');assert.equal($('.shell').scrollTop,650);context.go('together',true);assert.equal($('.shell').scrollTop,430);
@@ -141,4 +141,21 @@ test('notification opens and highlights the exact older comment and handles dele
  c.wall.openNotification({post:s.items[0].id,comment:'deleted'});
  assert.match(sheet(c).querySelector('.wall-thread-error').textContent,/no longer available/);
  c.wall.openNotification({post:'deleted'});assert.match(c.failures[0].message,/no longer available/);
+});
+
+test('plan invitation accepts idea without confirming time and preserves alternative draft across updates',async()=>{
+ const s=initial();change(s,'Safy','item.save',{type:'Plan',title:'A play',proposedAt:new Date(Date.now()+86400000).toISOString()});const c=client(s);c.wall.paint();let card=c.$('#items').children[0];await button(card,'I’m in').onclick();assert.deepEqual(s.items[0].plan.schedule.confirmed,['Safy']);assert.ok(button(card,'Confirm time'));await button(card,'Suggest another idea').onclick();const dialog=c.$('#our-place-trial').querySelector('.wall-plan-dialog'),note=dialog.querySelector('textarea');note.value='Another play instead';change(s,'Safy','item.like',{id:s.items[0].id,value:true});c.wall.paint();assert.equal(note.value,'Another play instead');assert.equal(dialog.open,true);
+ await dialog.querySelector('form').onsubmit({preventDefault(){}});assert.match(dialog.querySelector('.wall-error').textContent,/changed/);assert.equal(note.value,'Another play instead');await dialog.querySelector('form').onsubmit({preventDefault(){}});assert.equal(s.items[0].plan.responses.Mahmoud.note,'Another play instead');assert.equal(dialog.open,false);
+});
+test('plan form link and optional time save without requiring steps',async()=>{
+ const s=initial(),c=client(s);await c.$('#add-item').onclick();c.$('#item-type').value='Plan';c.$('#item-type').onchange();c.$('#item-text').value='Watch together';c.$('#wall-plan-link').value='https://example.com/play';c.$('#wall-plan-time').value='2099-01-01T20:00';await c.$('#item-form').onsubmit({preventDefault(){}});assert.equal(c.failures.length,0);assert.equal(s.items[0].steps.length,0);assert.equal(s.items[0].link,'https://example.com/play');assert.ok(s.items[0].plan.schedule);});
+
+test('all post drafts survive leaving, reopening, reload and remain account-scoped',async()=>{
+ const s=initial(),storage=new Map(),c=client(s,storage);c.wall.edit({type:'Plan',title:'',images:['saved-photo']});c.$('#item-text').value='Our evening';c.$('#wall-steps').value='Snacks';c.$('#wall-plan-link').value='https://example.com/play';c.$('#wall-plan-time').value='2099-01-01T20:00';c.wall.saveDraft();c.wall.paint();assert.equal(c.$('#wall-resume-draft').hidden,false);await c.$('#add-item').onclick();assert.equal(c.$('#item-text').value,'Our evening');assert.equal(c.$('#wall-previews').children.length,1);
+ const reload=client(s,storage);reload.wall.paint();await reload.$('#wall-resume-draft').onclick();assert.equal(reload.$('#item-text').value,'Our evening');assert.equal(reload.$('#wall-steps').value,'Snacks');assert.equal(reload.$('#wall-plan-time').value,'2099-01-01T20:00');assert.equal(reload.$('#wall-previews').children.length,1);
+ const safy=client(s,storage,'Safy');safy.wall.paint();assert.equal(safy.$('#wall-resume-draft').hidden,true);
+});
+test('successful publication clears draft; explicit discard leaves published post intact',async()=>{
+ const s=initial(),storage=new Map(),c=client(s,storage);await c.$('#add-item').onclick();c.$('#item-type').value='Idea';c.$('#item-text').value='A moment';c.wall.saveDraft();await c.$('#item-form').onsubmit({preventDefault(){}});assert.equal(c.$('#wall-resume-draft').hidden,true);assert.equal(Object.keys(JSON.parse(storage.get('our-place-wall-drafts:Mahmoud'))).length,0);
+ c.wall.edit(s.items[0]);c.$('#item-text').value='Unpublished edit';c.wall.saveDraft();await c.$('#wall-discard-draft').onclick();const dialog=c.$('#our-place-trial').querySelector('.wall-discard-dialog');await button(dialog,'Discard draft').onclick();assert.equal(s.items[0].title,'A moment');assert.equal(c.$('#wall-resume-draft').hidden,true);
 });

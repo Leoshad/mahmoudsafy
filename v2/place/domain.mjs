@@ -1,3 +1,4 @@
+import {newPlan,planLink,proposeTime,updatePlan} from './plans.mjs';
 import {participantsOf} from './activity-participants.mjs';
 import {randomUUID} from 'node:crypto';
 
@@ -61,6 +62,7 @@ export function change(s,who,type,p={}){
     }
     case 'quiz.end': {const a=selected();check(a?.status==='active','No active quiz.',409);a.status='abandoned';break;}
     case 'quiz.share': {const a=selected();check(a&&a.status!=='active','Finish or end the round before sharing.',409);check(participantsOf(a).includes(who),'Only an answering participant can share this round.',403);if(!a.sharedPost){check(s.items.length<500,'Your space is full.',409);archive(s,a,who);}break;}
+    case 'item.plan': {updatePlan(s.items.find(i=>i.id===p.id),who,p,check,text);break;}
     case 'item.save': {
       check(categories.includes(p.type),'Choose a category.');
       const item=p.id?s.items.find(i=>i.id===p.id):null;
@@ -71,8 +73,14 @@ export function change(s,who,type,p={}){
       const raw=p.steps??item?.steps??[];
       check(Array.isArray(raw)&&raw.length<=30,'Use up to 30 steps.');
       const steps=raw.map(v=>({id:typeof v.id==='string'&&item?.steps?.some(x=>x.id===v.id)?v.id:randomUUID(),text:text(v.text,300),done:!!v.done}));
-      if(item){if(item.title!==title){item.sources=[];item.publishedDate=null;}Object.assign(item,{title,type:p.type,images,image:images[0]??null,steps,approvals:[],aiAllowed:!!p.aiAllowed,updatedAt:new Date().toISOString()});if(p.type==='Plan'&&steps.length)item.done=steps.every(s=>s.done);item.revision++;}
-      else {check(s.items.length<500,'Your space is full. Export a backup before adding more.',409);s.items.unshift({id:randomUUID(),type:p.type,title,by:who,images,image:images[0]??null,steps,source:p.source??null,done:false,approvals:[],revision:1,aiAllowed:!!p.aiAllowed,createdAt:new Date().toISOString()});}break;
+      const link=p.type==='Plan'?planLink(p.link??item?.link??'',check):'';
+      let plan=p.type==='Plan'?structuredClone(item?.plan??newPlan(item?.by??who)):null;
+      if(plan&&item&&(item.title!==title||(item.link??'')!==link||item.type!=='Plan')){
+        plan=newPlan(who);plan.event={id:randomUUID(),by:who,action:'edit'};
+      }
+      if(plan&&!item&&p.proposedAt)proposeTime(plan,who,p.proposedAt,check);
+      if(item){if(item.title!==title){item.sources=[];item.publishedDate=null;}Object.assign(item,{title,type:p.type,link,plan,images,image:images[0]??null,steps,approvals:[],aiAllowed:!!p.aiAllowed,updatedAt:new Date().toISOString()});if(p.type==='Plan'&&steps.length)item.done=steps.every(s=>s.done);item.revision++;}
+      else {check(s.items.length<500,'Your space is full. Export a backup before adding more.',409);s.items.unshift({id:randomUUID(),type:p.type,title,by:who,link,plan,images,image:images[0]??null,steps,source:p.source??null,done:false,approvals:[],revision:1,aiAllowed:!!p.aiAllowed,createdAt:new Date().toISOString()});}break;
     }
     case 'item.react': case 'item.echo': case 'item.like': case 'item.pin': case 'item.comment': case 'item.comment.delete': case 'item.step': {
       const i=s.items.find(i=>i.id===p.id);check(i,'This post is no longer available.',404);
