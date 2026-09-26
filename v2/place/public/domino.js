@@ -54,7 +54,10 @@ function piece(tile,root,interactive=false){
 }
 let boardObserver=null,historySignature='',view=null;
 const drawSeen=new Map();
-function tableLayout(chain){
+// Fix the horizontal reach from the table dimensions, never from move count.
+// Both arms keep their original path as pieces are added at either end.
+function tableReach(width,height){return Math.max(5.6,Math.min(18,8*Math.sqrt(Math.max(1,width-52)/Math.max(1,height-52))));}
+function tableLayout(chain,reach=5.6){
  if(!chain.length)return [];
  const rootIndex=chain.reduce((best,t,i)=>(t.order??Infinity)<(chain[best].order??Infinity)?i:best,0),root=chain[rootIndex];
  const pose=(tile,dir,previous)=>{
@@ -71,7 +74,7 @@ function tableLayout(chain){
   for(const original of tiles){
    const tile=left?{...original,a:original.b,b:original.a}:original;
    let next=pose(tile,direction,previous);
-   if(direction%2===0&&(next.x+next.w/2>5.6||next.x-next.w/2< -5.6)){horizontal=direction;direction=vertical;next=pose(tile,direction,previous);}
+   if(direction%2===0&&(next.x+next.w/2>reach||next.x-next.w/2< -reach)){horizontal=direction;direction=vertical;next=pose(tile,direction,previous);}
    else if(direction===vertical&&Math.abs(previous.y-rowY)>=3){direction=horizontal===0?2:0;next=pose(tile,direction,previous);rowY=next.y;}
    out.push(next);previous=next;
   }
@@ -79,7 +82,7 @@ function tableLayout(chain){
  arm(chain.slice(rootIndex+1),false);arm(chain.slice(0,rootIndex).reverse(),true);
  const byId=new Map(out.map(p=>[p.tile.id,p]));return chain.map(t=>byId.get(t.id));
 }
-function placementChoices(g){
+function placementChoices(g,reach){
  if(!picked||busy||g?.status!=='active'||g.paused||g.turn!==who)return [];
  const tile=g.hand.find(t=>t.id===picked);if(!tile)return [];
  const chain=g.chain.map((t,i)=>({...t,order:t.order??i+1})),order=Math.max(0,...chain.map(t=>t.order))+1;
@@ -87,7 +90,7 @@ function placementChoices(g){
   let {a,b}=tile;
   if(chain.length&&((move.side==='left'&&b!==chain[0].a)||(move.side==='right'&&a!==chain.at(-1).b)))[a,b]=[b,a];
   const next={...tile,a,b,order},future=move.side==='left'?[next,...chain]:[...chain,next];
-  return {...tableLayout(future).find(p=>p.tile.id===tile.id),move};
+  return {...tableLayout(future,reach).find(p=>p.tile.id===tile.id),move};
  });
 }
 function arrangeBoard(board,chain,lastMove,key){
@@ -96,7 +99,11 @@ function arrangeBoard(board,chain,lastMove,key){
  if(!focused())board.style.height=height+'px';
  if(!chain.length){if(!board._empty)board._empty=make('span','Your table is ready.',board,'domino-board-empty');return;}
  board._empty?.remove?.();board._empty=null;
- const poses=tableLayout(chain),choices=placementChoices(game()),bounds=[...poses,...choices],minX=Math.min(...bounds.map(p=>p.x-p.w/2)),maxX=Math.max(...bounds.map(p=>p.x+p.w/2)),minY=Math.min(...bounds.map(p=>p.y-p.h/2)),maxY=Math.max(...bounds.map(p=>p.y+p.h/2));
+ const sizeKey=width+':'+height;
+ if(board._sizeKey!==sizeKey){board._sizeKey=sizeKey;board._unit=25;board._cx=null;board._cy=null;}
+ const reachKey=width+':'+window.innerWidth+':'+window.innerHeight+':'+focused();
+ if(board._reachKey!==reachKey){board._reachKey=reachKey;board._reach=tableReach(width,height);}
+ const reach=board._reach,poses=tableLayout(chain,reach),choices=placementChoices(game(),reach),bounds=[...poses,...choices],minX=Math.min(...bounds.map(p=>p.x-p.w/2)),maxX=Math.max(...bounds.map(p=>p.x+p.w/2)),minY=Math.min(...bounds.map(p=>p.y-p.h/2)),maxY=Math.max(...bounds.map(p=>p.y+p.h/2));
  const fit=Math.min(25,(width-52)/(maxX-minX),(height-52)/(maxY-minY));
  board._unit??=25;
  if(fit<board._unit)board._unit=fit*.98;
@@ -160,7 +167,7 @@ function renderRecords(){
  if(!record.history.length)make('p','Completed matches will be remembered here.',list,'muted');
  for(const entry of record.history){const row=make('div',undefined,list,'domino-history-row');make('strong',entry.status==='completed'?entry.winner+' won':'Unfinished match',row);make('span',Object.entries(entry.scores).map(([n,p])=>n+' '+p).join(' · ')+' / target '+entry.target,row);make('small',new Date(entry.date).toLocaleDateString()+' · '+entry.rounds+' rounds'+(entry.difficulty?' · '+entry.difficulty:''),row);}
 }
-window.DominoTable={layout:tableLayout};
+window.DominoTable={layout:tableLayout,reach:tableReach};
 function scoreboard(g,root){
  const score=make('div',undefined,root,'domino-scoreboard');score.setAttribute('aria-label','Game score');
  const order=g.mode==='shared'?['Mahmoud','Safy']:g.players;

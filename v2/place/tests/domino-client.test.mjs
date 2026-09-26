@@ -210,3 +210,19 @@ test('new blocked results explain opponent total without subtracting winner pips
  g.status='finished';g.scores={Mahmoud:12,Computer:0};g.result={winner:'Mahmoud',points:12,reason:'blocked',scoring:'opponent-total',totals:{Mahmoud:1,Computer:12}};state.version++;a.sync();
  assert.ok(all(a.get('#domino-game')).some(e=>e.textContent==='Blocked round · Computer’s remaining pips: 12 = 12 points'));
 });
+
+test('table uses its horizontal space before turning; each prior pose stays fixed at both ends',()=>{
+ const a=client('Mahmoud',initial(),[]),{layout,reach}=a.context.DominoTable,span=reach(360,235);
+ assert.ok(span>5.6);const deck=tiles();let seed=9821;const rand=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+ for(let sample=0;sample<100;sample++){
+  const bag=deck.map(t=>({...t}));for(let i=bag.length-1;i>0;i--){const j=Math.floor(rand()*(i+1));[bag[i],bag[j]]=[bag[j],bag[i]];}
+  let chain=[],previous=[];for(let n=0;n<28;n++){const t={...bag[n],order:n+1};rand()<.5?chain.unshift(t):chain.push(t);const poses=layout(chain,span);
+   for(const old of previous){const p=poses.find(p=>p.tile.id===old.tile.id);assert.deepEqual([p.x,p.y,p.angle],[old.x,old.y,old.angle]);}
+   for(let i=0;i<poses.length;i++)for(let j=i+1;j<poses.length;j++){const p=poses[i],q=poses[j];assert.ok(Math.abs(p.x-q.x)>=(p.w+q.w)/2-.001||Math.abs(p.y-q.y)>=(p.h+q.h)/2-.001);}
+   previous=poses;
+  }
+ }
+ const chain=deck.filter(t=>t.a!==t.b).slice(0,10).map((t,i)=>({...t,order:i+1})),old=layout(chain),wide=layout(chain,span);
+ assert.ok(wide.filter(p=>p.y===0).length>old.filter(p=>p.y===0).length);
+ assert.ok(Math.max(...wide.map(p=>p.y))<Math.max(...old.map(p=>p.y)));
+});
