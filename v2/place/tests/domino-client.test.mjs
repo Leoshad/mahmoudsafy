@@ -226,3 +226,16 @@ test('table uses its horizontal space before turning; each prior pose stays fixe
  assert.ok(wide.filter(p=>p.y===0).length>old.filter(p=>p.y===0).length);
  assert.ok(Math.max(...wide.map(p=>p.y))<Math.max(...old.map(p=>p.y)));
 });
+
+test('balanced table footprint uses width and height and centers the chain when scaled',()=>{
+ const a=client('Mahmoud',initial(),[]),{layout,reach}=a.context.DominoTable;
+ for(const [w,h] of [[360,235],[370,308],[300,300]]){
+  const chain=tiles().map((t,i)=>({...t,order:i+1})),poses=layout(chain,reach(w,h));
+  const sx=Math.max(...poses.map(p=>p.x+p.w/2))-Math.min(...poses.map(p=>p.x-p.w/2)),sy=Math.max(...poses.map(p=>p.y+p.h/2))-Math.min(...poses.map(p=>p.y-p.h/2)),unit=Math.min(25,(w-52)/sx,(h-52)/sy);
+  assert.ok(sx*unit/(w-52)>.6,'uses horizontal area');assert.ok(sy*unit/(h-52)>.6,'uses vertical area');
+ }
+ const s=initial();dominoChange(s,'Mahmoud','domino.create',{mode:'solo',difficulty:'medium'});const g=s.domino.solo.Mahmoud,c=client('Mahmoud',s,[]);g.chain=tiles().map((t,i)=>({...t,order:i+1}));g.revision++;s.version++;c.sync();
+ const board=all(c.get('#domino-game')).find(e=>e.className==='domino-board'),poses=layout(g.chain,board._reach),xs=poses.map(p=>board._cx+p.x*board._unit),ys=poses.map(p=>board._cy+p.y*board._unit);
+ const left=Math.min(...poses.map((p,i)=>xs[i]-p.w*board._unit/2)),right=board.clientWidth-Math.max(...poses.map((p,i)=>xs[i]+p.w*board._unit/2));assert.ok(Math.abs(left-right)<1);
+ const top=Math.min(...poses.map((p,i)=>ys[i]-p.h*board._unit/2)),bottom=parseFloat(board.style.height)-Math.max(...poses.map((p,i)=>ys[i]+p.h*board._unit/2));assert.ok(Math.abs(top-bottom)<1);
+});

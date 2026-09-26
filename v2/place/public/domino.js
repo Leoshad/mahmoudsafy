@@ -54,9 +54,22 @@ function piece(tile,root,interactive=false){
 }
 let boardObserver=null,historySignature='',view=null;
 const drawSeen=new Map();
-// Fix the horizontal reach from the table dimensions, never from move count.
-// Both arms keep their original path as pieces are added at either end.
-function tableReach(width,height){return Math.max(5.6,Math.min(18,8*Math.sqrt(Math.max(1,width-52)/Math.max(1,height-52))));}
+// Choose one balanced footprint for this table, independent of incoming moves.
+// Sample both growing ends and doubles before fixing the row length for the round.
+function tableReach(width,height){
+ const w=Math.max(80,width-52),h=Math.max(80,height-52);let best=5.6,bestScore=-Infinity;
+ for(let reach=5.6;reach<=12;reach+=.4){
+  let score=0;
+  for(const count of [14,21,28])for(const rootIndex of [0,Math.floor(count/2),count-1]){
+   const sample=Array.from({length:count},(_,i)=>({id:String(i),a:i%7,b:i%4===0?i%7:(i+1)%7,order:i===rootIndex?0:i+1}));
+   const poses=tableLayout(sample,reach),sx=Math.max(...poses.map(p=>p.x+p.w/2))-Math.min(...poses.map(p=>p.x-p.w/2)),sy=Math.max(...poses.map(p=>p.y+p.h/2))-Math.min(...poses.map(p=>p.y-p.h/2));
+   const unit=Math.min(25,w/sx,h/sy),balance=Math.min((sx/sy)/(w/h),(w/h)/(sx/sy));
+   score+=unit*(.65+.35*balance);
+  }
+  if(score>bestScore){bestScore=score;best=reach;}
+ }
+ return best;
+}
 function tableLayout(chain,reach=5.6){
  if(!chain.length)return [];
  const rootIndex=chain.reduce((best,t,i)=>(t.order??Infinity)<(chain[best].order??Infinity)?i:best,0),root=chain[rootIndex];
@@ -100,15 +113,19 @@ function arrangeBoard(board,chain,lastMove,key){
  if(!chain.length){if(!board._empty)board._empty=make('span','Your table is ready.',board,'domino-board-empty');return;}
  board._empty?.remove?.();board._empty=null;
  const sizeKey=width+':'+height;
- if(board._sizeKey!==sizeKey){board._sizeKey=sizeKey;board._unit=25;board._cx=null;board._cy=null;}
+ const resized=board._sizeKey!==sizeKey;
+ if(resized){board._sizeKey=sizeKey;board._unit=25;board._cx=null;board._cy=null;}
  const reachKey=width+':'+window.innerWidth+':'+window.innerHeight+':'+focused();
  if(board._reachKey!==reachKey){board._reachKey=reachKey;board._reach=tableReach(width,height);}
  const reach=board._reach,poses=tableLayout(chain,reach),choices=placementChoices(game(),reach),bounds=[...poses,...choices],minX=Math.min(...bounds.map(p=>p.x-p.w/2)),maxX=Math.max(...bounds.map(p=>p.x+p.w/2)),minY=Math.min(...bounds.map(p=>p.y-p.h/2)),maxY=Math.max(...bounds.map(p=>p.y+p.h/2));
  const fit=Math.min(25,(width-52)/(maxX-minX),(height-52)/(maxY-minY));
  board._unit??=25;
- if(fit<board._unit)board._unit=fit*.98;
+ const shrinking=fit<board._unit;
+ if(shrinking)board._unit=fit*.98;
  const unit=board._unit;board.style.setProperty('--domino-unit',unit+'px');
- // Move the camera only enough to keep the new endpoint inside the table.
+ // Recenter the whole chain only when its scale or viewport changes. Individual
+ // poses stay fixed; ordinary moves only pan enough to keep the endpoint visible.
+ if(resized||shrinking){board._cx=(width-(minX+maxX)*unit)/2;board._cy=(height-(minY+maxY)*unit)/2;}
  board._cx=Math.max(26-minX*unit,Math.min(board._cx??width/2,width-26-maxX*unit));
  board._cy=Math.max(26-minY*unit,Math.min(board._cy??height/2,height-26-maxY*unit));
  board._nodes??=new Map();

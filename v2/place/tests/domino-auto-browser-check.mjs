@@ -30,5 +30,17 @@ try{
  await b.evaluate(()=>document.querySelector('[data-tab="together"]').click());await b.click('#ocho-open');await b.click('#ocho-size');
  await a.type('#compose','Message during Ocho');await a.click('#send');await b.waitForFunction(()=>!document.querySelector('.ocho-head .game-chat-unread').hidden);assert.equal(await b.$eval('.ocho-head .game-chat-unread span',n=>n.textContent),'1');
  await b.click('.ocho-head .game-chat-unread');await b.waitForSelector('#ocho-panel[hidden]');await b.waitForFunction(()=>document.querySelector('.ocho-head .game-chat-unread').hidden);assert.ok(await b.$('.draw-head .game-chat-unread'));
- assert.deepEqual(errors,[]);console.log('PASS: restored original connected 28-tile layouts in solo/shared across mobile and landscape; fullscreen message badge opens chat and clears only after read.');
+ // Inspect the table progressively, not only with a full deck. These are local fixtures.
+ await a.setViewport({width:390,height:740,isMobile:true,hasTouch:true});
+ await a.evaluate(()=>{document.querySelector('[data-tab="together"]').click();OurDomino.reset();});
+ const fixture=await a.evaluate(async()=>await (await fetch('/api/state')).json());
+ for(const count of [6,14,21,28]){
+  await a.evaluate(({fixture,count})=>{const s=structuredClone(fixture),g=s.domino.solo;s.version=100000+count;g.chain=g.chain.slice(0,count);g.revision=count;g.status='active';g.paused=false;g.pausedBy=[];g.turn='Mahmoud';g.legal=[];OurDomino.sync(s);document.querySelector('#domino-solo-tab').click();document.querySelector('#domino-open').click();}, {fixture,count});
+  await a.evaluate(()=>document.querySelector('.domino-size-toggle').click());
+  await a.waitForSelector('#domino-panel.domino-focused');
+  await new Promise(r=>setTimeout(r,200));
+  const footprint=await a.$eval('.domino-board',n=>{const r=n.getBoundingClientRect(),pieces=[...n._nodes.values()].map(w=>w._piece.getBoundingClientRect());return {count:pieces.length,inside:pieces.every(p=>p.left>=r.left&&p.right<=r.right&&p.top>=r.top&&p.bottom<=r.bottom)};});assert.equal(footprint.count,count);assert.ok(footprint.inside);
+  await a.screenshot({path:'/tmp/domino-balanced-stage-'+count+'.png'});
+ }
+ assert.deepEqual(errors,[]);console.log('PASS: balanced progressive and 28-tile layouts in solo/shared across mobile and landscape; fullscreen message badge opens chat and clears only after read.');
 }finally{await Promise.all(browsers.map(b=>b.close()));server.closeAllConnections();await new Promise(r=>server.close(r));store.close();await rm(directory,{recursive:true,force:true});}
