@@ -1,3 +1,4 @@
+import {validateActivity,publicPost} from './shared-post.mjs';
 import {newPlan,planLink,proposeTime,updatePlan} from './plans.mjs';
 import {participantsOf} from './activity-participants.mjs';
 import {randomUUID} from 'node:crypto';
@@ -21,7 +22,7 @@ export function publicActivity(a,who){
   // Solutions and future questions never leave the server, even for the author after launch.
   return {...visible,participants,answeredBy,waitingFor,canAnswer:a.status==='active'&&waitingFor.includes(who)&&!a.pauses.length,total:qs.length,max:qs.filter(q=>q.correct>=0).length*participants.length,current:a.status==='active'?{q:qs[a.index].q,options:qs[a.index].options}:null};
 }
-export function project(s,who){return {version:s.version,messageReactions:s.messageReactions??{},pauses:s.pauses,activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items,wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
+export function project(s,who){return {version:s.version,messageReactions:s.messageReactions??{},pauses:s.pauses,activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items.map(i=>publicPost(i,who)),wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
 export function change(s,who,type,p={}){
   check(names.includes(who),'Not invited.',403);
   s.activities??=s.activity?[s.activity]:[];
@@ -63,12 +64,17 @@ export function change(s,who,type,p={}){
     case 'quiz.end': {const a=selected();check(a?.status==='active','No active quiz.',409);a.status='abandoned';break;}
     case 'quiz.share': {const a=selected();check(a&&a.status!=='active','Finish or end the round before sharing.',409);check(participantsOf(a).includes(who),'Only an answering participant can share this round.',403);if(!a.sharedPost){check(s.items.length<500,'Your space is full.',409);archive(s,a,who);}break;}
     case 'item.plan': {updatePlan(s.items.find(i=>i.id===p.id),who,p,check,text);break;}
+    case 'item.play': {
+      const i=s.items.find(i=>i.id===p.id);check(i?.activity,'This activity is unavailable.',404);check(['hint','reveal'].includes(p.action),'Choose a hint or solution.');const a=i.activity;a.progress??={};const seen=a.progress[who]??={hints:0,revealed:false};a.progress[who]=seen;if(p.action==='hint'){check(p.expected===seen.hints,'Your hints changed. Try again.',409);seen.hints=Math.min(3,seen.hints+1);}else seen.revealed=true;i.revision++;break;
+    }
     case 'item.save': {
       check(categories.includes(p.type),'Choose a category.');
       const item=p.id?s.items.find(i=>i.id===p.id):null;
       if(p.id)check(item&&item.revision===p.revision,'This post changed. Reopen it before saving.',409);
       const images=p.images??(p.image?[p.image]:item?.images??(item?.image?[item.image]:[]));
       check(Array.isArray(images)&&images.length<=6&&images.every(v=>typeof v==='string'&&/^[a-f0-9-]{36}$/.test(v)),'Choose up to 6 photos.');
+      const activity=!item&&p.activity?{...validateActivity(p.activity),progress:{}}:item?.activity;
+      if(item?.activity)check(p.title===item.title,'The clues of a published activity stay fixed so its solution stays valid. Create a new post to change the puzzle.',409);
       const title=p.title?.trim()?text(p.title,5000):images.length?'':text(p.title,5000);
       const raw=p.steps??item?.steps??[];
       check(Array.isArray(raw)&&raw.length<=30,'Use up to 30 steps.');
@@ -80,7 +86,7 @@ export function change(s,who,type,p={}){
       }
       if(plan&&!item&&p.proposedAt)proposeTime(plan,who,p.proposedAt,check);
       if(item){if(item.title!==title){item.sources=[];item.publishedDate=null;}Object.assign(item,{title,type:p.type,link,plan,images,image:images[0]??null,steps,approvals:[],aiAllowed:!!p.aiAllowed,updatedAt:new Date().toISOString()});if(p.type==='Plan'&&steps.length)item.done=steps.every(s=>s.done);item.revision++;}
-      else {check(s.items.length<500,'Your space is full. Export a backup before adding more.',409);s.items.unshift({id:randomUUID(),type:p.type,title,by:who,link,plan,images,image:images[0]??null,steps,source:p.source??null,done:false,approvals:[],revision:1,aiAllowed:!!p.aiAllowed,createdAt:new Date().toISOString()});}break;
+      else {check(s.items.length<500,'Your space is full. Export a backup before adding more.',409);s.items.unshift({id:randomUUID(),type:p.type,title,by:who,...(activity?{activity}:{}),link,plan,images,image:images[0]??null,steps,source:p.source??null,done:false,approvals:[],revision:1,aiAllowed:!!p.aiAllowed,createdAt:new Date().toISOString()});}break;
     }
     case 'item.react': case 'item.echo': case 'item.like': case 'item.pin': case 'item.comment': case 'item.comment.delete': case 'item.step': {
       const i=s.items.find(i=>i.id===p.id);check(i,'This post is no longer available.',404);
