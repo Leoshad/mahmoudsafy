@@ -159,3 +159,12 @@
 .echo-draft-card{border-top:1px solid #634756;margin-top:24px;padding-top:20px}
 .echo-draft-card .proposal-content{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;margin:14px 0 18px}
 .echo-draft-card button{margin:0 8px 10px 0}
+
+/* Echo's established gold identity, scoped to the composer entry. */
+#our-place-trial #wall-create-echo{display:flex;align-items:center;gap:12px;min-height:48px;padding:8px 16px;border:1px solid rgba(210,180,124,.38);background:linear-gradient(110deg,rgba(210,180,124,.12),rgba(210,180,124,.025) 72%),#241e27;box-shadow:inset 0 1px 0 rgba(240,214,163,.06);color:var(--text,#eee7ec);transition:border-color .18s,background-color .18s}
+#wall-create-echo .echo-create-mark{display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:50%;border:1px solid rgba(210,180,124,.5);background:rgba(210,180,124,.12);color:var(--gold,#d2b47c);font-size:23px;line-height:1;box-shadow:0 0 14px rgba(210,180,124,.09)}
+#wall-create-echo .echo-create-label{flex:1;text-align:left;line-height:1.4}
+#wall-create-echo .echo-create-label span{color:var(--gold,#d2b47c);font-weight:600}
+#wall-create-echo .echo-create-arrow{width:17px;height:17px;flex:0 0 17px;color:var(--gold,#d2b47c);opacity:.8}
+#our-place-trial #wall-create-echo:hover{border-color:rgba(210,180,124,.65);background-color:#2c242b}
+#our-place-trial #wall-create-echo:focus-visible{outline:2px solid var(--gold,#d2b47c);outline-offset:3px}
