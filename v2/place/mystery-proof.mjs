@@ -2,7 +2,7 @@ import {randomInt} from 'node:crypto';
 const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=randomInt(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
 const permutations=a=>a.length?a.flatMap((x,i)=>permutations(a.filter((_,j)=>i!==j)).map(p=>[x,...p])):[[]];
 export function mysteryProof(difficulty='medium'){
- const n=difficulty==='easy'?3:difficulty==='hard'?5:4,names=shuffle(['Alex','Blair','Casey','Drew','Ellis','Fran','Harper','Jules']).slice(0,n),order=shuffle(names),slot=randomInt(1,n-1),all=permutations(names);let candidates=[];
+ const n=difficulty==='easy'?4:difficulty==='hard'?6:5,names=shuffle(['Alex','Blair','Casey','Drew','Ellis','Fran','Harper','Jules']).slice(0,n),order=shuffle(names),slot=randomInt(1,n-1),all=permutations(names);let candidates=[];
  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const a=order[i],b=order[j];candidates.push({text:a+' visited before '+b+'.',ok:p=>p.indexOf(a)<p.indexOf(b)});if(j===i+1)candidates.push({text:b+' visited immediately after '+a+'.',ok:p=>p.indexOf(b)===p.indexOf(a)+1});}
  for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(i!==j){const name=order[i];candidates.push({text:name+' was not visitor number '+(j+1)+'.',ok:p=>p[j]!==name});}
  let clues=[],solutions=all;
