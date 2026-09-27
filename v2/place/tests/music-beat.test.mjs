@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';
+const window={};vm.runInNewContext(readFileSync(new URL('../public/music-beat.js',import.meta.url),'utf8'),{window,Float32Array});
+for(const bpm of [60,120,180])test('tempo follows '+bpm+' BPM onsets',()=>{const tracker=new window.OurMusicBeat();let result;for(let t=0;t<12000;t+=20){const v=new Uint8Array(128);v.fill(t%(60000/bpm)<60?220:12,1,40);result=tracker.sample(v,t);}assert.ok(Math.abs(result.bpm-bpm)<5,String(result.bpm));});
+test('silence and steady tone do not invent a tempo',()=>{const tracker=new window.OurMusicBeat();let result;for(let t=0;t<10000;t+=20){const v=new Uint8Array(128);v.fill(160,1,40);result=tracker.sample(v,t);}assert.equal(result.bpm,null);assert.equal(result.beat,false);for(let t=10000;t<14000;t+=20)result=tracker.sample(new Uint8Array(128),t);assert.equal(result.bpm,null);assert.equal(result.power,0);});

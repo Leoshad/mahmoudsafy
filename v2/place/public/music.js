@@ -1,10 +1,24 @@
 (()=>{'use strict';
 let dock,audio,dockUI,current=null,name='',token=0,inChat=true,inlineVisible=false,observer;
 const cards=new Set(),durations=new Map();
-let context,analyser,edge,frame=0,energy=0,glowOn=true;
+let context,analyser,edge,frame=0,energy=0,glowOn=true,beatTracker,travel=0,applyVersion=0;
 try{glowOn=localStorage.getItem('our-music-glow')!=='off';}catch{}
-function unlock(){ensure();try{if(!context){const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;context=new AudioContext();analyser=context.createAnalyser();analyser.fftSize=256;analyser.smoothingTimeConstant=.7;context.createMediaElementSource(audio).connect(analyser);analyser.connect(context.destination);}void context.resume().catch(()=>{});}catch{}}
-function glowFrame(){cancelAnimationFrame(frame);frame=0;if(!edge){edge=make('div','music-edge-glow');edge.setAttribute('aria-hidden','true');document.body.append(edge);}if(!glowOn||!analyser||!audio||audio.paused||document.hidden||matchMedia('(prefers-reduced-motion: reduce)').matches){edge.style.opacity='0';return;}const values=new Uint8Array(analyser.frequencyBinCount);let last=0;const tick=now=>{if(audio.paused||!glowOn||document.hidden){edge.style.opacity='0';frame=0;return;}if(now-last>40){last=now;analyser.getByteFrequencyData(values);const power=values.slice(1,48).reduce((sum,v)=>sum+v,0)/(47*255);energy=energy*.65+power*.35;edge.style.opacity=String(Math.min(.42,energy*.7));edge.style.boxShadow=`inset 3px 0 ${10+energy*22}px #db9fbd,inset -3px 0 ${12+energy*24}px #d6b97d,inset 0 2px ${8+energy*14}px #d6b97d,inset 0 -2px ${8+energy*18}px #db9fbd`; }frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);}
+function unlock(){ensure();try{if(!context){const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;context=new AudioContext();analyser=context.createAnalyser();analyser.fftSize=1024;analyser.smoothingTimeConstant=.15;context.createMediaElementSource(audio).connect(analyser);analyser.connect(context.destination);}void context.resume().catch(()=>{});}catch{}}
+function glowFrame(){
+ cancelAnimationFrame(frame);frame=0;
+ if(!edge){edge=make('div','music-edge-glow');edge.setAttribute('aria-hidden','true');document.body.append(edge);}
+ if(!glowOn||!analyser||!audio||audio.paused||document.hidden||matchMedia('(prefers-reduced-motion: reduce)').matches){edge.style.opacity='0';return;}
+ const tracker=beatTracker??=new window.OurMusicBeat();const values=new Uint8Array(analyser.frequencyBinCount);let last=0,accent=0,speed=0;
+ const tick=now=>{if(audio.paused||!glowOn||document.hidden){edge.style.opacity='0';frame=0;return;}
+  if(now-last>=33){const dt=Math.min(100,last?now-last:33);last=now;analyser.getByteFrequencyData(values);const result=tracker.sample(values,now);
+   // Onsets add a soft accent. Estimated tempo sets travel speed, never line thickness.
+   if(result.beat)accent=.15;else accent*=Math.exp(-dt/500);
+   const target=result.bpm?result.bpm/60*.018:0;speed+=(target-speed)*Math.min(1,dt/700);travel+=speed*dt;
+   energy+=(Math.min(1,result.power*5)-energy)*Math.min(1,dt/500);
+   edge.style.opacity=String(Math.min(.72,energy*2));edge.style.setProperty('--light',String(.38+accent));edge.style.setProperty('--travel',(50-42*Math.cos(travel*Math.PI/100)).toFixed(2)+'%');
+  }frame=requestAnimationFrame(tick);
+ };frame=requestAnimationFrame(tick);
+}
 document.addEventListener('visibilitychange',glowFrame);
 
 const clock=value=>Number.isFinite(value)?Math.floor(value/60)+':'+String(Math.floor(value%60)).padStart(2,'0'):'–:––';
@@ -46,7 +60,7 @@ function refresh(){
  inlineVisible=inChat&&visible;paint();
 }
 function reset(){
- token++;current=null;name='';inlineVisible=false;
+ applyVersion++;token++;current=null;name='';inlineVisible=false;
  if(audio){audio.pause();audio.removeAttribute('src');audio.load();}
  if(dock)dock.hidden=true;
  if(navigator.mediaSession){navigator.mediaSession.metadata=null;for(const action of ['play','pause','seekto','seekbackward','seekforward','stop','previoustrack','nexttrack'])try{navigator.mediaSession.setActionHandler(action,null);}catch{}}
@@ -64,7 +78,7 @@ function ensure(){
 async function play(id,title,remote=false){
  if(!remote&&window.OurPlaylist?.control('play',id,title))return;unlock();
  if(!id)return;ensure();const attempt=++token;
- if(current!==id){audio.pause();audio.src='/api/voices/'+encodeURIComponent(id);current=id;}
+ if(current!==id){beatTracker=null;audio.pause();audio.src='/api/voices/'+encodeURIComponent(id);current=id;}
  else if(audio.error)audio.load();
  name=title||'Shared music';
  if(navigator.mediaSession){
@@ -83,5 +97,5 @@ function mount(bubble,id,text){
  observer?.observe(root);
 }
 window.addEventListener('resize',refresh);
-window.OurMusic={play,reset,mount,refresh,unlock,pause(){audio?.pause();},state(){return {id:current,position:audio?.currentTime||0,paused:audio?.paused??true};},glowEnabled(){return glowOn;},glow(){glowOn=!glowOn;try{localStorage.setItem('our-music-glow',glowOn?'on':'off');}catch{}glowFrame();return glowOn;},apply(id,title,position,playing){ensure();const seek=()=>{if(current===id&&Number.isFinite(audio.duration))audio.currentTime=Math.min(position,Math.max(0,audio.duration-.05));};if(playing){void play(id,title,true).then(seek);}else{if(current!==id){audio.src='/api/voices/'+encodeURIComponent(id);current=id;name=title;}audio.pause();seek();}if(audio.readyState<1)audio.addEventListener('loadedmetadata',seek,{once:true});},tab(next){inChat=next==='chat';refresh();}};
+window.OurMusic={play,reset,mount,refresh,unlock,pause(){audio?.pause();},state(){return {id:current,position:audio?.currentTime||0,paused:audio?.paused??true};},glowEnabled(){return glowOn;},glow(){glowOn=!glowOn;try{localStorage.setItem('our-music-glow',glowOn?'on':'off');}catch{}glowFrame();return glowOn;},apply(id,title,position,playing){ensure();const version=++applyVersion;const seek=()=>{if(version===applyVersion&&current===id&&Number.isFinite(audio.duration))audio.currentTime=Math.min(position,Math.max(0,audio.duration-.05));};if(playing){void play(id,title,true).then(seek);}else{token++;if(current!==id){audio.src='/api/voices/'+encodeURIComponent(id);current=id;name=title;}audio.pause();seek();}if(audio.readyState<1)audio.addEventListener('loadedmetadata',seek,{once:true});},tab(next){inChat=next==='chat';refresh();}};
 })();
