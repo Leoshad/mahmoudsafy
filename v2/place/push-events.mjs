@@ -41,6 +41,7 @@ export function attentionEvents(before,after,actor){
   for(const c of post.comments??[])if((!c.status||c.status==='sent')&&!old.comments?.some(x=>x.id===c.id&&(!x.status||x.status==='sent'))){if(c.by==='Echo'){const idx=post.comments.indexOf(c),requester=post.comments.slice(0,idx).findLast(x=>x.to==='Echo')?.by;if(requester)add('comment:'+c.id,requester,'Echo replied to your question on the wall.',{...target,comment:c.id},'echo');}else if(people.includes(c.by))add('comment:'+c.id,other(c.by),new RegExp('(^|\\s)@'+other(c.by)+'\\b','i').test(c.text||'')?c.by+' mentioned you in a comment.':c.by+' commented on your post.',{...target,comment:c.id},'wall');}
   for(const n of post.likes??[])if(n!==post.by&&!old.likes?.includes(n))add('like:'+post.id+':'+n+':'+post.revision,post.by,n+' liked your post.',target,'wall',true);
  }
+ const listening=after.listening;if(listening?.status==='invited'&&listening.id!==before.listening?.id)add('listen:'+listening.id,other(listening.owner),listening.owner+' invited you to listen together.',{tab:'together',game:'playlist'},'invitation');
  return out;
 }
 

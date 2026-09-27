@@ -22,7 +22,7 @@ export function publicActivity(a,who){
   // Solutions and future questions never leave the server, even for the author after launch.
   return {...visible,participants,answeredBy,waitingFor,canAnswer:a.status==='active'&&waitingFor.includes(who)&&!a.pauses.length,total:qs.length,max:qs.filter(q=>q.correct>=0).length*participants.length,current:a.status==='active'?{q:qs[a.index].q,options:qs[a.index].options}:null};
 }
-export function project(s,who){return {version:s.version,messageReactions:s.messageReactions??{},pauses:s.pauses,activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items.map(i=>publicPost(i,who)),wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
+export function project(s,who){return {playlist:s.playlist??{revision:0,tracks:[]},listening:s.listening??null,version:s.version,messageReactions:s.messageReactions??{},pauses:s.pauses,activity:publicActivity(s.activity,who),activities:(s.activities??(s.activity?[s.activity]:[])).map(a=>publicActivity(a,who)),items:s.items.map(i=>publicPost(i,who)),wallpaper:s.wallpaper??{image:null,revision:0},echoInvited:!!s.echoInvited,pins:s.pins??[]};}
 export function change(s,who,type,p={}){
   check(names.includes(who),'Not invited.',403);
   s.activities??=s.activity?[s.activity]:[];

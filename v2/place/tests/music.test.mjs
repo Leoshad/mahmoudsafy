@@ -15,9 +15,9 @@ function player(){
   play(){this.paused=false;this.emit('play');return Promise.resolve();}
   pause(){this.paused=true;this.emit('pause');}load(){this.loads++;this.readyState=0;}
  }
- const document={body:new Node('body'),createElement:tag=>{const n=new Node(tag);nodes.push(n);return n;}},app=new Node('div'),shell=new Node('div'),timeline=new Node('div');timeline.rect={top:0,bottom:500,height:500};document.body.append(app);app.append(shell);shell.append(timeline);document.querySelector=s=>({'#app':app,'.shell':shell,'#timeline':timeline}[s]||null);
+ const document={addEventListener(){},body:new Node('body'),createElement:tag=>{const n=new Node(tag);nodes.push(n);return n;}},app=new Node('div'),shell=new Node('div'),timeline=new Node('div');timeline.rect={top:0,bottom:500,height:500};document.body.append(app);app.append(shell);shell.append(timeline);document.querySelector=s=>({'#app':app,'.shell':shell,'#timeline':timeline}[s]||null);
  const window={addEventListener(){},IntersectionObserver:class{observe(){}unobserve(){}}},navigator={mediaSession:{setActionHandler:(k,v)=>actions[k]=v}};
- vm.runInNewContext(readFileSync(new URL('../public/music.js',import.meta.url),'utf8'),{window,document,navigator,encodeURIComponent});
+ vm.runInNewContext(readFileSync(new URL('../public/music.js',import.meta.url),'utf8'),{window,document,navigator,encodeURIComponent,cancelAnimationFrame(){}});
  const card=(id,title)=>{const bubble=new Node('div'),p=new Node('p');p.textContent=title;timeline.append(bubble);bubble.append(p);window.OurMusic.mount(bubble,id,p);return bubble.children.find(x=>x.className==='music-card');};
  const audio=()=>nodes.find(x=>x.tagName==='audio'),dock=()=>nodes.find(x=>x.className==='music-dock');
  return {window,document,nodes,actions,card,audio,dock,timeline,app};
