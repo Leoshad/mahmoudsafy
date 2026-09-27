@@ -7,7 +7,8 @@ import {createHash,randomUUID} from 'node:crypto';
 import {initial,check,project} from './domain.mjs';
 export const hash=s=>createHash('sha256').update(s).digest('hex');
 export class Store {
-  constructor(path){
+  constructor(path,{enforceLifetimeBudget=true}={}){
+    this.enforceLifetimeBudget=enforceLifetimeBudget;
     this.path=path;this.db=new DatabaseSync(path);this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=3000;
       CREATE TABLE IF NOT EXISTS state(id INTEGER PRIMARY KEY CHECK(id=1), body TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS message_deliveries(message TEXT PRIMARY KEY,recipient TEXT NOT NULL,at TEXT NOT NULL);
@@ -42,7 +43,7 @@ export class Store {
   budgetReport(now=new Date()){
     const month=now.toISOString().slice(0,7),lifetimeCap=Number(process.env.AI_LIFETIME_USD??'3')*1000000;
     const rows=this.db.prepare('SELECT key,used FROM budget WHERE key IN (?,?)').all(month,'lifetime');
-    const scopes=[{key:month,cap:4000000},{key:'lifetime',cap:Number.isFinite(lifetimeCap)?lifetimeCap:null}].map(({key,cap})=>{
+    const scopes=[{key:month,cap:4000000},{key:'lifetime',cap:this.enforceLifetimeBudget&&Number.isFinite(lifetimeCap)?lifetimeCap:null}].map(({key,cap})=>{
       const used=rows.find(r=>r.key===key)?.used??0;
       const settled=this.db.prepare("SELECT count(*) AS requests,COALESCE(sum(estimatedMicroUSD),0) AS estimated,COALESCE(sum(budgetMicroUSD),0) AS charged FROM echo_usage WHERE ?='lifetime' OR substr(createdAt,1,7)=?").get(key,key);
       return {key,capMicroUSD:cap,usedMicroUSD:used,remainingMicroUSD:cap===null?null:cap-used,settled,unreconciledMicroUSD:used-settled.charged};
@@ -52,10 +53,10 @@ export class Store {
   }
   reserve(actor,scope,body){
     const keys=[new Date().toISOString().slice(0,7),'lifetime'];const caps=[4_000_000,Number(process.env.AI_LIFETIME_USD??'3')*1_000_000];
-    check(Number.isFinite(caps[1])&&caps[1]>=0&&caps[1]<=100_000_000,'Invalid AI budget configuration.',503);
-    // Reserve more for Sol; retain all existing monthly/lifetime limits.
+    check(!this.enforceLifetimeBudget||(Number.isFinite(caps[1])&&caps[1]>=0&&caps[1]<=100_000_000),'Invalid AI budget configuration.',503);
+    // Keep lifetime accounting even when its legacy trial limit is disabled.
     const model=modelFor(body.purpose);
-    const charge=model===LIGHT_MODEL?50_000:body.searchBudget?500_000:250_000;for(let j=0;j<keys.length;j++){this.db.prepare('INSERT OR IGNORE INTO budget(key) VALUES(?)').run(keys[j]);const b=this.db.prepare('SELECT used FROM budget WHERE key=?').get(keys[j]);check(b.used+charge<=caps[j],'Echo has reached the budget limit. Your chat still works.',429);}
+    const charge=model===LIGHT_MODEL?50_000:body.searchBudget?500_000:250_000;for(let j=0;j<keys.length;j++){this.db.prepare('INSERT OR IGNORE INTO budget(key) VALUES(?)').run(keys[j]);const b=this.db.prepare('SELECT used FROM budget WHERE key=?').get(keys[j]);check((j===1&&!this.enforceLifetimeBudget)||b.used+charge<=caps[j],'Echo has reached the budget limit. Your chat still works.',429);}
     check(!this.db.prepare("SELECT 1 FROM jobs WHERE status='running' AND (scope='shared' OR actor=?)").get(actor),'Echo is already working. You can keep chatting.',409);
     for(const key of keys)this.db.prepare('UPDATE budget SET used=used+? WHERE key=?').run(charge,key);
     const id=randomUUID();this.db.prepare('INSERT INTO jobs VALUES(?,?,?,?,?,?)').run(id,actor,scope,'running',JSON.stringify({...body,model,reservedCharge:charge,budgetKeys:keys}),new Date().toISOString());return id;
