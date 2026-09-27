@@ -1,21 +1,16 @@
 import {randomInt} from 'node:crypto';
-// A closed, verifiable clue set. Echo supplies the fictional scene; evidence and
-// solution remain generated and checked together, never inferred from prose.
+const shuffle=a=>{a=[...a];for(let i=a.length-1;i>0;i--){const j=randomInt(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
+const permutations=a=>a.length?a.flatMap((x,i)=>permutations(a.filter((_,j)=>i!==j)).map(p=>[x,...p])):[[]];
 export function mysteryProof(difficulty='medium'){
- const pool=['Alex','Blair','Casey','Drew','Ellis','Fran','Harper','Jules'];
- for(let i=pool.length-1;i>0;i--){const j=randomInt(i+1);[pool[i],pool[j]]=[pool[j],pool[i]];}
- const n=difficulty==='easy'?3:difficulty==='hard'?6:4,names=pool.slice(0,n),culprit=randomInt(n);
- const attributes=[['badge','amber','blue'],['route','east','west'],['shift','early','late']];
- const used=difficulty==='easy'?2:3,patterns=Array.from({length:8},(_,i)=>i);
- const target=randomInt(2**used),others=patterns.filter(x=>x<2**used&&x!==target);
- for(let i=others.length-1;i>0;i--){const j=randomInt(i+1);[others[i],others[j]]=[others[j],others[i]];}
- const rows=names.map((name,i)=>({name,bits:i===culprit?target:others.pop()}));
- const facts=rows.map(r=>r.name+': '+attributes.slice(0,used).map(([label,a,b],i)=>label+' '+((r.bits>>i)&1?b:a)).join(', ')).join('\n');
- const evidence=attributes.slice(0,used).map(([label,a,b],i)=>({label,value:(target>>i)&1?b:a}));
- const matches=rows.filter(r=>evidence.every((_,i)=>((r.bits>>i)&1)===((target>>i)&1)));
- if(matches.length!==1)throw Error('Mystery evidence is not unique.');
- const rule='Case facts (complete and reliable): exactly one listed person acted alone. Each person used only their own badge, assigned route and shift; no lending, disguises, accomplices or altered records are possible. The culprit must match EVERY recorded clue below. These facts are exhaustive; do not assume extra events.';
- const clues=evidence.map((e,i)=>(i+1)+'. The culprit’s '+e.label+' was '+e.value+'.').join('\n');
- const title=rule+'\n\nSuspect records\n'+facts+'\n\nVerified evidence\n'+clues+'\n\nWho fits all the evidence? Compare your theories together.';
- return {facts:title,activity:{kind:'case',difficulty,hints:['Eliminate anyone who does not match the first recorded clue.','A match to just one clue is not enough. Compare the remaining records with the next clue.','Keep only the person who matches every recorded clue at the same time.'],answer:matches[0].name,explanation:rows.map(r=>{const mismatch=evidence.filter((e,i)=>((r.bits>>i)&1)!==((target>>i)&1));return r.name+': '+(mismatch.length?'ruled out by '+mismatch.map(x=>x.label).join(' and ')+'.':'matches all recorded clues.');}).join('\n')}};
+ const n=difficulty==='easy'?3:difficulty==='hard'?5:4,names=shuffle(['Alex','Blair','Casey','Drew','Ellis','Fran','Harper','Jules']).slice(0,n),order=shuffle(names),slot=randomInt(1,n-1),all=permutations(names);let candidates=[];
+ for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const a=order[i],b=order[j];candidates.push({text:a+' visited before '+b+'.',ok:p=>p.indexOf(a)<p.indexOf(b)});if(j===i+1)candidates.push({text:b+' visited immediately after '+a+'.',ok:p=>p.indexOf(b)===p.indexOf(a)+1});}
+ for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(i!==j){const name=order[i];candidates.push({text:name+' was not visitor number '+(j+1)+'.',ok:p=>p[j]!==name});}
+ let clues=[],solutions=all;
+ for(const c of shuffle(candidates)){const next=solutions.filter(c.ok);if(next.length<solutions.length){clues.push(c);solutions=next;}if(solutions.length===1)break;}
+ // Remove redundant clues while keeping a single full order.
+ for(let i=clues.length-1;i>=0;i--){const reduced=clues.filter((_,j)=>i!==j);if(all.filter(p=>reduced.every(c=>c.ok(p))).length===1)clues=reduced;}
+ solutions=all.filter(p=>clues.every(c=>c.ok(p)));if(solutions.length!==1)throw Error('Mystery evidence is not unique.');
+ const times=Array.from({length:n},(_,i)=>'8:'+String(i*5).padStart(2,'0'));
+ const facts='Verified case file\nSuspects: '+names.join(', ')+'. Each visited the secured room exactly once, alone, in one of these slots: '+times.join(', ')+'. Each visit ended before the next began. No one else entered, no objects passed between visitors, and there was no remote access or accomplice.\n\nThe tamper-proof sensor establishes that the object was switched during the '+times[slot]+' visit. The sole visitor in that slot made the switch. All records and clues below are accurate and complete; no outside assumptions are needed.\n\nTimeline clues\n'+clues.map((c,i)=>(i+1)+'. '+c.text).join('\n')+'\n\nWho made the switch? Reconstruct the visits together.';
+ return {facts,activity:{kind:'case',difficulty,hints:['Arrange the suspects in the available time slots; do not guess from motives.','Combine the order clues before using the exclusions. Try one possible order and discard it as soon as it breaks a clue.','The sensor fixes which visit matters. Once your order satisfies every clue, look at the visitor in that slot.'],answer:order[slot],explanation:'The only order satisfying every clue is:\n'+order.map((name,i)=>times[i]+' — '+name).join('\n')+'\n\nCheck the clues:\n'+clues.map(c=>c.text).join('\n')+'\n\nThe switch happened at '+times[slot]+', so '+order[slot]+' made it. All '+all.length+' possible visitor orders were checked; only this one satisfies every clue.'}};
 }
