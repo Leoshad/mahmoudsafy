@@ -39,6 +39,17 @@ export class Store {
   message(m){this.db.prepare('INSERT INTO messages(id,author,text,image,reply,aiAllowed,status,createdAt,audio,video) VALUES(?,?,?,?,?,?,?,?,?,?)').run(m.id,m.author,m.text,m.image??null,m.reply??null,m.aiAllowed?1:0,m.status??'sent',new Date().toISOString(),m.audio??null,m.video??null);}
   messages(before){return this.db.prepare('SELECT * FROM (SELECT rowid AS sequence,*,(SELECT mime FROM voices WHERE id=messages.audio) AS audioMime,(SELECT at FROM message_reads WHERE message=messages.id) AS readAt,(SELECT at FROM message_deliveries WHERE message=messages.id) AS deliveredAt FROM messages WHERE rowid < ? ORDER BY rowid DESC LIMIT 60) ORDER BY sequence').all(Number(before)||Number.MAX_SAFE_INTEGER);}
   snapshot(who,state=this.state()){return {...project(state,who),messages:this.messages(),unreadMessages:this.db.prepare("SELECT id,rowid AS sequence FROM messages WHERE author=? AND status='sent' AND NOT EXISTS(SELECT 1 FROM message_reads WHERE message=messages.id) ORDER BY rowid").all(who==='Mahmoud'?'Safy':'Mahmoud'),jobs:this.db.prepare("SELECT id,actor,scope,status FROM jobs WHERE status='running' AND (scope='shared' OR actor=?)").all(who)};}
+  budgetReport(now=new Date()){
+    const month=now.toISOString().slice(0,7),lifetimeCap=Number(process.env.AI_LIFETIME_USD??'3')*1000000;
+    const rows=this.db.prepare('SELECT key,used FROM budget WHERE key IN (?,?)').all(month,'lifetime');
+    const scopes=[{key:month,cap:4000000},{key:'lifetime',cap:Number.isFinite(lifetimeCap)?lifetimeCap:null}].map(({key,cap})=>{
+      const used=rows.find(r=>r.key===key)?.used??0;
+      const settled=this.db.prepare("SELECT count(*) AS requests,COALESCE(sum(estimatedMicroUSD),0) AS estimated,COALESCE(sum(budgetMicroUSD),0) AS charged FROM echo_usage WHERE ?='lifetime' OR substr(createdAt,1,7)=?").get(key,key);
+      return {key,capMicroUSD:cap,usedMicroUSD:used,remainingMicroUSD:cap===null?null:cap-used,settled,unreconciledMicroUSD:used-settled.charged};
+    });
+    const unsettled=this.db.prepare("SELECT j.status,count(*) AS requests,COALESCE(sum(json_extract(j.body,'$.reservedCharge')),0) AS knownReservedMicroUSD FROM jobs j LEFT JOIN echo_usage u ON u.job=j.id WHERE u.job IS NULL GROUP BY j.status").all();
+    return {event:'echo_budget_audit',month,scopes,unsettled,byPurpose:this.db.prepare('SELECT purpose,count(*) AS requests,sum(budgetMicroUSD) AS chargedMicroUSD FROM echo_usage GROUP BY purpose').all()};
+  }
   reserve(actor,scope,body){
     const keys=[new Date().toISOString().slice(0,7),'lifetime'];const caps=[4_000_000,Number(process.env.AI_LIFETIME_USD??'3')*1_000_000];
     check(Number.isFinite(caps[1])&&caps[1]>=0&&caps[1]<=100_000_000,'Invalid AI budget configuration.',503);
