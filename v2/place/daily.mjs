@@ -7,7 +7,7 @@ import {check} from './domain.mjs';
 import {dailyGenerate,morningKinds,nightKinds,freshNewsDate} from './daily-ai.mjs';
 export function dailyDefaults(now=Date.now()){return {enabled:true,timeZone:'Asia/Riyadh',revision:1,editorialVersion:2,after:now,comments:false,notifications:false,slots:[{id:'morning',time:'09:30',enabled:true},{id:'afternoon',time:'16:00',enabled:true},{id:'night',time:'22:00',enabled:true}]};}
 export function updateDaily(s,p,now=Date.now()){
- const old=s.daily??dailyDefaults(now);check(p.revision===old.revision,'Daily settings changed. Refresh before saving.',409);
+ const old=s.daily??dailyDefaults(now);check(!old.manualOnly||p.enabled===false,'Automatic posts are off. Create a draft with Echo in Add a moment.',409);check(p.revision===old.revision,'Daily settings changed. Refresh before saving.',409);
  for(const key of ['enabled','comments','notifications'])check(typeof p[key]==='boolean','Choose daily post settings.');
  check(Array.isArray(p.slots)&&p.slots.length===3,'Choose all three posting times.');
  const slots=old.slots.map(slot=>{const next=p.slots.find(x=>x.id===slot.id);check(next&&typeof next.enabled==='boolean'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(next.time),'Use valid posting times.');return {id:slot.id,enabled:next.enabled,time:next.time};});
@@ -19,8 +19,8 @@ export function dueSlots(config,now,lead=0,grace=3600000){
  return config.slots.filter(x=>x.enabled).map(x=>({...x,key:day+':'+x.id,at:Date.parse(day+'T'+x.time+':00+03:00')})).filter(x=>x.at>config.after&&now>=x.at-lead&&now-x.at<grace);
 }
 export class DailyWall{
- constructor(store,{generate=dailyGenerate,refresh=()=>{},now=Date.now,connected=()=>!!process.env.OPENAI_API_KEY}={}){
-  Object.assign(this,{store,generate,refresh,now,connected});this.active=new Map();this.stopped=false;
+ constructor(store,{generate=dailyGenerate,refresh=()=>{},now=Date.now,connected=()=>!!process.env.OPENAI_API_KEY,manualOnly=false}={}){
+  Object.assign(this,{store,generate,refresh,now,connected,manualOnly});this.active=new Map();this.stopped=false;
   store.db.exec(`CREATE TABLE IF NOT EXISTS echo_daily_content(key TEXT PRIMARY KEY,value TEXT NOT NULL,variant TEXT NOT NULL,revision INTEGER NOT NULL,at INTEGER NOT NULL,published INTEGER NOT NULL DEFAULT 0); CREATE TABLE IF NOT EXISTS echo_daily_retry(key TEXT PRIMARY KEY,attempts INTEGER NOT NULL,nextAt INTEGER NOT NULL,revision INTEGER NOT NULL,at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS echo_daily_replacements(key TEXT PRIMARY KEY); CREATE TABLE IF NOT EXISTS echo_daily_runs(key TEXT PRIMARY KEY,status TEXT NOT NULL,job TEXT,detail TEXT,createdAt TEXT NOT NULL); UPDATE echo_daily_runs SET status='interrupted',detail='Server restarted during preparation.' WHERE status='running';`);
   store.db.exec('CREATE TABLE IF NOT EXISTS echo_daily_published_content(contentKey TEXT PRIMARY KEY,title TEXT NOT NULL)');
   store.tx(()=>{
@@ -34,11 +34,13 @@ export class DailyWall{
    if(old?.status==='posted'&&!s.items.some(x=>x.daily?.key===key)){store.db.prepare('INSERT OR IGNORE INTO echo_daily_replacements VALUES(?)').run(key);store.db.prepare('DELETE FROM echo_daily_runs WHERE key=?').run(key);}
    s.version++;store.save(s);console.info('Daily Echo editorial policy enabled; morning scheduled for 09:30 Riyadh.');
   }});
+  if(manualOnly)store.tx(()=>{const s=store.state();if(s.daily.enabled||!s.daily.manualOnly){s.daily.enabled=false;s.daily.manualOnly=true;s.daily.revision++;s.version++;store.save(s);}});
  }
  view(){return {...this.store.state().daily,runs:this.store.db.prepare('SELECT key,status,detail,createdAt FROM echo_daily_runs ORDER BY createdAt DESC LIMIT 6').all()};}
  stop(){this.stopped=true;this.cancel(()=>true);}
  cancel(predicate){for(const [id,x]of this.active)if(predicate(x)){this.store.status(id,'cancelled');x.controller.abort();}}
  reserve(slot){
+  if(this.manualOnly)return false;
   let posted=false;
   this.store.tx(()=>{
    const s=this.store.state(),cfg=s.daily;
@@ -64,6 +66,7 @@ export class DailyWall{
   return [...this.store.state().items.filter(x=>x.daily||x.by==='Echo'),...archived,...this.store.db.prepare('SELECT title FROM echo_daily_published_content').all()];
  }
  publish(slot,value,variant,cfg){
+  if(this.manualOnly)return false;
   const current=this.store.state();if(current.daily.revision!==cfg.revision||!current.daily.enabled||current.pauses.length)return false;
   if(!value||current.items.length>=500||current.items.some(x=>x.daily?.key===slot.key))return false;
   if(repeatedDailyContent(value,this.history())){console.warn(JSON.stringify({event:'echo_daily_duplicate_blocked',key:slot.key}));return false;}
@@ -73,7 +76,7 @@ export class DailyWall{
   this.store.db.prepare('UPDATE echo_daily_content SET published=1 WHERE key=?').run(slot.key);console.info(JSON.stringify({event:'echo_daily_posted',key:slot.key}));return true;
  }
  async tick(){
-  if(this.stopped)return;const {store}=this,s=store.state();if(s.pauses.length)return;
+  if(this.stopped||this.manualOnly)return;const {store}=this,s=store.state();if(s.pauses.length)return;
   // Deadline delivery runs before the AI job lock, including during a slow request.
   for(const slot of dueSlots(s.daily,this.now(),0,24*3600000)){
    const run=store.db.prepare('SELECT status FROM echo_daily_runs WHERE key=?').get(slot.key);

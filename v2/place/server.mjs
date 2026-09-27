@@ -1,3 +1,4 @@
+import {composeOptions} from './space-compose.mjs';
 import {connectionRecords} from './connection-report.mjs';
 import {participantsOf,normalizeActivityTarget} from './activity-participants.mjs';
 import {configureConnectionServer,observeConnection} from './connection-http.mjs';
@@ -60,7 +61,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   for(const row of store.db.prepare('SELECT * FROM race_sessions').all()){try{const m=JSON.parse(row.body);if(m.course?.version!==3)continue;m.seen=m.players.map(()=>0);m.inputs.forEach(i=>i.dir=0);m.last=Date.now();m.acc=0;if(['racing','countdown','paused'].includes(m.status)){m.status='paused';m.pausedAt=Date.now();m.reason='Reconnecting — waiting for both players.';}race.matches.set(row.id,m);}catch{console.error('Could not restore a race.');}}
   function saveRaces(){store.tx(()=>{store.db.prepare('DELETE FROM race_sessions').run();for(const [id,m]of race.matches)store.db.prepare('INSERT INTO race_sessions VALUES(?,?)').run(id,JSON.stringify(m));});}
   const notifications=new PushNotifications(store,{secret,origin,...(pushSend?{send:pushSend}:{})});
-  const daily=new DailyWall(store,{refresh,...(dailyAI?{generate:dailyAI}:{})});
+  const daily=new DailyWall(store,{refresh,manualOnly:true,...(dailyAI?{generate:dailyAI}:{})});
   const key=Buffer.from(hash(secret),'hex'),cookieName=testing?'ms_place':'__Host-ms_place';
   initMemories(store);
   const sharedTouch=new SharedTouch({onComplete:(moment,now)=>{if(saveTouchMemory(store,moment,now))queueMicrotask(()=>refresh());}});
@@ -103,9 +104,9 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   function cancel(who,all=false){for(const [id,job]of running)if(all&&job.scope==='shared'||job.actor===who){store.status(id,'cancelled');job.controller.abort();}}
   function saveWallReply(post,id,value,status){const s=store.state(),item=s.items.find(i=>i.id===post),c=item?.comments?.find(c=>c.id===id);if(!c)return;c.text=value;c.status=status;if(status!=='streaming')item.revision++;store.save(s);}
   async function run(id){
-    const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body);if(b.purpose==='activity')return runActivity(id);if(b.purpose==='draw')return runDraw(id);if(b.purpose==='court')return runCourt(id);const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),45000);running.set(id,{controller,actor:j.actor,scope:j.scope,wallItem:b.wallItem,text:''});let output='',lastSave=0;const started=Date.now();let first=null;
+    const j=store.job(id);if(!j||j.status!=='running'||running.has(id))return;const b=JSON.parse(j.body);if(b.purpose==='activity')return runActivity(id);if(b.purpose==='draw')return runDraw(id);if(b.purpose==='court')return runCourt(id);const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),b.compose?90000:45000);running.set(id,{controller,actor:j.actor,scope:j.scope,wallItem:b.wallItem,text:''});let output='',lastSave=0;const started=Date.now();let first=null;
     try{
-      const {proposals,usage}=await ai({actor:j.actor,prompt:b.prompt,context:b.context,image:b.image,purpose:b.purpose,youtube,signal:controller.signal,onText:delta=>{
+      const {proposals,usage}=await ai({actor:j.actor,prompt:b.prompt,context:b.context,image:b.image,purpose:b.purpose,compose:b.compose,history:b.history,youtube,signal:controller.signal,onText:delta=>{
         if(store.job(id).status!=='running'||controller.signal.aborted)return;if(first===null)first=Date.now()-started;output+=delta;running.get(id).text=output;
         if(b.wallItem){emit('wall-delta',{post:b.wallItem,id,text:delta});if(Date.now()-lastSave>300){saveWallReply(b.wallItem,id,output,'streaming');lastSave=Date.now();}}
         else if(j.scope==='shared'){emit('delta',{id,text:delta});if(Date.now()-lastSave>300){store.db.prepare('UPDATE messages SET text=? WHERE id=?').run(output,id);lastSave=Date.now();}}
@@ -115,7 +116,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         if(b.wallItem)saveWallReply(b.wallItem,id,output||'I could not produce a reply.','sent');
         else if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||(proposals.length?'I prepared something for you to review.':'I could not produce a reply.'),'sent',id);
       });
-    }catch(e){if(store.job(id).status==='running')store.status(id,controller.signal.aborted?'interrupted':'failed');if(b.wallItem)saveWallReply(b.wallItem,id,output||'Echo could not finish. Ask again when you are ready.',store.job(id).status);else if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||'Echo could not finish. Your chat is still available.',store.job(id).status,id);emit('notice',{text:controller.signal.aborted?'Echo stopped.':'Echo could not finish. Try again when you are ready.'},j.scope==='private'?j.actor:undefined);
+    }catch(e){if(e.usage)store.settle(id,e.usage);if(store.job(id).status==='running')store.status(id,controller.signal.aborted?'interrupted':'failed');if(b.wallItem)saveWallReply(b.wallItem,id,output||'Echo could not finish. Ask again when you are ready.',store.job(id).status);else if(j.scope==='shared')store.db.prepare('UPDATE messages SET text=?,status=? WHERE id=?').run(output||'Echo could not finish. Your chat is still available.',store.job(id).status,id);emit('notice',{text:controller.signal.aborted?'Echo stopped.':b.compose?(e.message||'Echo could not prepare a draft.'):'Echo could not finish. Try again when you are ready.'},b.compose||j.scope==='private'?j.actor:undefined);
     }finally{
       clearTimeout(timeout);running.delete(id);
       if(store.job(id).status==='cancelled'&&b.wallItem)saveWallReply(b.wallItem,id,output||'Echo was stopped.','cancelled');
@@ -319,8 +320,10 @@ publishPresence(true);});return;
             check(process.env.OPENAI_API_KEY,'Echo is not connected yet.',503);check(!data.private,'Private preparation has been removed. Ask Echo in shared chat.',410);const scope='shared';if(data.session)check(s.echoInvited&&!s.pauses.length,'Echo is no longer invited.',409);
             check(!s.pauses.length||data.once===true,'Echo is paused. Choose Ask once explicitly.',409);
             const prompt=text(data.prompt,3000);const image=data.image?photoData(data.image):null;
-            const id=store.reserve(who,scope,{prompt,purpose:data.purpose==='space'?'space':'chat',context:s.pauses.length?'':context(s),image});
-            if(scope==='shared')store.message({id,author:'Echo',text:'',status:'streaming',aiAllowed:!s.pauses.length});return {job:id};
+            const compose=data.purpose==='space'?composeOptions(data.compose):null;
+            const history=compose?[...s.items.filter(x=>x.by==='Echo'||x.aiAllowed).map(x=>x.title),...store.db.prepare("SELECT body FROM jobs WHERE actor=? AND status='done' ORDER BY createdAt DESC LIMIT 12").all(who).flatMap(j=>(JSON.parse(j.body).proposals??[]).map(p=>p.title))].filter(Boolean):undefined;
+            const id=store.reserve(who,scope,{prompt,purpose:data.purpose==='space'?'space':'chat',compose,history,searchBudget:!!compose?.research,context:s.pauses.length?'':context(s),image});
+            if(scope==='shared'&&!compose)store.message({id,author:'Echo',text:'',status:'streaming',aiAllowed:!s.pauses.length});return {job:id};
           }
           if(p.type==='ai.cancel'){cancel(who,true);daily.cancel(()=>true);return {ok:true};}
           if(p.type==='proposal.accept'||p.type==='proposal.dismiss'){
