@@ -30,9 +30,12 @@
 #our-place-trial .playlist-button:focus-visible{outline:2px solid #e0c28a;outline-offset:2px}
 .playlist-together{margin:0 14px 16px;padding-bottom:14px;border-bottom:1px solid #ffffff12}.playlist-together small{display:block;color:#b4a6b0;font-size:11px;margin-top:7px}
 #our-place-trial #our-playlist .playlist-together-button{width:100%;display:flex;justify-content:center;align-items:center;gap:9px;min-height:44px;background:linear-gradient(110deg,#d8ba83,#bfa06c);color:#241d22;border:1px solid #e2c799;font-weight:600;font-size:14px}
-.music-edge-glow{position:fixed;inset:0;z-index:9999;pointer-events:none!important;opacity:0;transition:opacity .65s;overflow:hidden;--travel:20%;--light:.3}
-.music-edge-glow::before,.music-edge-glow::after{content:'';position:absolute;top:0;bottom:0;width:1.5px;opacity:var(--light);background:linear-gradient(to bottom,transparent 0%,transparent calc(var(--travel) - 14%),#db9fbd var(--travel),#d6b97d calc(var(--travel) + 5%),transparent calc(var(--travel) + 20%),transparent 100%);filter:drop-shadow(0 0 2px #d9af9650)}
-.music-edge-glow::before{left:1px}.music-edge-glow::after{right:1px;transform:scaleY(-1)}
-@media(prefers-reduced-motion:reduce){.music-edge-glow{display:none!important}}
 
 #our-place-trial #feed .mine .song-content>.status{right:calc(100% - 35px);bottom:3px}
+
+.music-pulse{position:fixed;bottom:0;left:0;right:0;height:38px;padding:5px 7% max(5px,env(safe-area-inset-bottom));box-sizing:content-box;display:flex;align-items:center;justify-content:space-between;gap:3px;background:linear-gradient(0deg,#171219f2,#171219bb);z-index:50;pointer-events:none}
+.music-pulse[hidden]{display:none}.music-pulse i{display:block;width:3px;min-height:3px;border-radius:3px;background:linear-gradient(0deg,#d5ac75,#e3accb);opacity:.9}
+html.music-pulse-active #our-place-trial.signed-in{padding-bottom:calc(48px + env(safe-area-inset-bottom));box-sizing:border-box}
+html.music-pulse-active #our-place-trial.signed-in .timeline{min-height:40px}
+#our-place-trial #our-playlist .playlist-track.now-playing{background:#d5b57c0c;border-radius:12px;box-shadow:inset 2px 0 #d5b57c;padding-left:9px}
+.playlist-playing{color:#dfc18e!important}

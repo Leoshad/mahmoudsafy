@@ -3,7 +3,7 @@ test('MP3 validation handles ID3 and rejects truncated tags and reserved frames'
 function player(){
  const nodes=[],actions={};
  class Node{
-  constructor(tag){this.tagName=tag;this.hidden=false;this.children=[];this.parent=null;this.paused=true;this.ended=false;this.error=null;this.readyState=0;this.listeners={};this.attrs={};this.currentTime=0;this.duration=NaN;this.rect={top:50,bottom:130,height:80};this.props={};this.style={setProperty:(k,v)=>this.props[k]=v};this.classList={add:(c)=>this.className=(this.className||'')+' '+c};this.loads=0;}
+  constructor(tag){this.tagName=tag;this.hidden=false;this.children=[];this.parent=null;this.paused=true;this.ended=false;this.error=null;this.readyState=0;this.listeners={};this.attrs={};this.currentTime=0;this.duration=NaN;this.rect={top:50,bottom:130,height:80};this.props={};this.style={setProperty:(k,v)=>this.props[k]=v};this.classList={toggle(){},add:(c)=>this.className=(this.className||'')+' '+c};this.loads=0;}
   get isConnected(){return this===document.body||!!this.parent?.isConnected;}
   append(...children){for(const n of children){if(n.parent)n.parent.children=n.parent.children.filter(x=>x!==n);n.parent=this;this.children.push(n);}}
   insertBefore(n,next){this.append(n);this.children=this.children.filter(x=>x!==n);this.children.splice(this.children.indexOf(next),0,n);}
@@ -15,7 +15,7 @@ function player(){
   play(){this.paused=false;this.emit('play');return Promise.resolve();}
   pause(){this.paused=true;this.emit('pause');}load(){this.loads++;this.readyState=0;}
  }
- const document={addEventListener(){},body:new Node('body'),createElement:tag=>{const n=new Node(tag);nodes.push(n);return n;}},app=new Node('div'),shell=new Node('div'),timeline=new Node('div');timeline.rect={top:0,bottom:500,height:500};document.body.append(app);app.append(shell);shell.append(timeline);document.querySelector=s=>({'#app':app,'.shell':shell,'#timeline':timeline}[s]||null);
+ const document={documentElement:new Node('html'),addEventListener(){},body:new Node('body'),createElement:tag=>{const n=new Node(tag);nodes.push(n);return n;}},app=new Node('div'),shell=new Node('div'),timeline=new Node('div');timeline.rect={top:0,bottom:500,height:500};document.body.append(app);app.append(shell);shell.append(timeline);document.querySelector=s=>({'#app':app,'.shell':shell,'#timeline':timeline}[s]||null);
  const window={addEventListener(){},IntersectionObserver:class{observe(){}unobserve(){}}},navigator={mediaSession:{setActionHandler:(k,v)=>actions[k]=v}};
  vm.runInNewContext(readFileSync(new URL('../public/music.js',import.meta.url),'utf8'),{window,document,navigator,encodeURIComponent,cancelAnimationFrame(){}});
  const card=(id,title)=>{const bubble=new Node('div'),p=new Node('p');p.textContent=title;timeline.append(bubble);bubble.append(p);window.OurMusic.mount(bubble,id,p);return bubble.children.find(x=>x.className==='music-card');};

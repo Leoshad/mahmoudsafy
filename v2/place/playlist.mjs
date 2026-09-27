@@ -15,8 +15,12 @@ export function playlistChange(store,s,who,type,p){
   else check(false,'Unknown playlist action.');list.revision++;
  }else{
   const a=s.listening;check(a&&a.id===p.id&&a.status!=='ended','This listening session has ended.',409);
-  if(type==='listen.accept'){check(a.status==='invited'&&a.owner!==who&&a.expiresAt>now,'This invitation is no longer available.',409);a.status='active';a.playing=true;a.position=0;a.at=now;}
-  else if(type==='listen.end'){a.status='ended';a.playing=false;a.at=now;}
+  const elapsed=a.status==='active'&&a.playing?Math.max(0,now-a.at):0;
+  if(type==='listen.accept'){check(a.status==='invited'&&a.owner!==who&&a.expiresAt>now,'This invitation is no longer available.',409);a.status='active';a.heard=[{audio:a.audio,title:a.title}];a.listenedMs=0;a.playing=true;a.position=0;a.at=now;}
+  else if(type==='listen.end'){
+   a.listenedMs=(a.listenedMs||0)+elapsed;
+   if(a.status==='active'&&a.listenedMs>=1000){const id='shared-listen:'+a.id;if(!store.db.prepare('SELECT 1 FROM messages WHERE id=?').get(id)){const songs=a.heard||[{audio:a.audio,title:a.title}];store.message({id,author:'Together',text:'In tune together ♡\n'+(a.listenedMs<60000?Math.max(1,Math.round(a.listenedMs/1000))+' sec':Math.round(a.listenedMs/60000)+' min')+' · '+songs.length+' '+(songs.length===1?'song':'songs')+'\n'+songs.map(t=>t.title).join('\n'),status:'sent'});}}
+   a.status='ended';a.playing=false;a.at=now;}
   else if(['listen.step','listen.options','listen.track'].includes(type)){
    check(a.status==='active'&&a.mode==='playlist','Start listening to the playlist together first.',409);
    // Both clients may reach the end at once; only the first advances this track.
@@ -27,11 +31,11 @@ export function playlistChange(store,s,who,type,p){
     if(p.option==='shuffle'){const rest=a.queue.map(t=>t.audio).filter(id=>id!==a.audio);if(p.value)for(let i=rest.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rest[i],rest[j]]=[rest[j],rest[i]];}a.order=p.value?[a.audio,...rest]:a.queue.map(t=>t.audio);a.index=a.order.indexOf(a.audio);}
    }else{
     let next;if(type==='listen.track'){next=a.order.indexOf(p.audio);check(next>=0,'Choose a song in this listening queue.');}
-    else {check(p.direction===1||p.direction===-1,'Choose next or previous.');next=a.index+p.direction;if(next>=a.order.length||next<0){if(a.repeat)next=(next+a.order.length)%a.order.length;else {a.playing=false;a.position=Number.isFinite(p.position)?Math.max(0,p.position):a.position;a.at=now;a.revision++;s.version++;return {ok:true};}}}
-    const track=a.queue.find(t=>t.audio===a.order[next]);a.index=next;a.audio=track.audio;a.title=track.title;a.position=0;a.playing=true;a.at=now;
+    else {check(p.direction===1||p.direction===-1,'Choose next or previous.');next=a.index+p.direction;if(next>=a.order.length||next<0){if(a.repeat)next=(next+a.order.length)%a.order.length;else {a.listenedMs=(a.listenedMs||0)+elapsed;a.playing=false;a.position=Number.isFinite(p.position)?Math.max(0,p.position):a.position;a.at=now;a.revision++;s.version++;return {ok:true};}}}
+    a.listenedMs=(a.listenedMs||0)+elapsed;const track=a.queue.find(t=>t.audio===a.order[next]);a.index=next;a.audio=track.audio;a.title=track.title;a.heard??=[];if(!a.heard.some(t=>t.audio===track.audio))a.heard.push({audio:track.audio,title:track.title});a.position=0;a.playing=true;a.at=now;
    }
   }
-  else if(type==='listen.control'){check(a.status==='active'&&p.revision===a.revision,'Playback changed. Try again.',409);check(Number.isFinite(p.position)&&p.position>=0&&p.position<=86400&&typeof p.playing==='boolean','Invalid playback position.');a.position=p.position;a.playing=p.playing;a.at=now;}
+  else if(type==='listen.control'){check(a.status==='active'&&p.revision===a.revision,'Playback changed. Try again.',409);check(Number.isFinite(p.position)&&p.position>=0&&p.position<=86400&&typeof p.playing==='boolean','Invalid playback position.');a.listenedMs=(a.listenedMs||0)+elapsed;a.position=p.position;a.playing=p.playing;a.at=now;}
   else check(false,'Unknown listening action.');a.revision++;
  }s.version++;return {ok:true};
 }
