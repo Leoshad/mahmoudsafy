@@ -7,7 +7,7 @@ export function playlistChange(store,s,who,type,p){
   const v=canHear(store,who,p.audio,s);check(v?.mime==='audio/mpeg','Choose a shared MP3 song.',404);
   const title=text(p.title||'Our song',400),fingerprint=createHash('sha256').update(v.bytes).digest('hex');
   if(type==='playlist.add'){if(!list.tracks.some(t=>t.fingerprint===fingerprint||t.audio===p.audio))list.tracks.push({id:randomUUID(),audio:p.audio,title,fingerprint,by:who,createdAt:new Date(now).toISOString()});list.revision++;}
-  else {check(!s.listening||s.listening.status==='ended'||s.listening.status==='invited'&&s.listening.expiresAt<now,'Finish your current listening invitation or session first.',409);const queue=p.mode==='playlist'?list.tracks.map(({audio,title})=>({audio,title})):null;check(!queue||queue.length,'Add a song first.');s.listening={...(queue?{mode:'playlist',queue,order:queue.map(t=>t.audio),index:0,shuffle:false,repeat:false}:{}),id:randomUUID(),audio:queue?.[0].audio??p.audio,title:queue?.[0].title??title,owner:who,status:'invited',expiresAt:now+300000,revision:0,position:0,playing:false,at:now};}
+  else {check(!s.listening||s.listening.status==='ended'||s.listening.status==='invited'&&s.listening.expiresAt<now,'Finish your current listening invitation or session first.',409);const queue=p.mode==='playlist'||list.tracks.some(t=>t.audio===p.audio)?list.tracks.map(({audio,title})=>({audio,title})):null;check(!queue||queue.length,'Add a song first.');s.listening={...(queue?{mode:'playlist',queue,order:queue.map(t=>t.audio),index:p.mode==='playlist'?0:Math.max(0,queue.findIndex(t=>t.audio===p.audio)),shuffle:false,repeat:false}:{}),id:randomUUID(),audio:p.mode==='playlist'?queue[0].audio:p.audio,title:p.mode==='playlist'?queue[0].title:title,owner:who,status:'invited',expiresAt:now+300000,revision:0,position:0,playing:false,at:now};}
  } else if(type.startsWith('playlist.')){
   check(p.revision===list.revision,'The playlist changed. Please try again.',409);const i=list.tracks.findIndex(t=>t.id===p.id);check(i>=0,'Song no longer in playlist.',404);
   if(type==='playlist.remove')list.tracks.splice(i,1);
@@ -22,10 +22,15 @@ export function playlistChange(store,s,who,type,p){
    if(a.status==='active'&&a.listenedMs>=1000){const id='shared-listen:'+a.id;if(!store.db.prepare('SELECT 1 FROM messages WHERE id=?').get(id)){const songs=a.heard||[{audio:a.audio,title:a.title}];store.message({id,author:'Together',text:'In tune together ♡\n'+(a.listenedMs<60000?Math.max(1,Math.round(a.listenedMs/1000))+' sec':Math.round(a.listenedMs/60000)+' min')+' · '+songs.length+' '+(songs.length===1?'song':'songs')+'\n'+songs.map(t=>t.title).join('\n'),status:'sent'});}}
    a.status='ended';a.playing=false;a.at=now;}
   else if(['listen.step','listen.options','listen.track'].includes(type)){
-   check(a.status==='active'&&a.mode==='playlist','Start listening to the playlist together first.',409);
+   check(a.status==='active','Start listening together first.',409);
    // Both clients may reach the end at once; only the first advances this track.
    if(type==='listen.step'&&p.auto&&(p.audio!==a.audio||p.revision!==a.revision))return {ok:true};
    check(p.revision===a.revision,'Playback changed. Try again.',409);
+   if(a.mode!=='playlist'||type==='listen.track'&&!a.queue.some(t=>t.audio===p.audio)){
+    if(type==='listen.track')check(list.tracks.some(t=>t.audio===p.audio),'Choose a song in Our Playlist.');
+    a.queue=list.tracks.map(({audio,title})=>({audio,title}));if(!a.queue.some(t=>t.audio===a.audio))a.queue.unshift({audio:a.audio,title:a.title});
+    a.mode='playlist';a.order=a.queue.map(t=>t.audio);a.index=a.order.indexOf(a.audio);a.shuffle=false;a.repeat=false;
+   }
    if(type==='listen.options'){
     check(['shuffle','repeat'].includes(p.option)&&typeof p.value==='boolean','Choose a playback option.');a[p.option]=p.value;
     if(p.option==='shuffle'){const rest=a.queue.map(t=>t.audio).filter(id=>id!==a.audio);if(p.value)for(let i=rest.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rest[i],rest[j]]=[rest[j],rest[i]];}a.order=p.value?[a.audio,...rest]:a.queue.map(t=>t.audio);a.index=a.order.indexOf(a.audio);}
