@@ -48,8 +48,10 @@ html.music-loaded #our-place-trial #account>span{overflow:hidden;text-overflow:e
 
 /* Overlay the existing navigation-to-content gap; playback never takes layout space. */
 #our-place-trial.signed-in #app{position:relative}
-#our-place-trial .music-dock{position:absolute;top:0;left:0;right:0;z-index:20;height:10px;min-height:0;background:transparent;border:0;gap:8px}
-#our-place-trial .music-dock>.music-seek{height:10px;min-height:0;padding:0}
-#our-place-trial .music-dock .music-time{line-height:10px;font-size:8px;min-width:52px}
-#our-place-trial .music-dock .music-seek::-webkit-slider-thumb{width:8px;height:8px}
-#our-place-trial .music-dock .music-seek::-moz-range-thumb{width:8px;height:8px}
+#our-place-trial .music-dock{position:absolute;top:0;left:0;right:0;z-index:20;height:14px;min-height:0;background:transparent;border:0;gap:8px}
+#our-place-trial .music-dock>.music-seek{height:14px;min-height:0;padding:0}
+#our-place-trial .music-dock .music-time{line-height:14px;font-size:10px;min-width:63px}
+#our-place-trial .music-dock .music-seek::-webkit-slider-thumb{width:10px;height:10px}
+#our-place-trial .music-dock .music-seek::-moz-range-thumb{width:10px;height:10px}
+
+#our-place-trial .music-dock .music-title{top:auto;bottom:calc(100% + 8px);right:12px;max-width:min(320px,calc(100vw - 24px));white-space:normal;overflow-wrap:anywhere;line-height:1.5;padding:12px 15px;border-radius:14px;background:#27212a;box-shadow:0 8px 26px #0006}
