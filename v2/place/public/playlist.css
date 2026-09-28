@@ -33,9 +33,7 @@
 
 #our-place-trial #feed .mine .song-content>.status{right:calc(100% - 35px);bottom:3px}
 
-.music-pulse{position:fixed;bottom:0;left:0;right:0;height:32px;padding:0 2px env(safe-area-inset-bottom);box-sizing:content-box;display:flex;align-items:flex-end;justify-content:space-between;gap:3px;background:transparent;z-index:50;pointer-events:none;opacity:0;transition:opacity .35s ease}
-.music-pulse[hidden]{display:none}.music-pulse i{display:block;width:3px;min-height:3px;border-radius:3px 3px 0 0;background:linear-gradient(0deg,#d5ac75,#e3accb);opacity:.9}
-#our-place-trial.signed-in #chat{padding-bottom:calc(40px + env(safe-area-inset-bottom))}
-#our-place-trial.signed-in .timeline{min-height:40px}
+.music-pulse{position:fixed;bottom:0;left:0;right:0;height:32px;padding:0 2px;box-sizing:content-box;display:flex;align-items:flex-end;justify-content:space-between;gap:3px;background:transparent;z-index:50;pointer-events:none;opacity:0;transition:opacity .35s ease}
+.music-pulse[hidden]{display:none}.music-pulse i{display:block;width:3px;min-height:0;max-height:100%;border-radius:3px 3px 0 0;background:linear-gradient(0deg,#d5ac75,#e3accb);opacity:.9}
 #our-place-trial #our-playlist .playlist-track.now-playing{background:#d5b57c0c;border-radius:12px;box-shadow:inset 2px 0 #d5b57c;padding-left:9px}
 .playlist-playing{color:#dfc18e!important}

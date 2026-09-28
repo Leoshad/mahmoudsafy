@@ -8,6 +8,10 @@ function pulseLayout(){
  if(!edge)return;
  const v=window.visualViewport,bottom=v?Math.max(0,innerHeight-v.height-v.offsetTop):0;
  edge.style.bottom=bottom+'px';
+ const composer=document.querySelector('#compose');
+ const box=composer?.getBoundingClientRect(),shown=box&&box.height>0&&box.width>0;
+ const available=shown?Math.max(0,(v?v.height+v.offsetTop:window.innerHeight)-box.bottom-6):32;
+ edge.style.height=Math.min(32,available)+'px';
 }
 function glowFrame(){
  cancelAnimationFrame(frame);frame=0;
@@ -18,10 +22,10 @@ function glowFrame(){
  const values=new Uint8Array(analyser.frequencyBinCount),levels=new Float32Array(48);let last=0;
  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
  const tick=now=>{if(audio.paused||!glowOn||document.hidden){glowFrame();return;}
-  if(now-last>=33){last=now;analyser.getByteFrequencyData(values);
+  if(now-last>=33){last=now;pulseLayout();analyser.getByteFrequencyData(values);
    for(let i=0;i<48;i++){const bin=Math.floor(Math.pow(i/47,1.8)*180)+1;let power=0;for(let j=0;j<4;j++)power+=values[bin+j]/1020;
     const target=Math.min(1,Math.pow(power,.7)*1.35);levels[i]+=(target-levels[i])*(target>levels[i]?.75:.25);
-    edge.children[i].style.height=(2+levels[i]*(reduced?8:30)).toFixed(1)+'px';
+    const cap=Number.parseFloat(edge.style.height)||0;edge.children[i].style.height=(cap*(.0625+levels[i]*(reduced?.25:.9375))).toFixed(1)+'px';
    }
   }frame=requestAnimationFrame(tick);
  };frame=requestAnimationFrame(tick);
