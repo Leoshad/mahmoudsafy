@@ -10,8 +10,11 @@ function pulseLayout(){
  edge.style.bottom=bottom+'px';
  const composer=document.querySelector('#compose');
  const box=composer?.getBoundingClientRect(),shown=box&&box.height>0&&box.width>0;
- const available=shown?Math.max(0,(v?v.height+v.offsetTop:window.innerHeight)-box.bottom-6):32;
- edge.style.height=Math.min(32,available)+'px';
+ // Match the supplied phone reference: 22px peaks per 390px viewport.
+ // Only the overlay adapts; never reserve space in the original chat layout.
+ const referenceHeight=Math.min(28,(v?v.width:window.innerWidth)*22/390);
+ const available=shown?Math.max(0,(v?v.height+v.offsetTop:window.innerHeight)-box.bottom-4):referenceHeight;
+ edge.style.height=Math.min(referenceHeight,available)+'px';
 }
 function glowFrame(){
  cancelAnimationFrame(frame);frame=0;
