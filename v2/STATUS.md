@@ -40,3 +40,6 @@ Notification implementation uses opt-in Web Push with persisted encrypted subscr
 ## 2026-09-28 original layout constraint
 
 User explicitly requires original app/chat/composer dimensions and positions to remain unchanged by additions. Music pulse must fit the existing space below the composer as a transparent overlay; never reserve extra padding, shrink the timeline, or move the composer to accommodate it. Its approved motion/transparency and the header music controls are retained. Future additions must adapt to original geometry unless the user explicitly requests a layout change.
+
+## 2026-09-28 Echo post ownership
+Add a moment is for Mahmoud/Safy. Post with Echo is a separate adjacent entry point. Reviewed Echo proposals publish as Echo, record the requesting person, notify the partner, and are consumed atomically. Echo editing drafts retain their proposal identity; discarding them dismisses the server proposal. Deleted posts/comments lose in-app inbox links and queued push alerts. Already delivered OS notifications cannot be recalled by this cleanup. Original unrelated layout remains unchanged.

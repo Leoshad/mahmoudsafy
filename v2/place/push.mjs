@@ -53,7 +53,10 @@ const topic=digest(e.to+':'+(e.kind==='message'?'messages':(e.kind==='test'?e.ke
  const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,kind:e.kind,deviceOnly:['daily','test','invitation'].includes(e.kind),subscriptionId:e.subscriptionId,quiet:!!e.quiet,tag:topic,createdAt:this.now(),expires:this.now()+(['daily','invitation'].includes(e.kind)?12*3600000:120000)};
  this.db.prepare(`INSERT INTO push_queue(id,owner,topic,body,due,expires) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=CASE WHEN json_extract(excluded.body,'$.quiet')=1 AND json_extract(push_queue.body,'$.quiet')=0 THEN push_queue.body ELSE excluded.body END,expires=excluded.expires`).run(id,e.to,topic,JSON.stringify(body),this.now()+(e.kind==='test'?5000:300),body.expires);
  }
- scan(actor){const current=this.store.state();for(const e of attentionEvents(this.previous,current,actor))this.enqueue(e);this.previous=current;
+ scan(actor){const current=this.store.state();
+  // Remove stale links and queued alerts when their post or comment is deleted.
+  for(const table of ['notification_inbox','push_queue'])for(const row of this.db.prepare('SELECT id,body FROM '+table).all()){const target=JSON.parse(row.body).target;if(target?.post){const post=current.items.find(p=>p.id===target.post);if(!post||(target.comment&&!post.comments?.some(c=>c.id===target.comment)))this.db.prepare('DELETE FROM '+table+' WHERE id=?').run(row.id);}}
+for(const e of attentionEvents(this.previous,current,actor))this.enqueue(e);this.previous=current;
   for(const m of this.store.messages())if(m.status==='sent'&&this.mark('message:'+m.id)){
    if(m.author==='Together')continue;
    const recipients=m.author==='Echo'?names:names.filter(n=>n!==m.author);

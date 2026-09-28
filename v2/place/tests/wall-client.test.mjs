@@ -82,8 +82,8 @@ test('wall toolbar opens separate search/settings dialogs without moving the fee
  c.$('#wall-search-open').onclick();assert.equal(c.$('#wall-search-dialog').open,true);c.$('#space-search').value='missing';c.wall.paint();assert.equal(c.$('#wall-filter-status').hidden,false);c.$('#wall-filter-clear').onclick();assert.equal(c.$('#space-search').value,'');assert.equal(c.$('#wall-filter-status').hidden,true);c.$('#wall-search-done').onclick();assert.equal(c.$('#wall-search-dialog').open,false);
  c.$('#wall-settings-open').onclick();assert.equal(c.$('#daily-settings').open,true);c.$('#wall-settings-close').onclick();assert.equal(c.$('#daily-settings').open,false);assert.equal(c.doc.activeElement,c.$('#wall-settings-open'));assert.equal(s.items[0].title,'A little memory');
 });
-test('Echo suggestions remain discoverable inside the add-moment screen',()=>{
- const s=initial();s.proposals=[{type:'item',title:'An evening'}];const c=client(s);c.wall.paint();assert.equal(c.$('#wall-suggestions').hidden,false);c.$('#wall-suggestions').onclick();assert.equal(c.tab(),'editor');assert.equal(c.$('#wall-create-echo').open,true);
+test('Echo suggestions open their own dialog without entering the personal editor',()=>{
+ const s=initial();s.proposals=[{type:'item',title:'An evening'}];const c=client(s);c.wall.paint();assert.equal(c.$('#wall-suggestions').hidden,false);c.$('#wall-suggestions').onclick();assert.equal(c.tab(),'');assert.equal(c.$('#echo-compose-dialog').open,true);
 });
 
 test('comment threads resist outside dismissal and emoji choices persist without losing the draft',async()=>{

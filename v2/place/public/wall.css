@@ -174,3 +174,5 @@
 #our-place-trial .wall-play p{white-space:pre-wrap;line-height:1.65;overflow-wrap:anywhere}
 #our-place-trial .wall-play button{margin:6px 8px 6px 0}
 #our-place-trial .wall-play details{margin-top:12px}
+
+#our-place-trial .wall-create-actions{display:flex;gap:8px;align-items:stretch;margin-bottom:12px}#our-place-trial .wall-create-actions>.wall-add{flex:1;min-width:0;width:auto;margin:0;padding:10px 12px}#our-place-trial .wall-create-actions #wall-create-echo{gap:7px}#our-place-trial .wall-create-actions .echo-create-arrow{display:none}
