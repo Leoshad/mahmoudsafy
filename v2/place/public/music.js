@@ -69,6 +69,7 @@ function layout(){
  if(headerControls)headerControls.hidden=!shown;
  document.documentElement.classList.toggle('music-loaded',shown);
  dock.hidden=!shown;
+ const shell=document.querySelector('.shell');if(shell)dock.style.top=shell.offsetTop+'px';
 }
 function paint(){
  for(const ui of cards)paintUI(ui,ui.id);
