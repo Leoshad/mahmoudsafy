@@ -39,3 +39,14 @@
 .playlist-playing{color:#dfc18e!important}
 
 #our-place-trial .song-actions .playlist-button[hidden]{display:none}
+
+/* Match the surrounding Do Together card headers. */
+#our-place-trial .our-playlist>details>summary{padding:24px;gap:20px;min-height:126px;box-sizing:border-box;justify-content:flex-start}
+#our-place-trial .our-playlist>details>summary>span:nth-child(2){flex:1;min-width:0}
+#our-place-trial .our-playlist>details>summary strong{font:500 25px Georgia,serif;color:#f2e7eb;margin:6px 0}
+#our-place-trial .our-playlist>details>summary small{font-size:12px;color:#bdaeb7;margin-top:6px}
+#our-place-trial .playlist-mark{display:flex;flex:0 0 52px;color:#d1b078}
+#our-place-trial .playlist-mark svg{width:52px;height:52px}
+#our-place-trial .playlist-enter{margin-left:auto;color:#d1b078;font-size:23px;transition:transform .2s}
+#our-place-trial .our-playlist>details[open]>summary>.playlist-enter{transform:rotate(180deg)}
+@media(max-width:650px){#our-place-trial .our-playlist>details>summary{padding:18px;gap:14px;min-height:115px}#our-place-trial .our-playlist>details>summary strong{font-size:23px}#our-place-trial .playlist-mark{flex-basis:44px}#our-place-trial .playlist-mark svg{width:44px;height:44px}}
