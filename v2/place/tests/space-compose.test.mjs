@@ -22,3 +22,7 @@ test('case evidence rotates away from the recent mechanism and every new mechani
  for(const p of [a,b,c]){assert.equal(p.activity.hints.length,3);assert.ok(p.facts.includes(p.activity.answer));assert.ok(p.activity.explanation.includes(p.activity.answer));}
  assert.notEqual(diverseMysteryProof('easy',[],a.family).family,a.family);
 });
+
+test('non-timeline cases do not inherit a timeline-only reviewer requirement',async()=>{
+ let calls=0;await composePost({options:{kind:'case',difficulty:'easy'},history:['Timeline clues'],fetcher:async(_,o)=>{const b=JSON.parse(o.body),input=JSON.parse(b.input);calls++;if(calls===1){assert.match(b.instructions,/finite timeline is required only/i);return Response.json(result(JSON.stringify({title:'At a small theatre, the final script disappears just before rehearsal. Four crew members give conflicting accounts. Read the verified records below and decide together which account reveals the person responsible.',...input.verifiedSolution})));}assert.match(input.brief,/do not require a timeline/);return Response.json(result(JSON.stringify({approve:true,reason:'Unique solution under the stated evidence.'})));}});assert.equal(calls,2);
+});
