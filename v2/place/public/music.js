@@ -69,7 +69,6 @@ function layout(){
  if(headerControls)headerControls.hidden=!shown;
  document.documentElement.classList.toggle('music-loaded',shown);
  dock.hidden=!shown;
- const shell=document.querySelector('.shell');if(shell)dock.style.top=(shell.offsetTop-4)+'px';
 }
 function paint(){
  for(const ui of cards)paintUI(ui,ui.id);
@@ -99,7 +98,6 @@ function ensure(){
  dockUI.button.onclick=()=>toggle(current,name);
  const close=make('button','music-close','×');close.type='button';close.setAttribute('aria-label','Stop and close audio');close.onclick=()=>{window.OurPlaylist?.stop();reset();};headerControls=make('div','music-header-controls');headerControls.hidden=true;headerControls.setAttribute('aria-label','Music controls');headerControls.append(dockUI.button,close);const brand=document.querySelector('.brand');(brand||dock).append(headerControls);
  dockUI.time.tabIndex=0;dockUI.time.setAttribute('role','button');dockUI.time.setAttribute('aria-label','Show current song');const showTitle=()=>{dockUI.label.hidden=!dockUI.label.hidden;};dockUI.time.onclick=showTitle;dockUI.time.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showTitle();}};dockUI.label.hidden=true;
- document.addEventListener('pointerdown',e=>{if(!dockUI.time.contains(e.target)&&!dockUI.label.contains(e.target))dockUI.label.hidden=true;});
  const app=document.querySelector('#app'),shell=document.querySelector('.shell');app.insertBefore(dock,shell);
  for(const event of ['play','pause','timeupdate','durationchange','loadedmetadata','ended','error','waiting','canplay'])audio.addEventListener(event,()=>{if(['play','pause','ended','error'].includes(event))glowFrame();if(event==='ended')window.OurPlaylist?.ended();if(current&&Number.isFinite(audio.duration))durations.set(current,audio.duration);paint();});
 }

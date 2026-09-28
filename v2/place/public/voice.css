@@ -45,12 +45,3 @@
 @media(min-width:361px) and (max-width:400px){html.music-loaded #our-place-trial.signed-in>header .brand{font-size:20px}html.music-loaded #our-place-trial #account>span{max-width:42px;font-size:11px}}
 @media(max-width:360px){html.music-loaded #our-place-trial.signed-in>header .brand{font-size:18px}#our-place-trial .music-header-controls button{width:26px;height:28px;min-height:28px}#our-place-trial .music-header-controls{margin-left:5px;gap:3px}}
 html.music-loaded #our-place-trial #account>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* Overlay the existing navigation-to-content gap; playback never takes layout space. */
-#our-place-trial.signed-in #app{position:relative}
-#our-place-trial .music-dock{position:absolute;top:0;left:0;right:0;z-index:20;height:14px;min-height:0;background:transparent;border:0;gap:8px}
-#our-place-trial .music-dock>.music-seek{height:14px;min-height:0;padding:0}
-#our-place-trial .music-dock .music-time{line-height:14px;font-size:10px;min-width:63px}
-#our-place-trial .music-dock .music-seek::-webkit-slider-thumb{width:10px;height:10px}
-#our-place-trial .music-dock .music-seek::-moz-range-thumb{width:10px;height:10px}
-
