@@ -1,13 +1,14 @@
 import {randomUUID,createHash} from 'node:crypto';
 import {check,text} from './domain.mjs';
 export function canHear(store,who,id,s=store.state()) {const v=store.db.prepare('SELECT * FROM voices WHERE id=?').get(id);return v&&(v.owner===who||store.db.prepare('SELECT 1 FROM messages WHERE audio=?').get(id)||(s.playlist?.tracks??[]).some(t=>t.audio===id)||s.listening?.audio===id||s.listening?.queue?.some(t=>t.audio===id))?v:null;}
+function shuffleQueue(a){const rest=a.queue.map(t=>t.audio).filter(id=>id!==a.audio);for(let i=rest.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[rest[i],rest[j]]=[rest[j],rest[i]];}a.shuffle=true;a.order=[a.audio,...rest];a.index=0;}
 export function playlistChange(store,s,who,type,p){
  const list=s.playlist??={revision:0,tracks:[]},now=Date.now();
  if(type==='playlist.add'||type==='listen.invite'){
   const v=canHear(store,who,p.audio,s);check(v?.mime==='audio/mpeg','Choose a shared MP3 song.',404);
   const title=text(p.title||'Our song',400),fingerprint=createHash('sha256').update(v.bytes).digest('hex');
   if(type==='playlist.add'){if(!list.tracks.some(t=>t.fingerprint===fingerprint||t.audio===p.audio))list.tracks.push({id:randomUUID(),audio:p.audio,title,fingerprint,by:who,createdAt:new Date(now).toISOString()});list.revision++;}
-  else {check(!s.listening||s.listening.status==='ended'||s.listening.status==='invited'&&s.listening.expiresAt<now,'Finish your current listening invitation or session first.',409);const queue=p.mode==='playlist'||list.tracks.some(t=>t.audio===p.audio)?list.tracks.map(({audio,title})=>({audio,title})):null;check(!queue||queue.length,'Add a song first.');s.listening={...(queue?{mode:'playlist',queue,order:queue.map(t=>t.audio),index:p.mode==='playlist'?0:Math.max(0,queue.findIndex(t=>t.audio===p.audio)),shuffle:false,repeat:false}:{}),id:randomUUID(),audio:p.mode==='playlist'?queue[0].audio:p.audio,title:p.mode==='playlist'?queue[0].title:title,owner:who,status:'invited',expiresAt:now+300000,revision:0,position:0,playing:false,at:now};}
+  else {check(!s.listening||s.listening.status==='ended'||s.listening.status==='invited'&&s.listening.expiresAt<now,'Finish your current listening invitation or session first.',409);const queue=p.mode==='playlist'?list.tracks.map(({audio,title})=>({audio,title})):null;check(!queue||queue.length,'Add a song first.');check(!queue||queue.some(t=>t.audio===p.audio),'Choose a song in Our Playlist.');s.listening={...(queue?{mode:'playlist',queue,order:queue.map(t=>t.audio),index:Math.max(0,queue.findIndex(t=>t.audio===p.audio)),shuffle:false,repeat:p.repeat===true}:{}),id:randomUUID(),audio:p.audio,title:title,owner:who,status:'invited',expiresAt:now+300000,revision:0,position:0,playing:false,at:now};if(queue&&p.shuffle===true)shuffleQueue(s.listening);}
  } else if(type.startsWith('playlist.')){
   check(p.revision===list.revision,'The playlist changed. Please try again.',409);const i=list.tracks.findIndex(t=>t.id===p.id);check(i>=0,'Song no longer in playlist.',404);
   if(type==='playlist.remove')list.tracks.splice(i,1);
@@ -26,10 +27,11 @@ export function playlistChange(store,s,who,type,p){
    // Both clients may reach the end at once; only the first advances this track.
    if(type==='listen.step'&&p.auto&&(p.audio!==a.audio||p.revision!==a.revision))return {ok:true};
    check(p.revision===a.revision,'Playback changed. Try again.',409);
+   if(type==='listen.step'&&p.auto&&a.mode!=='playlist'){a.listenedMs=(a.listenedMs||0)+elapsed;a.playing=false;a.position=Number.isFinite(p.position)?p.position:a.position;a.at=now;a.revision++;s.version++;return {ok:true};}
    if(a.mode!=='playlist'||type==='listen.track'&&!a.queue.some(t=>t.audio===p.audio)){
     if(type==='listen.track')check(list.tracks.some(t=>t.audio===p.audio),'Choose a song in Our Playlist.');
     a.queue=list.tracks.map(({audio,title})=>({audio,title}));if(!a.queue.some(t=>t.audio===a.audio))a.queue.unshift({audio:a.audio,title:a.title});
-    a.mode='playlist';a.order=a.queue.map(t=>t.audio);a.index=a.order.indexOf(a.audio);a.shuffle=false;a.repeat=false;
+    a.mode='playlist';a.order=a.queue.map(t=>t.audio);a.index=a.order.indexOf(a.audio);a.shuffle=false;a.repeat=p.repeat===true;if(p.shuffle===true)shuffleQueue(a);
    }
    if(type==='listen.options'){
     check(['shuffle','repeat'].includes(p.option)&&typeof p.value==='boolean','Choose a playback option.');a[p.option]=p.value;
