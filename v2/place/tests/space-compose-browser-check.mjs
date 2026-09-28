@@ -30,5 +30,15 @@ try{
  await a.click('#wall-discard-draft');await a.evaluate(()=>[...document.querySelectorAll('.wall-discard-dialog button')].find(b=>b.textContent==='Discard draft').click());
  await a.waitForFunction(()=>document.querySelector('#editor').hidden&&document.querySelector('#wall-suggestions').hidden);
  await a.reload({waitUntil:'domcontentloaded'});await a.waitForSelector('#welcome-splash[hidden]');assert.equal(await a.$eval('#wall-suggestions',n=>n.hidden),true);
+ const pinsState=store.state();const labels=['Our evening','Next trip','Our promise','Movie night','A little note'];
+ for(let i=0;i<5;i++)pinsState.items.push({id:'pin-'+i,by:'Mahmoud',type:'Idea',title:labels[i],pinned:true,revision:1,approvals:[],createdAt:'2026-01-01T00:00:00Z'});store.save(pinsState);
+ await a.reload({waitUntil:'domcontentloaded'});await a.waitForSelector('#welcome-splash[hidden]');await a.evaluate(()=>document.querySelector('[data-tab="space"]').click());
+ assert.equal(await a.$$eval('.wall-pinned-shortcut',ns=>ns.length),5);assert.equal(await a.$eval('.wall-pinned-row',n=>getComputedStyle(n).display),'grid');assert.notEqual(await a.$eval('#items>.wall-post',n=>n.dataset.post),'pin-0');
+ for(const width of [320,390]){await a.setViewport({width,height:740,isMobile:true,hasTouch:true});assert.ok(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));}
+ await a.screenshot({path:'/tmp/wall-pin-shortcuts.png'});const wallScroll=await a.$eval('.shell',n=>n.scrollTop);
+ await a.click('.wall-pinned-shortcut');await a.waitForSelector('.wall-pinned-dialog[open]');assert.match(await a.$eval('.wall-pinned-dialog',n=>n.textContent),/Our evening/);
+ await a.evaluate(()=>document.querySelector('.wall-pinned-dialog button[aria-label="Close pinned moment"]').click());assert.equal(await a.$eval('.shell',n=>n.scrollTop),wallScroll);
+ await a.click('.wall-pinned-shortcut');await a.evaluate(()=>[...document.querySelectorAll('.wall-pinned-dialog button')].find(b=>b.textContent==='Unpin').click());await a.waitForFunction(()=>document.querySelectorAll('.wall-pinned-shortcut').length===4);
+ await a.evaluate(()=>document.querySelector('.wall-pinned-dialog').close());
  assert.deepEqual(errors,[]);console.log('PASS: mobile composer, reviewed editable draft, saved settings across chat and reload, no draft notifications, two-way publication notifications.');
 }finally{await Promise.all(browsers.map(b=>b.close()));server.closeAllConnections();await new Promise(r=>server.close(r));store.close();await rm(directory,{recursive:true,force:true});}
