@@ -66,7 +66,7 @@ function render(force=false){
   make('small','Timer expiry plays a legal card or draws. Closing the game pauses it.',setup,'muted');button(mode==='solo'?'Play against computer':'Invite '+(who==='Mahmoud'?'Safy':'Mahmoud'),setup,()=>command('create',{mode,turnSeconds:Number(select.value)},null),'primary').disabled=busy;
  }else if(g.status==='waiting'){
   make('p',g.owner===who?'Waiting for '+g.opponent+' to accept.':g.owner+' wants to play Ocho.',root);make('p',g.turnSeconds?g.turnSeconds+' seconds per turn':'No timer',root,'muted');
-  if(g.owner!==who){button('Accept',root,()=>command('accept'),'primary').disabled=busy;button('Decline',root,()=>command('decline')).disabled=busy;}else button('Cancel invitation',root,()=>command('leave')).disabled=busy;
+  if(g.owner!==who){button('Accept',root,async()=>{if(await command('accept')){opened=true;full=true;save();render(true);}},'primary').disabled=busy;button('Decline',root,()=>command('decline')).disabled=busy;}else button('Cancel invitation',root,()=>command('leave')).disabled=busy;
  }
  const history=make('details',null,root,'ocho-history');make('summary','Match history · '+records.history.length,history);if(!records.history.length)make('p','Your results will appear here.',history,'muted');for(const r of records.history.slice(0,20))make('p',(r.status==='ended'?'Left early':r.winner?r.winner+' won':'Draw')+' · '+new Date(r.at).toLocaleDateString(),history);clock();
 }
