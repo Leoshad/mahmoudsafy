@@ -50,3 +50,6 @@
 #our-place-trial .playlist-enter{margin-left:auto;color:#d1b078;font-size:23px;transition:transform .2s}
 #our-place-trial .our-playlist>details[open]>summary>.playlist-enter{transform:rotate(180deg)}
 @media(max-width:650px){#our-place-trial .our-playlist>details>summary{padding:18px;gap:14px;min-height:115px}#our-place-trial .our-playlist>details>summary strong{font-size:23px}#our-place-trial .playlist-mark{flex-basis:44px}#our-place-trial .playlist-mark svg{width:44px;height:44px}}
+
+/* Keep long queues inside the card, leaving the other activities reachable. */
+#our-place-trial #our-playlist .playlist-tracks{max-height:290px;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:thin;scrollbar-color:#927484 transparent}

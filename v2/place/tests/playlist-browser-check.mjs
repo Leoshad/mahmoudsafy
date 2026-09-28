@@ -41,5 +41,9 @@ try{
  const privateId=crypto.randomUUID();store.db.prepare('INSERT INTO voices VALUES(?,?,?,?,?)').run(privateId,'Mahmoud','audio/mpeg',song,new Date().toISOString());
  const denied=await b.evaluate(async audio=>(await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:crypto.randomUUID(),type:'message',data:{audio,text:'private'}})})).status,privateId);
  assert.equal(denied,403,'Unshared audio must remain private');
+ await a.evaluate(()=>document.querySelector('[data-tab="together"]').click());
+ await a.evaluate(()=>{const details=document.querySelector('#our-playlist>details');details.open=true;const list=details.querySelector('.playlist-tracks'),row=list.querySelector('.playlist-track');for(let i=0;i<100;i++)list.append(row.cloneNode(true));});
+ const queueBounds=await a.$eval('.playlist-tracks',n=>({height:n.getBoundingClientRect().height,scroll:n.scrollHeight,client:n.clientHeight}));assert.ok(queueBounds.height<=305&&queueBounds.scroll>queueBounds.client*5);
+ await a.$eval('.playlist-tracks',n=>n.scrollTop=150);assert.ok(await a.$eval('.playlist-tracks',n=>n.scrollTop)>0);
  assert.deepEqual(errors,[]);console.log('PASS playlist: chat rail, shared save, real audio across tabs, consent invitation, synchronized pause, leave, duplicate upload.');
 }catch(e){console.error('FAIL',e);for(const [i,p] of pages.entries()){console.error('PAGE',i,await p.evaluate(()=>document.body.innerText.slice(-3000)));await p.screenshot({path:'/tmp/playlist-fail-'+i+'.png'});}throw e;}finally{await Promise.all(browsers.map(b=>b.close()));server.closeAllConnections();await new Promise(r=>server.close(r));store.close();await rm(directory,{recursive:true,force:true});}
