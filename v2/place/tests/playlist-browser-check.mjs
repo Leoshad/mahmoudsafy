@@ -25,5 +25,21 @@ try{
  const oldTrack=store.state().listening.audio;await a.evaluate(()=>document.querySelector('audio[hidden]').dispatchEvent(new Event('ended')));await b.waitForFunction(id=>OurMusic.state().id!==id,{},oldTrack);assert.equal(await a.evaluate(()=>OurMusic.state().id),await b.evaluate(()=>OurMusic.state().id));await a.$eval('#our-playlist',n=>n.scrollIntoView({block:'start'}));await a.screenshot({path:'/tmp/playlist-together-mobile.png'});
  await a.click('.playlist-together-button');await b.waitForFunction(()=>document.querySelector('#playlist-invitation').hidden);
  await a.evaluate(()=>document.querySelector('.playlist-track button[aria-label="Listen together"]').click());await b.waitForSelector('#playlist-invitation:not([hidden])');assert.notEqual(store.state().listening.mode,'playlist');await b.evaluate(()=>[...document.querySelectorAll('#playlist-invitation button')].find(x=>x.textContent==='Accept').click());await b.waitForFunction(()=>OurMusic.state().position>.2);
+ await b.evaluate(()=>[...document.querySelectorAll('#playlist-invitation button')].find(x=>x.textContent==='Leave').click());
+ for(const page of [a,b]){
+  await page.evaluate(()=>document.querySelector('[data-tab="together"]').click());
+  await page.$eval('#our-playlist>details',n=>n.open=true);
+  await page.$eval('.playlist-more',n=>n.open=true);
+  const before=store.db.prepare('SELECT count(*) n FROM messages WHERE audio=?').get(audioId).n;
+  await page.click('.playlist-more button[aria-label="Share in chat"]');
+  await page.waitForFunction(()=>document.body.textContent.includes('Song shared in Our Chat.'));
+  assert.equal(store.db.prepare('SELECT count(*) n FROM messages WHERE audio=?').get(audioId).n,before+1);
+  await page.evaluate(()=>document.querySelector('[data-tab="chat"]').click());
+  await page.waitForFunction(()=>[...document.querySelectorAll('.song-actions')].every(n=>getComputedStyle(n.firstChild).display==='none'&&getComputedStyle(n.lastChild).display!=='none'));
+ }
+ assert.equal(store.db.prepare('SELECT author FROM messages WHERE audio=? ORDER BY rowid DESC LIMIT 1').get(audioId).author,'Safy');
+ const privateId=crypto.randomUUID();store.db.prepare('INSERT INTO voices VALUES(?,?,?,?,?)').run(privateId,'Mahmoud','audio/mpeg',song,new Date().toISOString());
+ const denied=await b.evaluate(async audio=>(await fetch('/api/command',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:crypto.randomUUID(),type:'message',data:{audio,text:'private'}})})).status,privateId);
+ assert.equal(denied,403,'Unshared audio must remain private');
  assert.deepEqual(errors,[]);console.log('PASS playlist: chat rail, shared save, real audio across tabs, consent invitation, synchronized pause, leave, duplicate upload.');
 }catch(e){console.error('FAIL',e);for(const [i,p] of pages.entries()){console.error('PAGE',i,await p.evaluate(()=>document.body.innerText.slice(-3000)));await p.screenshot({path:'/tmp/playlist-fail-'+i+'.png'});}throw e;}finally{await Promise.all(browsers.map(b=>b.close()));server.closeAllConnections();await new Promise(r=>server.close(r));store.close();await rm(directory,{recursive:true,force:true});}

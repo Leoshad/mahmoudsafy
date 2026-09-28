@@ -341,7 +341,13 @@ function openProposal(p){
 }
 async function accept(p){const r=await command('proposal.accept',{job:p.job,index:p.index});await sync();goto('space');}
 window.OurFiles?.init({api,getState:()=>state});
-window.OurPlaylist.init({command,api,sync,error});
+window.OurPlaylist.init({command,api,sync,error,async share(audio,title){
+ if(!state)throw Error('Sign in before sharing a song.');
+ const m={id:crypto.randomUUID(),author:state.who,createdAt:new Date().toISOString(),text:title,audio,audioMime:'audio/mpeg',status:'sending',payload:{text:title,audio},ask:false};
+ if(!saveOutbox(m))throw Error('Could not save this song to the message queue. Please try again.');
+ pending.set(m.id,m);paintFeed();
+ return deliver(m);
+}});
 const wall=OurWall({getState:()=>state,api,command,sync,goto,info,error,el,btn,categories,getFilter:()=>filter,setFilter:v=>filter=v,openSource});
 function paintItems(){wall.paint();}
 function editItem(item){wall.edit(item);}
