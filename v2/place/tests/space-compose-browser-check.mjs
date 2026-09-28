@@ -30,6 +30,14 @@ try{
  await a.click('#wall-discard-draft');await a.evaluate(()=>[...document.querySelectorAll('.wall-discard-dialog button')].find(b=>b.textContent==='Discard draft').click());
  await a.waitForFunction(()=>document.querySelector('#editor').hidden&&document.querySelector('#wall-suggestions').hidden);
  await a.reload({waitUntil:'domcontentloaded'});await a.waitForSelector('#welcome-splash[hidden]');assert.equal(await a.$eval('#wall-suggestions',n=>n.hidden),true);
+ const beforeDirect=store.state().items.length;
+ await a.evaluate(()=>document.querySelector('[data-tab="space"]').click());await a.click('#wall-create-echo');
+ await a.evaluate(()=>{const b=document.querySelector('#echo-generate-post');b.click();b.click();document.querySelector('#echo-compose-close').click();});
+ await a.waitForFunction(()=>document.querySelector('#echo-compose-status').textContent==='Published as Echo.');
+ assert.equal(store.state().items.length,beforeDirect+1);const direct=store.state().items[0];assert.equal(direct.by,'Echo');assert.equal(direct.requestedBy,'Mahmoud');
+ const directJob=JSON.parse(store.job(direct.echoProposal.job).body);assert.equal(directJob.accepted,true);assert.deepEqual(directJob.acceptedIndices,[0]);
+ assert.ok(store.db.prepare('SELECT owner,body FROM notification_inbox').all().some(r=>r.owner==='Safy'&&JSON.parse(r.body).target.post===direct.id));
+ assert.equal(await a.$eval('#wall-suggestions',n=>n.hidden),true);
  const pinsState=store.state();const labels=['Our evening','Next trip','Our promise','Movie night','A little note'];
  for(let i=0;i<5;i++)pinsState.items.push({id:'pin-'+i,by:'Mahmoud',type:'Idea',title:labels[i],pinned:true,revision:1,approvals:[],createdAt:'2026-01-01T00:00:00Z'});store.save(pinsState);
  await a.reload({waitUntil:'domcontentloaded'});await a.waitForSelector('#welcome-splash[hidden]');await a.evaluate(()=>document.querySelector('[data-tab="space"]').click());
