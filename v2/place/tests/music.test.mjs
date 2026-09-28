@@ -24,18 +24,18 @@ function player(){
 }
 test('inline and compact controls use the same persistent audio and keep position across tabs',async()=>{
  const h=player(),card=h.card('first','First.mp3');await h.window.OurMusic.play('first','First.mp3');const audio=h.audio();
- assert.equal(h.dock().hidden,true);assert.equal(audio.controls,false);assert.equal(audio.hidden,true);
+ assert.equal(h.dock().hidden,false);assert.equal(audio.controls,false);assert.equal(audio.hidden,true);
  audio.duration=122;audio.readyState=1;audio.currentTime=73;audio.emit('loadedmetadata');
  assert.equal(card.children[1].children[1].textContent,'1:13 / 2:02');
  h.window.OurMusic.tab('together');assert.equal(h.dock().hidden,false);assert.equal(audio.currentTime,73);assert.equal(audio.paused,false);
- h.dock().children[0].onclick();assert.equal(audio.paused,true);card.children[0].onclick();assert.equal(audio.paused,false);assert.equal(audio.currentTime,73);
- h.window.OurMusic.tab('chat');assert.equal(h.dock().hidden,true);assert.equal(h.nodes.filter(n=>n.tagName==='audio').length,1);
+ h.nodes.find(n=>n.className==='music-header-controls').children[0].onclick();assert.equal(audio.paused,true);card.children[0].onclick();assert.equal(audio.paused,false);assert.equal(audio.currentTime,73);
+ h.window.OurMusic.tab('chat');assert.equal(h.dock().hidden,false);assert.equal(h.nodes.filter(n=>n.tagName==='audio').length,1);
  h.actions.seekto({seekTime:30});assert.equal(audio.currentTime,30);
 });
 test('scrolling away shows compact player; replacing message DOM never restarts audio',async()=>{
  const h=player(),card=h.card('first','First.mp3');await h.window.OurMusic.play('first','First.mp3');const audio=h.audio();audio.currentTime=44;
  card.rect={top:-150,bottom:-70,height:80};h.window.OurMusic.refresh();assert.equal(h.dock().hidden,false);
- card.parent.parent=null;const replacement=h.card('first','First.mp3');h.window.OurMusic.refresh();assert.equal(h.dock().hidden,true);assert.equal(audio.currentTime,44);assert.equal(audio.loads,0);assert.equal(replacement.children[0].textContent,'Ⅱ');
+ card.parent.parent=null;const replacement=h.card('first','First.mp3');h.window.OurMusic.refresh();assert.equal(h.dock().hidden,false);assert.equal(audio.currentTime,44);assert.equal(audio.loads,0);assert.equal(replacement.children[0].textContent,'Ⅱ');
 });
 test('seek, switching tracks, error retry and close update both controls without duplicate audio',async()=>{
  const h=player(),first=h.card('first','First.mp3'),second=h.card('second','Second.mp3');await h.window.OurMusic.play('first','First.mp3');const audio=h.audio();audio.duration=100;audio.readyState=1;audio.emit('loadedmetadata');

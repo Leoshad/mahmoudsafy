@@ -1,5 +1,5 @@
 (()=>{'use strict';
-let dock,audio,dockUI,current=null,name='',token=0,inChat=true,inlineVisible=false,observer;
+let headerControls,dock,audio,dockUI,current=null,name='',token=0,inChat=true,inlineVisible=false,observer;
 const cards=new Set(),durations=new Map();
 let context,analyser,edge,frame=0,energy=0,glowOn=true,beatTracker,travel=0,applyVersion=0;
 try{glowOn=localStorage.getItem('our-music-glow')!=='off';}catch{}
@@ -52,12 +52,14 @@ function paintUI(ui,id){
 }
 function layout(){
  if(!dock)return;
- const shown=!!current&&(!inChat||!inlineVisible);
+ const shown=!!current;
+ if(headerControls)headerControls.hidden=!shown;
+ document.documentElement.classList.toggle('music-loaded',shown);
  dock.hidden=!shown;
 }
 function paint(){
  for(const ui of cards)paintUI(ui,ui.id);
- if(dockUI){dockUI.label.textContent=name;dockUI.label.title=name;paintUI(dockUI,current);}
+ if(dockUI){dockUI.label.textContent=name;dockUI.label.title=name;dockUI.time.title=name;paintUI(dockUI,current);}
  if(navigator.mediaSession&&audio)navigator.mediaSession.playbackState=audio.paused?'paused':'playing';
  window.OurPlaylist?.playback();
  layout();
@@ -81,7 +83,8 @@ function ensure(){
  audio=make('audio');audio.controls=false;audio.hidden=true;audio.preload='metadata';document.body.append(audio);
  dock=make('section','music-dock');dock.hidden=true;dock.setAttribute('aria-label','Your audio player');dockUI=controls(dock,true);
  dockUI.button.onclick=()=>toggle(current,name);
- const close=make('button','music-close','×');close.type='button';close.setAttribute('aria-label','Stop and close audio');close.onclick=()=>{if(!window.OurPlaylist?.stop())reset();};dock.append(close);
+ const close=make('button','music-close','×');close.type='button';close.setAttribute('aria-label','Stop and close audio');close.onclick=()=>{window.OurPlaylist?.stop();reset();};headerControls=make('div','music-header-controls');headerControls.hidden=true;headerControls.setAttribute('aria-label','Music controls');headerControls.append(dockUI.button,close);const brand=document.querySelector('.brand');(brand||dock).append(headerControls);
+ dockUI.time.tabIndex=0;dockUI.time.setAttribute('role','button');dockUI.time.setAttribute('aria-label','Show current song');const showTitle=()=>{dockUI.label.hidden=!dockUI.label.hidden;};dockUI.time.onclick=showTitle;dockUI.time.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showTitle();}};dockUI.label.hidden=true;
  const app=document.querySelector('#app'),shell=document.querySelector('.shell');app.insertBefore(dock,shell);
  for(const event of ['play','pause','timeupdate','durationchange','loadedmetadata','ended','error','waiting','canplay'])audio.addEventListener(event,()=>{if(['play','pause','ended','error'].includes(event))glowFrame();if(event==='ended')window.OurPlaylist?.ended();if(current&&Number.isFinite(audio.duration))durations.set(current,audio.duration);paint();});
 }

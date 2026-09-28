@@ -25,3 +25,23 @@
 #our-place-trial .music-dock .music-toggle{width:34px;height:34px;min-height:34px;font-size:14px}
 #our-place-trial .music-dock .music-close{grid-column:3;grid-row:1;width:32px;height:36px;min-height:36px;padding:0;border:0;background:transparent;color:#c7afbd;font:23px/1 system-ui;box-shadow:none}
 #our-place-trial .music-dock .music-seek{grid-row:2;height:12px;min-height:12px}
+
+/* Integrated player: header controls and one slim seek row below navigation. */
+#our-place-trial .brand{display:flex;align-items:center;gap:0}
+#our-place-trial .music-header-controls{display:flex;align-items:center;gap:5px;margin-left:10px;flex-shrink:0}
+#our-place-trial .music-header-controls[hidden]{display:none}
+#our-place-trial .music-header-controls button{display:grid;place-items:center;width:30px;height:30px;min-height:30px;padding:0;border:1px solid #e3c49355;border-radius:50%;background:#d3b17f;color:#251c27;font:16px/1 system-ui;box-shadow:none}
+#our-place-trial .music-header-controls .music-close{font-size:21px}
+#our-place-trial .music-header-controls button:focus-visible{outline:2px solid #edc5df;outline-offset:3px}
+#our-place-trial .music-dock{position:relative;display:flex;align-items:center;gap:12px;min-height:24px;padding:0 15px;background:#251d2866;border-bottom:1px solid #9c758426}
+#our-place-trial .music-dock[hidden]{display:none}
+#our-place-trial .music-dock>.music-seek{order:0;flex:1;width:0;min-height:24px;height:24px;background-size:100% 2px}
+#our-place-trial .music-dock>.music-copy{order:1;flex:0 0 auto;overflow:visible}
+#our-place-trial .music-dock .music-time{margin:0;min-width:63px;text-align:right;cursor:pointer;line-height:24px;font-size:10px}
+#our-place-trial .music-dock .music-title{position:absolute;right:8px;top:calc(100% + 4px);max-width:calc(100% - 16px);padding:9px 12px;border:1px solid #79596a;border-radius:10px;background:#27212af5;z-index:55;box-shadow:0 4px 15px #0004}
+#our-place-trial .music-dock .music-title[hidden]{display:none}
+@media(max-width:360px){html.music-loaded #our-place-trial #account>span{display:none}}
+@media(max-width:400px){html.music-loaded #our-place-trial.signed-in>header .brand{font-size:22px}#our-place-trial .music-header-controls{margin-left:6px;gap:4px}#our-place-trial .music-header-controls button{width:28px;height:28px;min-height:28px}}
+@media(min-width:361px) and (max-width:400px){html.music-loaded #our-place-trial.signed-in>header .brand{font-size:20px}html.music-loaded #our-place-trial #account>span{max-width:42px;font-size:11px}}
+@media(max-width:360px){html.music-loaded #our-place-trial.signed-in>header .brand{font-size:18px}#our-place-trial .music-header-controls button{width:26px;height:28px;min-height:28px}#our-place-trial .music-header-controls{margin-left:5px;gap:3px}}
+html.music-loaded #our-place-trial #account>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
