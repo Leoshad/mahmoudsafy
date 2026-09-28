@@ -3,7 +3,7 @@ let headerControls,dock,audio,dockUI,current=null,name='',token=0,inChat=true,in
 const cards=new Set(),durations=new Map();
 let context,analyser,edge,frame=0,energy=0,glowOn=true,beatTracker,travel=0,applyVersion=0;
 try{glowOn=localStorage.getItem('our-music-glow')!=='off';}catch{}
-function unlock(){ensure();try{if(!context){const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;context=new AudioContext();analyser=context.createAnalyser();analyser.fftSize=1024;analyser.smoothingTimeConstant=.15;context.createMediaElementSource(audio).connect(analyser);analyser.connect(context.destination);}void context.resume().catch(()=>{});}catch{}}
+function unlock(){ensure();try{if(!context){const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;context=new AudioContext();analyser=context.createAnalyser();analyser.fftSize=4096;analyser.minDecibels=-85;analyser.maxDecibels=-10;analyser.smoothingTimeConstant=0;context.createMediaElementSource(audio).connect(analyser);analyser.connect(context.destination);}void context.resume().catch(()=>{});}catch{}}
 function pulseLayout(){
  if(!edge)return;
  const v=window.visualViewport,bottom=v?Math.max(0,innerHeight-v.height-v.offsetTop):0;
@@ -22,12 +22,18 @@ function glowFrame(){
  const visible=!!(glowOn&&analyser&&audio&&!audio.paused&&!document.hidden);
  edge.style.opacity=visible?'1':'0';pulseLayout();
  if(!visible)return;
- const values=new Uint8Array(analyser.frequencyBinCount),levels=new Float32Array(48);let last=0;
+ const values=new Uint8Array(analyser.frequencyBinCount),levels=new Float32Array(48);
+ // Disjoint bands: preserve bass detail instead of repeating the same four bins.
+ const hz=context.sampleRate/analyser.fftSize,upper=Math.min(12000,context.sampleRate/2),bands=[Math.max(1,Math.round(25/hz))];
+ for(let i=1;i<=48;i++)bands.push(Math.min(values.length,Math.max(bands[i-1]+1,Math.round(25*Math.pow(upper/25,i/48)/hz))));
+ let last=0;
  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
  const tick=now=>{if(audio.paused||!glowOn||document.hidden){glowFrame();return;}
-  if(now-last>=33){last=now;pulseLayout();analyser.getByteFrequencyData(values);
-   for(let i=0;i<48;i++){const bin=Math.floor(Math.pow(i/47,1.8)*180)+1;let power=0;for(let j=0;j<4;j++)power+=values[bin+j]/1020;
-    const target=Math.min(1,Math.pow(power,.7)*1.35);levels[i]+=(target-levels[i])*(target>levels[i]?.75:.25);
+  if(now-last>=16){const dt=last?Math.min(100,now-last):16;last=now;pulseLayout();analyser.getByteFrequencyData(values);
+   for(let i=0;i<48;i++){let power=0;for(let bin=bands[i];bin<bands[i+1];bin++)power+=Math.pow(values[bin]/255,2);
+    power=Math.sqrt(power/Math.max(1,bands[i+1]-bands[i]));
+    // Leave headroom; use time-based envelopes so a kick rises and releases naturally.
+    const target=.94*Math.pow(power,1.35),blend=1-Math.exp(-dt/(target>levels[i]?22:110));levels[i]+=(target-levels[i])*blend;
     const cap=Number.parseFloat(edge.style.height)||0;edge.children[i].style.height=(cap*(.0625+levels[i]*(reduced?.25:.9375))).toFixed(1)+'px';
    }
   }frame=requestAnimationFrame(tick);
