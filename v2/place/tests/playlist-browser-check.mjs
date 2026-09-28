@@ -15,7 +15,7 @@ try{
  const stoppedGeometry=await chatGeometry();
  await a.click('.music-toggle');await a.waitForFunction(()=>OurMusic.state().position>.3);
  assert.deepEqual(await chatGeometry(),stoppedGeometry,'Starting music must preserve chat, message and composer geometry');
- await a.click('.music-dock .music-time');assert.ok(await a.evaluate(()=>{const label=document.querySelector('.music-dock .music-title');return !label.hidden&&label.getBoundingClientRect().bottom<document.querySelector('#chat').getBoundingClientRect().top;}),'Song title opens above chat');await a.click('#timeline');assert.equal(await a.$eval('.music-dock .music-title',n=>n.hidden),true);
+ await a.click('.music-dock .music-time');assert.ok(await a.evaluate(()=>{const label=document.querySelector('.music-dock .music-title');return !label.hidden&&label.getBoundingClientRect().top>=document.querySelector('.music-dock').getBoundingClientRect().bottom;}),'Song title opens below the player');await a.click('#timeline');assert.equal(await a.$eval('.music-dock .music-title',n=>n.hidden),true);
  await a.click('.music-card .music-toggle');assert.deepEqual(await chatGeometry(),stoppedGeometry,'Pausing must preserve geometry');
  await a.click('.music-close');assert.deepEqual(await chatGeometry(),stoppedGeometry,'Closing the player must preserve geometry');
  await a.click('.music-card .music-toggle');await a.waitForFunction(()=>OurMusic.state().position>.3);

@@ -54,4 +54,3 @@ html.music-loaded #our-place-trial #account>span{overflow:hidden;text-overflow:e
 #our-place-trial .music-dock .music-seek::-webkit-slider-thumb{width:10px;height:10px}
 #our-place-trial .music-dock .music-seek::-moz-range-thumb{width:10px;height:10px}
 
-#our-place-trial .music-dock .music-title{top:auto;bottom:calc(100% + 8px);right:12px;max-width:min(320px,calc(100vw - 24px));white-space:normal;overflow-wrap:anywhere;line-height:1.5;padding:12px 15px;border-radius:14px;background:#27212a;box-shadow:0 8px 26px #0006}
