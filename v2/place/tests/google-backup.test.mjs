@@ -62,3 +62,11 @@ for(const scenario of ['success','corrupt-download','bad-checksum','folder-denie
   else{await assert.rejects(backup.upload(path));assert.deepEqual(deleted,[]);assert.ok(backup.status().error);assert.equal(!!backup.status().lastSuccess,scenario==='delete-failed');}
  }finally{db.close();await rm(dir,{recursive:true,force:true});}
 });
+test('folder grant uses Google picker and requires the exact configured folder',async()=>{
+ const {db,backup}=setup(async()=>Response.json({refresh_token:'refresh',scope:'https://www.googleapis.com/auth/drive.file'}),{env:{GOOGLE_BACKUP_FOLDER_ID:folderId}});
+ try{
+  let start=backup.start('owner'),url=new URL(start.url);assert.equal(url.searchParams.get('trigger_onepick'),'true');assert.equal(url.searchParams.get('file_ids'),folderId);
+  await assert.rejects(backup.callback(new URLSearchParams({state:url.searchParams.get('state'),code:'code',picked_file_ids:'wrong'}),start.cookie));assert.equal(backup.status().connected,false);
+  start=backup.start('owner');url=new URL(start.url);await backup.callback(new URLSearchParams({state:url.searchParams.get('state'),code:'code',picked_file_ids:folderId}),start.cookie);assert.equal(backup.status().connected,true);
+ }finally{db.close();}
+});

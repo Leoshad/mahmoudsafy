@@ -26,6 +26,7 @@ export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=pr
   const state=randomBytes(32).toString('base64url');store.db.prepare('DELETE FROM google_backup_states WHERE expires<?').run(Date.now());
   store.db.prepare('INSERT INTO google_backup_states VALUES(?,?,?)').run(state,sid,Date.now()+600000);
   const url=new URL('https://accounts.google.com/o/oauth2/v2/auth');url.search=new URLSearchParams({client_id:env.GOOGLE_BACKUP_CLIENT_ID,redirect_uri:redirect,response_type:'code',scope:SCOPE,access_type:'offline',prompt:'consent',state});
+  if(folder()){url.searchParams.set('trigger_onepick','true');url.searchParams.set('allow_folder_selection','true');url.searchParams.set('mimetypes','application/vnd.google-apps.folder');url.searchParams.set('file_ids',folder());}
   return {url:url.href,cookie:seal({state})};
  }
  async function callback(params,cookie){
@@ -34,6 +35,7 @@ export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=pr
   const pending=store.db.prepare('DELETE FROM google_backup_states WHERE state=? RETURNING *').get(state);
   if(!pending||pending.expires<Date.now()||!store.db.prepare('SELECT 1 FROM sessions WHERE id=? AND expires>?').get(pending.sid,Date.now()))throw failure('Connection expired. Sign in and start again.');
   if(params.has('error')||!params.get('code'))throw failure('Google connection was cancelled.');
+  if(folder()&&!params.get('picked_file_ids')?.split(',').includes(folder()))throw failure('Select the configured backup folder to grant access. Your previous connection is unchanged.');
   const t=await tokenRequest({grant_type:'authorization_code',code:params.get('code'),redirect_uri:redirect});
   if(!t.refresh_token||!t.scope?.split(' ').includes(SCOPE))throw failure('Google Drive permission was not granted. Try connecting again.');
   store.db.prepare('INSERT INTO google_backup(id,token) VALUES(1,?) ON CONFLICT(id) DO UPDATE SET token=excluded.token,error=NULL').run(seal({refresh:t.refresh_token}));
