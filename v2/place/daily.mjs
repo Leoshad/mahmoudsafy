@@ -36,7 +36,7 @@ export class DailyWall{
   }});
   if(manualOnly)store.tx(()=>{const s=store.state();if(s.daily.enabled||!s.daily.manualOnly){s.daily.enabled=false;s.daily.manualOnly=true;s.daily.revision++;s.version++;store.save(s);}});
  }
- view(){return {...this.store.state().daily,runs:this.store.db.prepare('SELECT key,status,detail,createdAt FROM echo_daily_runs ORDER BY createdAt DESC LIMIT 6').all()};}
+ view(state=this.store.state()){return {...state.daily,runs:this.store.db.prepare('SELECT key,status,detail,createdAt FROM echo_daily_runs ORDER BY createdAt DESC LIMIT 6').all()};}
  stop(){this.stopped=true;this.cancel(()=>true);}
  cancel(predicate){for(const [id,x]of this.active)if(predicate(x)){this.store.status(id,'cancelled');x.controller.abort();}}
  reserve(slot){

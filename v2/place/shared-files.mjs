@@ -1,3 +1,4 @@
+import {requireStorage} from './storage-health.mjs';
 import {normalizeNote} from './note-document.mjs';
 import {randomUUID} from 'node:crypto';
 import {check,text} from './domain.mjs';
@@ -21,7 +22,7 @@ export function filesAction(store,who,d){
   }else check(['folder','note'].includes(kind),'Choose Folder or Note.');
   if(d.document!==undefined){check(kind==='note','Only notes support document content.');({note,document}=normalizeNote(store,d.document));}
   check(typeof note==='string'&&note.length<=20000,'Keep notes within 20,000 characters.');
-  const id=randomUUID(),p=parent(store,d.parent);store.db.prepare('INSERT INTO shared_files(id,parent,kind,name,note,document,photo,mime,bytes,owner,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(id,p,kind,title(name),note,document,photo,mime,bytes,who,new Date().toISOString());touch(store);return {id};
+  if(bytes)requireStorage(store,bytes.length);const id=randomUUID(),p=parent(store,d.parent);store.db.prepare('INSERT INTO shared_files(id,parent,kind,name,note,document,photo,mime,bytes,owner,updated) VALUES(?,?,?,?,?,?,?,?,?,?,?)').run(id,p,kind,title(name),note,document,photo,mime,bytes,who,new Date().toISOString());touch(store);return {id};
  }
  const item=get(store,d.item);check(d.revision===item.revision,'This item changed. Reopen it before saving; your text has been kept.',409);
  if(d.action==='edit'){check(d.note===undefined&&d.document===undefined||item.kind==='note','Only notes can be edited.');check(d.note===undefined||typeof d.note==='string'&&d.note.length<=20000,'Keep notes within 20,000 characters.');let note=d.note??item.note,document=item.document;if(d.document!==undefined)({note,document}=normalizeNote(store,d.document));else if(d.note!==undefined){check(!item.document,'Refresh the app before editing this illustrated note.',409);document=null;}store.db.prepare('UPDATE shared_files SET name=?,note=?,document=?,revision=revision+1,updated=? WHERE id=?').run(title(d.name??item.name),note,document,new Date().toISOString(),item.id);}

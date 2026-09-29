@@ -7,8 +7,16 @@ import {createHash, createCipheriv, createDecipheriv, randomBytes, randomUUID} f
 import {createGzip, createGunzip} from 'node:zlib';
 import {pipeline} from 'node:stream/promises';
 import {Transform, Writable} from 'node:stream';
+import {storageHealth} from './storage-health.mjs';
+import {unusedAudio,reclaimAudio} from './audio-storage.mjs';
 import {unusedPhotos, reclaimPhotos} from './photo-storage.mjs';
 const DAY = 86400000;
+export function retainedBackups(files){
+ const sorted=[...files].sort().reverse();if(!sorted.length)return [];
+ const day=name=>Math.floor(Number(name.split('-')[1])/DAY);
+ const previous=sorted.find(n=>day(n)<day(sorted[0]));
+ return [sorted[0],previous??sorted[1]].filter(Boolean);
+}
 const key = secret => {
   if (typeof secret !== 'string' || secret.length < 32) throw Error('A valid SESSION_SECRET is required.');
   return createHash('sha256').update('our-place-backup-v1:' + secret).digest();
@@ -51,7 +59,7 @@ export async function createRecoveryBackup(store, directory, secret, now = Date.
     const completed=await open(encrypted,'r');try{await completed.sync();}finally{await completed.close();}
     await link(encrypted, final);
     const files = (await readdir(directory)).filter(n => /^recovery-\d+-[a-f0-9-]+\.opbackup$/.test(n)).sort().reverse();
-    for (const old of files.slice(2)) await remove(join(directory, old));
+    for (const old of files.filter(n=>!retainedBackups(files).includes(n))) await remove(join(directory, old));
     return final;
   } finally { await remove(temp); await remove(encrypted); }
 }
@@ -76,11 +84,14 @@ export function startMaintenance(store, directory, secret) {
   async function run() {
     if (pending || stopped) return pending;
     pending = (async () => {
-      const candidates = unusedPhotos(store);
+      const candidates = unusedPhotos(store),audioCandidates=unusedAudio(store);
       await createRecoveryBackup(store, directory, secret);
-      if (!stopped) reclaimPhotos(store, candidates);
+      if (!stopped){reclaimPhotos(store,candidates);reclaimAudio(store,audioCandidates);}
+      store.db.exec('CREATE TABLE IF NOT EXISTS maintenance_status(id INTEGER PRIMARY KEY,checkedAt INTEGER NOT NULL,ok INTEGER NOT NULL)');
+      store.db.prepare('INSERT OR REPLACE INTO maintenance_status VALUES(1,?,1)').run(Date.now());
       console.log('Recovery backup verified; photo maintenance completed.');
-    })().catch(() => console.error('Recovery backup failed; photo cleanup skipped.')).finally(() => { pending = null; });
+      console.info(JSON.stringify({event:'storage_health',backupVerified:true,...storageHealth(store)}));
+    })().catch(() => {try{store.db.exec('CREATE TABLE IF NOT EXISTS maintenance_status(id INTEGER PRIMARY KEY,checkedAt INTEGER NOT NULL,ok INTEGER NOT NULL)');store.db.prepare('INSERT OR REPLACE INTO maintenance_status VALUES(1,?,0)').run(Date.now());}catch{}console.error('Recovery backup failed; attachment cleanup skipped.');}).finally(() => { pending = null; });
     return pending;
   }
   const timer = setInterval(run, DAY); timer.unref();

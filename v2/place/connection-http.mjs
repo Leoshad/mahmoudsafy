@@ -13,7 +13,8 @@ export function observeConnection(req,res,log=record=>console.info(JSON.stringif
   const health=path==='/api/health',started=performance.now(),id=randomUUID();
   const trace=new URL(req.url,'http://localhost').searchParams.get('connection_trace');
   const linked=/^[a-f0-9-]{36}$/.test(trace||'');
-  const base={event:'connection_server',request_id:id,route:path,...(linked?{client_request:trace}:{})};
+  req.requestId=id;const ray=String(req.headers?.['cf-ray']||'');
+  const base={...(/^[a-zA-Z0-9-]{1,80}$/.test(ray)?{cf_ray:ray}:{}),event:'connection_server',request_id:id,route:path,...(linked?{client_request:trace}:{})};
   res.setHeader('X-Request-Id',id);
   if(health||linked)log({...base,phase:'received',at:new Date().toISOString()});
   let reported=false;
