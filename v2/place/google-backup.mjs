@@ -26,7 +26,7 @@ export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=pr
   const state=randomBytes(32).toString('base64url');store.db.prepare('DELETE FROM google_backup_states WHERE expires<?').run(Date.now());
   store.db.prepare('INSERT INTO google_backup_states VALUES(?,?,?)').run(state,sid,Date.now()+600000);
   const url=new URL('https://accounts.google.com/o/oauth2/v2/auth');url.search=new URLSearchParams({client_id:env.GOOGLE_BACKUP_CLIENT_ID,redirect_uri:redirect,response_type:'code',scope:SCOPE,access_type:'offline',prompt:'consent',state});
-  if(folder()){url.searchParams.set('trigger_onepick','true');url.searchParams.set('allow_folder_selection','true');url.searchParams.set('mimetypes','application/vnd.google-apps.folder');url.searchParams.set('file_ids',folder());}
+  if(folder()){url.searchParams.set('trigger_onepick','true');url.searchParams.set('allow_folder_selection','true');url.searchParams.set('mimetypes','application/vnd.google-apps.folder');}
   return {url:url.href,cookie:seal({state})};
  }
  async function callback(params,cookie){

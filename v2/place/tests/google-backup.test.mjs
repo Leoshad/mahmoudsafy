@@ -65,7 +65,7 @@ for(const scenario of ['success','corrupt-download','bad-checksum','folder-denie
 test('folder grant uses Google picker and requires the exact configured folder',async()=>{
  const {db,backup}=setup(async()=>Response.json({refresh_token:'refresh',scope:'https://www.googleapis.com/auth/drive.file'}),{env:{GOOGLE_BACKUP_FOLDER_ID:folderId}});
  try{
-  let start=backup.start('owner'),url=new URL(start.url);assert.equal(url.searchParams.get('trigger_onepick'),'true');assert.equal(url.searchParams.get('file_ids'),folderId);
+  let start=backup.start('owner'),url=new URL(start.url);assert.equal(url.searchParams.get('trigger_onepick'),'true');assert.equal(url.searchParams.get('file_ids'),null);assert.equal(url.searchParams.get('allow_folder_selection'),'true');
   await assert.rejects(backup.callback(new URLSearchParams({state:url.searchParams.get('state'),code:'code',picked_file_ids:'wrong'}),start.cookie));assert.equal(backup.status().connected,false);
   start=backup.start('owner');url=new URL(start.url);await backup.callback(new URLSearchParams({state:url.searchParams.get('state'),code:'code',picked_file_ids:folderId}),start.cookie);assert.equal(backup.status().connected,true);
  }finally{db.close();}
