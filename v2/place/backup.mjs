@@ -79,13 +79,14 @@ export async function restoreRecoveryBackup(source, destination, secret) {
     await link(temp, destination);
   } finally { await remove(temp); }
 }
-export function startMaintenance(store, directory, secret) {
+export function startMaintenance(store, directory, secret, {upload} = {}) {
   let pending = null, stopped = false;
   async function run() {
     if (pending || stopped) return pending;
     pending = (async () => {
       const candidates = unusedPhotos(store),audioCandidates=unusedAudio(store);
-      await createRecoveryBackup(store, directory, secret);
+      const archive=await createRecoveryBackup(store, directory, secret);
+      if(upload)try{await upload(archive);}catch{console.error('Google Drive backup failed; verified local backup retained.');}
       if (!stopped){reclaimPhotos(store,candidates);reclaimAudio(store,audioCandidates);}
       store.db.exec('CREATE TABLE IF NOT EXISTS maintenance_status(id INTEGER PRIMARY KEY,checkedAt INTEGER NOT NULL,ok INTEGER NOT NULL)');
       store.db.prepare('INSERT OR REPLACE INTO maintenance_status VALUES(1,?,1)').run(Date.now());
@@ -97,7 +98,8 @@ export function startMaintenance(store, directory, secret) {
   const timer = setInterval(run, DAY); timer.unref();
   // A fresh verified backup precedes every cleanup, including after a deploy.
   const start = setTimeout(run, 10000); start.unref();
-  return async () => { stopped = true; clearInterval(timer); clearTimeout(start); await pending; };
+  const stop=async () => { stopped = true; clearInterval(timer); clearTimeout(start); await pending; };
+  stop.run=run;return stop;
 }
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const [action, source, destination] = process.argv.slice(2);

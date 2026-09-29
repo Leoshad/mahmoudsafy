@@ -22,6 +22,7 @@ import {DailyWall,updateDaily} from './daily.mjs';
 import {exportArchive} from './export.mjs';
 import {echoContext} from './context.mjs';
 import {startMaintenance} from './backup.mjs';
+import {googleBackup} from './google-backup.mjs';
 import {strokeEvent} from './draw.mjs';
 import {accountRoutes,identify,bindSession} from './account.mjs';
 import {recordReads,recordDeliveries} from './reads.mjs';
@@ -168,9 +169,17 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   }
   function context(s){const msgs=store.db.prepare('SELECT author,text FROM (SELECT rowid AS seq,author,text FROM messages WHERE aiAllowed=1 AND status=\'sent\' ORDER BY rowid DESC LIMIT 50) ORDER BY seq').all();return echoContext(msgs,s);}
   function photoData(id){if(!id)return null;const p=store.db.prepare('SELECT mime,bytes FROM photos WHERE id=?').get(id);check(p,'Photo not found.',404);return `data:${p.mime};base64,${Buffer.from(p.bytes).toString('base64')}`;}
+  const driveBackup=googleBackup({store,origin,seal,open});
   const accountHandler=accountRoutes({store,origin,sb,auth,body,send,limit,seal,open,issue,notifications,testing,clearCache:()=>cache.clear(),closeOthers:(who,sid)=>{for(const [r,m]of streams)if(m.who===who&&m.sid!==sid){r.write('event: session-ended\ndata: {}\n\n');r.end();}}});
   async function route(req,res){Object.entries(security).forEach(([k,v])=>res.setHeader(k,v));const url=new URL(req.url,origin),path=url.pathname;if(url.searchParams.has('code'))res.setHeader('Referrer-Policy','no-referrer');
     if(req.method==='POST')check(req.headers.origin===origin,'Request origin does not match.',403);
+    if(path==='/api/backup/google/callback'&&req.method==='GET'){
+      const cookie=(req.headers.cookie??'').split(';').map(v=>v.trim()).find(v=>v.startsWith('__Host-drive-state='))?.slice(19);
+      await driveBackup.callback(url.searchParams,cookie);
+      void server.runRecovery?.();
+      res.setHeader('Set-Cookie','__Host-drive-state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+      res.writeHead(303,{Location:'/api/backup/google'});return res.end();
+    }
     if(await accountHandler(req,res,path))return;
     if(path==='/api/health'){check(store.db.prepare('SELECT 1 FROM state WHERE id=1').get(),'Storage is unavailable.',503);return send(res,200,{ok:true,product:'Our Place',aiConfigured:!!process.env.OPENAI_API_KEY,youtubeConfigured:!!process.env.YOUTUBE_API_KEY});}
     if(path==='/api/login'&&req.method==='POST'){
@@ -180,6 +189,24 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
     if(path==='/api/logout'&&req.method==='POST'){const who=await auth(req,res);sharedTouch.disconnect(req.sessionId);notifications.logout(req.sessionId);store.db.prepare('DELETE FROM sessions WHERE id=?').run(req.sessionId);cookie(res,'',0);for(const [r,m]of streams)if(m.who===who)r.end();return send(res,200,{ok:true});}
     if(path.startsWith('/api/')){
       const who=await auth(req,res);
+      if(path.startsWith('/api/backup/google')){
+        check(who==='Mahmoud','Only Mahmoud can manage recovery backups.',403);
+        if(path==='/api/backup/google/connect'&&req.method==='POST'){
+          limit('drive-connect:'+who,5,600000);const next=driveBackup.start(req.sessionId);
+          res.setHeader('Set-Cookie',`__Host-drive-state=${next.cookie}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`);
+          res.writeHead(303,{Location:next.url});return res.end();
+        }
+        if(path==='/api/backup/google/run'&&req.method==='POST'){
+          limit('drive-run:'+who,2,600000);check(driveBackup.status().connected,'Connect Google Drive first.',400);
+          void server.runRecovery?.();res.writeHead(303,{Location:'/api/backup/google'});return res.end();
+        }
+        if(path==='/api/backup/google'&&req.method==='GET'){
+          const s=driveBackup.status();res.setHeader('Content-Type','text/html; charset=utf-8');
+          return res.end(`<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Our Place backups</title><body><h1>Google Drive backups</h1><p>${s.configured?(s.connected?'Connected. The first backup starts automatically. Refresh this page to check progress.':'Ready to connect.'):'Server credentials are not configured yet.'}</p><p>Last verified upload: ${s.lastSuccess?new Date(s.lastSuccess).toISOString():'None'}</p><p>${s.error??''}</p><p>Archives are encrypted. Keep your recovery secret separately. Uploaded archives are retained in Drive; monitor available storage. Google Testing authorization is temporary.</p><form method="post" action="/api/backup/google/connect"><button ${s.configured?'':'disabled'}>Connect Google Drive</button></form><form method="post" action="/api/backup/google/run"><button ${s.connected?'':'disabled'}>Back up now</button></form><p><a href="/">Back to Our Place</a></p></body></html>`);
+        }
+        check(false,'Not found.',404);
+      }
+
       if(path==='/api/connection-report'&&req.method==='POST'){
         limit('connection-report:'+who,12);const d=await body(req,20000);
         if(d.version===2){const records=connectionRecords(d);check(records,'Invalid timing report.');for(const record of records)console.info(JSON.stringify({event:'connection_trace',...record}));return send(res,200,{ok:true});}
@@ -370,6 +397,7 @@ publishPresence(true);});return;
     observeConnection(req,res);
     route(req,res).catch(e=>{if(!e.status||e.status>=500)console.error(JSON.stringify({event:'request_failed',request_id:req.requestId??null,status:e.status??500,code:typeof e.code==='string'?e.code.slice(0,60):'internal'}));if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   configureConnectionServer(server);
+  server.driveBackup=driveBackup;
   const dominoTimer=setInterval(()=>{try{const current=store.timerView,pinDue=store.nextPinExpiry<=Date.now();if(!pinDue&&!drawDue(current)&&!dominoDue(current)&&!ochoDue(current))return;const changed=store.tx(()=>{const s=store.state();const a=drawTick(s),d=dominoTick(s),o=ochoTick(s);if(!d&&!o&&!a)return pinDue;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
   const raceSaveTimer=setInterval(()=>{if(race.matches.size)try{saveRaces();}catch{console.error('Race save failed.');}},2000);raceSaveTimer.unref();
   const raceTimer=setInterval(()=>{try{race.tick();}catch{console.error('Race update failed.');}},16);raceTimer.unref();
@@ -383,7 +411,8 @@ if(process.argv[1]===fileURLToPath(import.meta.url)){
   const store=new Store(join(dir,'our-place.sqlite'),{enforceLifetimeBudget:false});console.info(JSON.stringify(store.budgetReport()));const server=createApp({store,origin:resolveOrigin(),secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>{console.log('Our Place server ready.');import('./compose-diagnostic.mjs').then(m=>m.diagnoseCompose(store)).catch(()=>console.error('Compose diagnostic unavailable.'));});
   if(process.env.YOUTUBE_API_KEY)youtubeService().resolve('M7lc1UVf-VE').then(()=>console.log('YouTube connection verified')).catch(()=>console.error('YouTube connection check failed; verify the configured key and API restrictions.'));
   void verifyEchoModels();
-  const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET);
+  const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET,{upload:path=>server.driveBackup.upload(path)});
+  server.runRecovery=stopMaintenance.run;
   process.on('SIGTERM',()=>{stopMaintenance().then(()=>server.close(()=>{store.close();process.exit(0);}));});
 }
 
