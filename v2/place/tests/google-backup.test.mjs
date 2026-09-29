@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
 import {googleBackup} from '../google-backup.mjs';
-function setup(fetcher){const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE sessions(id TEXT,expires INTEGER)');db.prepare('INSERT INTO sessions VALUES(?,?)').run('owner',Date.now()+60000);const backup=googleBackup({store:{db},origin:'https://example.com',seal:JSON.stringify,open:JSON.parse,env:{GOOGLE_BACKUP_CLIENT_ID:'client',GOOGLE_BACKUP_CLIENT_SECRET:'secret'},fetcher});return {db,backup};}
+const recoverySecret="test recovery secret with over 32 characters";
+function setup(fetcher,extra={}){const db=new DatabaseSync(':memory:');db.exec('CREATE TABLE sessions(id TEXT,expires INTEGER)');db.prepare('INSERT INTO sessions VALUES(?,?)').run('owner',Date.now()+60000);const backup=googleBackup({store:{db},origin:'https://example.com',seal:JSON.stringify,open:JSON.parse,secret:recoverySecret,...extra,env:{GOOGLE_BACKUP_CLIENT_ID:'client',GOOGLE_BACKUP_CLIENT_SECRET:'secret',...extra.env},fetcher});return {db,backup};}
 test('OAuth state is browser-bound and single-use',async()=>{
  const {db,backup}=setup(async()=>new Response(JSON.stringify({refresh_token:'refresh',scope:'https://www.googleapis.com/auth/drive.file'})));
  const first=backup.start('owner');const state=new URL(first.url).searchParams.get('state');const params=new URLSearchParams({state,code:'code'});
@@ -19,20 +20,10 @@ test('denied permission never marks Drive connected',async()=>{
  const {db,backup}=setup(async()=>new Response(JSON.stringify({refresh_token:'refresh',scope:'other'})));const a=backup.start('owner');
  await assert.rejects(backup.callback(new URLSearchParams({state:new URL(a.url).searchParams.get('state'),code:'code'}),a.cookie));assert.equal(backup.status().connected,false);db.close();
 });
-import {mkdtemp,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-test('upload verifies remote bytes before success; corrupt checksum is rejected',async()=>{
- const dir=await mkdtemp(join(tmpdir(),'drive-test-')),path=join(dir,'test.opbackup');await writeFile(path,'encrypted-test');let bad=false;
- const {db,backup}=setup(async(url,options)=>{
-  if(url.includes('oauth2'))return new Response(JSON.stringify({access_token:'access'}));
-  if(options.method==='POST')return new Response('',{headers:{location:'https://www.googleapis.com/upload/test'}});
-  for await(const chunk of options.body){};
-  return new Response(JSON.stringify({id:'file',size:14,md5Checksum:bad?'wrong':createHash('md5').update('encrypted-test').digest('hex')}));
- });db.prepare('INSERT INTO google_backup(id,token) VALUES(1,?)').run(JSON.stringify({refresh:'refresh'}));
- try{await backup.upload(path);const success=backup.status().lastSuccess;assert.ok(success);bad=true;await assert.rejects(backup.upload(path));assert.equal(backup.status().lastSuccess,success);assert.ok(backup.status().error);}finally{db.close();await rm(dir,{recursive:true});}
-});
 import {Store} from '../store.mjs';
 import {createApp} from '../server.mjs';
 test('backup settings require Mahmoud and connect requires same-origin POST',async()=>{
@@ -46,4 +37,28 @@ test('backup settings require Mahmoud and connect requires same-origin POST',asy
    assert.equal((await fetch(base+'/api/backup/google/connect',{method:'POST',headers:{Cookie,Origin:'https://evil.test'}})).status,403);
   }
  }finally{server.closeAllConnections();await new Promise(r=>server.close(r));store.close();}
+});
+import {createRecoveryBackup} from '../backup.mjs';
+const folderId='chosen-folder';
+for(const scenario of ['success','corrupt-download','bad-checksum','folder-denied','wrong-secret','delete-failed'])test('Drive folder retention: '+scenario,async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'drive-test-')),store=new Store(':memory:');
+ const path=await createRecoveryBackup(store,dir,recoverySecret),bytes=await readFile(path);store.close();
+ const events=[],deleted=[];let meta,properties;
+ const {db,backup}=setup(async(url,options={})=>{
+  const u=new URL(url);events.push(options.method||'GET');
+  if(url.includes('oauth2'))return Response.json({access_token:'access'});
+  if(u.pathname.endsWith('/'+folderId))return scenario==='folder-denied'?new Response('',{status:404}):Response.json({id:folderId,mimeType:'application/vnd.google-apps.folder',capabilities:{canAddChildren:true}});
+  if(url.includes('uploadType=resumable')){meta=JSON.parse(options.body);return new Response('',{headers:{location:'https://www.googleapis.com/upload/test'}});}
+  if(options.method==='PUT'){for await(const chunk of options.body){};return Response.json({id:'new',size:bytes.length,md5Checksum:scenario==='bad-checksum'?'bad':createHash('md5').update(bytes).digest('hex')});}
+  if(u.searchParams.get('alt')==='media')return new Response(scenario==='corrupt-download'?bytes.subarray(1):bytes);
+  if(options.method==='PATCH'){events.push('VERIFIED');properties=JSON.parse(options.body).appProperties;return Response.json({id:'new'});}
+  if(u.searchParams.has('q'))return Response.json({files:[{id:'new',name:meta.name,parents:meta.parents,createdTime:'2026-09-29T12:00:00Z',appProperties:properties},...[1,2,3,4].map(n=>({id:'old'+n,name:`recovery-${n}-abcd.opbackup`,parents:[folderId],createdTime:`2026-09-2${9-n}T12:00:00Z`,appProperties:properties})),{id:'unrelated',name:'photo.jpg',parents:[folderId],createdTime:'2026-09-20T12:00:00Z',appProperties:{}},{id:'unverified',name:'recovery-0-abcd.opbackup',parents:[folderId],createdTime:'2026-09-20T12:00:00Z',appProperties:{ourPlaceBackup:'v1'}}]});
+  if(options.method==='DELETE'){if(scenario==='delete-failed')return new Response('',{status:503});deleted.push(u.pathname.split('/').pop());return new Response(null,{status:204});}
+  return Response.json({parents:[folderId],appProperties:properties});
+ },{secret:scenario==='wrong-secret'?'wrong recovery secret over thirty two characters':recoverySecret,env:{GOOGLE_BACKUP_FOLDER_ID:folderId}});
+ db.prepare('INSERT INTO google_backup(id,token) VALUES(1,?)').run(JSON.stringify({refresh:'refresh'}));
+ try{
+  if(scenario==='success'){await backup.upload(path);assert.ok(backup.status().lastSuccess);assert.deepEqual(meta.parents,[folderId]);assert.deepEqual(deleted,['old3','old4']);assert.ok(events.indexOf('VERIFIED')<events.indexOf('DELETE'));}
+  else{await assert.rejects(backup.upload(path));assert.deepEqual(deleted,[]);assert.ok(backup.status().error);assert.equal(!!backup.status().lastSuccess,scenario==='delete-failed');}
+ }finally{db.close();await rm(dir,{recursive:true,force:true});}
 });
