@@ -103,7 +103,7 @@ export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=pr
    store.db.prepare('UPDATE google_backup SET lastSuccess=?,error=NULL WHERE id=1').run(Date.now());
    console.info(JSON.stringify({event:'google_backup_verified',folderId:folder()||'root',fileId:file.id,downloadRestored:true}));
    await rotate(headers,file.id);
-  })().catch(e=>{store.db.prepare('UPDATE google_backup SET error=? WHERE id=1').run(e.status?e.message:'Google Drive backup failed. Retry or reconnect.');throw failure('Google Drive backup failed. Check backup status.');}).finally(()=>{pendingUpload=null;});
+  })().catch(e=>{const message=e.status?e.message:'Google Drive backup failed. Retry or reconnect.';console.warn(JSON.stringify({event:'google_backup_failed',message}));store.db.prepare('UPDATE google_backup SET error=? WHERE id=1').run(message);throw failure('Google Drive backup failed. Check backup status.');}).finally(()=>{pendingUpload=null;});
   return pendingUpload;
  }
  return {status,start,callback,upload};
