@@ -190,6 +190,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
     if(path.startsWith('/api/')){
       const who=await auth(req,res);
       if(path.startsWith('/api/backup/google')){
+        res.setHeader('Content-Security-Policy',security['Content-Security-Policy'].replace("form-action 'self'","form-action 'self' https://accounts.google.com"));
         check(who==='Mahmoud','Only Mahmoud can manage recovery backups.',403);
         if(path==='/api/backup/google/connect'&&req.method==='POST'){
           limit('drive-connect:'+who,5,600000);const next=driveBackup.start(req.sessionId);
