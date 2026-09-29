@@ -46,7 +46,7 @@ try{
  await a.screenshot({path:'/tmp/wall-pin-shortcuts.png'});const wallScroll=await a.$eval('.shell',n=>n.scrollTop);
  await a.click('.wall-pinned-shortcut');await a.waitForSelector('.wall-pinned-dialog[open]');assert.match(await a.$eval('.wall-pinned-dialog',n=>n.textContent),/Our evening/);
  await a.evaluate(()=>document.querySelector('.wall-pinned-dialog button[aria-label="Close pinned moment"]').click());assert.equal(await a.$eval('.shell',n=>n.scrollTop),wallScroll);
- await a.click('.wall-pinned-shortcut');await a.evaluate(()=>[...document.querySelectorAll('.wall-pinned-dialog button')].find(b=>b.textContent==='Unpin').click());await a.waitForFunction(()=>document.querySelectorAll('.wall-pinned-shortcut').length===4);
+ await a.click('.wall-pinned-shortcut');await a.evaluate(()=>[...document.querySelectorAll('.wall-pinned-dialog button')].find(b=>b.textContent==='Pin settings').click());await a.evaluate(()=>[...document.querySelectorAll('.wall-pin-options button')].find(b=>b.textContent==='Unpin').click());await a.waitForFunction(()=>document.querySelectorAll('.wall-pinned-shortcut').length===4);
  await a.evaluate(()=>document.querySelector('.wall-pinned-dialog').close());
  assert.deepEqual(errors,[]);console.log('PASS: mobile composer, reviewed editable draft, saved settings across chat and reload, no draft notifications, two-way publication notifications.');
 }finally{await Promise.all(browsers.map(b=>b.close()));server.closeAllConnections();await new Promise(r=>server.close(r));store.close();await rm(directory,{recursive:true,force:true});}
