@@ -282,3 +282,12 @@ Listening invitations require the other person's acceptance. Server-stamped play
 Validation: `npm run check`, `npm test`, and `CHROMIUM_PATH=/tmp/chromium node tests/playlist-browser-check.mjs` (Chromium and ffmpeg required for browser check). Two isolated authenticated mobile browsers verify shared saving, real MP3 playback across tabs, invitation acceptance, synchronized pause, leaving, and upload deduplication. Physical Android/iOS lock-screen playback and cross-network audio latency remain device checks.
 
 2026-09-27 follow-up: explicit song/action grid prevents avatar overlap at 320px and 390px. Receipt remains beside the bubble end. Inactive toggles override sticky touch hover. Tests cover 60/120/180 BPM onset estimates, steady tones, shared queue advancement, duplicate ends and synchronized options.
+
+
+## September 29 reliability repairs
+
+See `REPAIR-REPORT-2026-09-29.md` for fixes, evidence and operational limits. No stylesheet or HTML geometry changed. `npm run test:release` includes syntax checks, unit/integration tests and the Chromium scenarios (ffmpeg required). Render retains the existing check/test build command.
+
+Recovery now keeps the latest archive plus one from a previous UTC day where available, still at most two and still on the same disk. Orphan audio follows the seven-day, backup-first cleanup rule. Physical upload guards preserve recovery headroom. Do not rotate SESSION_SECRET without migrating encrypted push data and preserving access to old archives. Independent off-disk recovery is not verified.
+
+SSE patches omit unchanged large fields for opted-in clients, with full snapshots for legacy clients and reconnect. Timer checks use a small cached state; temporary pins still expire server-side during idle time. A maintained trigram index accelerates literal chat searches of three or more characters. These changes mitigate growth; they do not replace a future safe archival policy.

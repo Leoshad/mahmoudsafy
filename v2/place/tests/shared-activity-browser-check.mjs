@@ -26,7 +26,7 @@ try{
  assert.equal(await pages[0].$('.activity .free-answer'),null);
  await submit(pages[1],'Ocean waves');
  for(const p of pages)await p.waitForFunction(()=>document.querySelector('.activity')?.textContent.includes('Question 2 of 2'));
- for(const p of pages){await p.$$eval('.activity button',bs=>bs.find(b=>b.textContent==='Blue').click());}
+ for(const p of pages){const accepted=p.waitForResponse(r=>r.url().includes('/api/command')&&r.request().postData()?.includes('quiz.answer'));await p.evaluate(()=>[...document.querySelectorAll('.activity button')].find(b=>b.textContent==='Blue').click());assert.equal((await accepted).status(),200);}
  for(const p of pages)await p.waitForFunction(()=>document.querySelector('.activity')?.textContent.includes('Round complete'));
  assert.equal(store.state().activity.answers.length,4);assert.deepEqual(errors,[]);
  console.log('PASS: mobile-sized browsers, both accounts, free answers, reload while waiting, choices, shared completion.');
