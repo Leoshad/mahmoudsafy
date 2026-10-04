@@ -43,3 +43,9 @@ User explicitly requires original app/chat/composer dimensions and positions to 
 
 ## 2026-09-28 Echo post ownership
 Add a moment is for Mahmoud/Safy. Post with Echo is a separate adjacent entry point. Reviewed Echo proposals publish as Echo, record the requesting person, notify the partner, and are consumed atomically. Echo editing drafts retain their proposal identity; discarding them dismisses the server proposal. Deleted posts/comments lose in-app inbox links and queued push alerts. Already delivered OS notifications cannot be recalled by this cleanup. Original unrelated layout remains unchanged.
+
+
+## 2026-10-04 — chat photo albums and PDF attachments
+- User requested selecting multiple photos in one send and sharing PDFs. Added up to 10 photos with draft previews and a responsive chat grid; each opens the existing zoom viewer. Added authenticated PDF uploads up to 10 MB, filename/size cards, and open/download links.
+- Additive SQLite migration preserves existing messages. Albums and PDFs are included in the full recovery database and referenced-attachment export; album photos are protected from orphan cleanup.
+- Validation: 690 unit/integration tests passed; build check including memory PDF renderer passed. Two-account browser check at 390×740 verifies upload, delivery, opening each photo, PDF card, reload persistence and no horizontal overflow. This is mobile emulation, not a physical-device claim.
