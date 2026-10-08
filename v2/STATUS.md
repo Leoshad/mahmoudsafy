@@ -53,3 +53,7 @@ Add a moment is for Mahmoud/Safy. Post with Echo is a separate adjacent entry po
 ## 2026-10-07 — playlist upload feedback
 - Add songs now uses one persistent file picker outside snapshot-rendered playlist DOM. Reading/uploading, completion, duplicate-song and error messages remain visible in the playlist; concurrent uploads are disabled. Account reset clears upload UI and stale callbacks.
 - User MP3 (5.8 MB) passed validation and uploaded locally; exact device failure was not reproduced. Mobile-size browser checks covered an open picker across a playlist snapshot, actual upload, duplicate feedback and a simulated storage-full response. All 690 tests passed. Local check syntax stages passed; unrelated memory PDF check was blocked by local Chromium extraction/runtime, so Render's existing build check remains the release gate.
+
+## 2026-10-08 — camera in chat
+- Added Camera to the chat + menu with a persistent image picker requesting the rear camera. Captures use the existing compressed photo upload and draft preview, then the normal Send action. Camera originals up to 20 MB are resized before upload; gallery limits remain unchanged.
+- Mobile-size two-account browser check passed: Camera opens the picker, capture hint is present, preview does not send automatically, photo arrives after Send, existing albums/PDFs and reload still work. Native camera launch depends on the phone browser and was not physically tested.
