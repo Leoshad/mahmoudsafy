@@ -40,7 +40,7 @@ test('backup settings require Mahmoud and connect requires same-origin POST',asy
 });
 import {createRecoveryBackup} from '../backup.mjs';
 const folderId='chosen-folder';
-for(const scenario of ['success','corrupt-download','bad-checksum','folder-denied','wrong-secret','delete-failed'])test('Drive folder retention: '+scenario,async()=>{
+for(const scenario of ['success','incremental-fallback','corrupt-download','bad-checksum','folder-denied','wrong-secret','delete-failed'])test('Drive folder retention: '+scenario,async()=>{
  const dir=await mkdtemp(join(tmpdir(),'drive-test-')),store=new Store(':memory:');
  const path=await createRecoveryBackup(store,dir,recoverySecret),bytes=await readFile(path);store.close();
  const events=[],deleted=[];let meta,properties;
@@ -55,10 +55,10 @@ for(const scenario of ['success','corrupt-download','bad-checksum','folder-denie
   if(u.searchParams.has('q'))return Response.json({files:[{id:'new',name:meta.name,parents:meta.parents,createdTime:'2026-09-29T12:00:00Z',appProperties:properties},...[1,2,3,4].map(n=>({id:'old'+n,name:`recovery-${n}-abcd.opbackup`,parents:[folderId],createdTime:`2026-09-2${9-n}T12:00:00Z`,appProperties:properties})),{id:'unrelated',name:'photo.jpg',parents:[folderId],createdTime:'2026-09-20T12:00:00Z',appProperties:{}},{id:'unverified',name:'recovery-0-abcd.opbackup',parents:[folderId],createdTime:'2026-09-20T12:00:00Z',appProperties:{ourPlaceBackup:'v1'}}]});
   if(options.method==='DELETE'){if(scenario==='delete-failed')return new Response('',{status:503});deleted.push(u.pathname.split('/').pop());return new Response(null,{status:204});}
   return Response.json({parents:[folderId],appProperties:properties});
- },{secret:scenario==='wrong-secret'?'wrong recovery secret over thirty two characters':recoverySecret,env:{GOOGLE_BACKUP_FOLDER_ID:folderId}});
+ },{secret:scenario==='wrong-secret'?'wrong recovery secret over thirty two characters':recoverySecret,incrementalBackup:async()=>{throw Error('synthetic incremental failure');},env:{GOOGLE_BACKUP_FOLDER_ID:folderId,...(scenario==='incremental-fallback'?{GOOGLE_BACKUP_MODE:'restic'}:{})}});
  db.prepare('INSERT INTO google_backup(id,token) VALUES(1,?)').run(JSON.stringify({refresh:'refresh'}));
  try{
-  if(scenario==='success'){await backup.upload(path);assert.ok(backup.status().lastSuccess);assert.deepEqual(meta.parents,[folderId]);assert.deepEqual(deleted,['old3','old4']);assert.ok(events.indexOf('VERIFIED')<events.indexOf('DELETE'));}
+  if(scenario==='success'||scenario==='incremental-fallback'){await backup.upload(path);assert.ok(backup.status().lastSuccess);assert.deepEqual(meta.parents,[folderId]);assert.deepEqual(deleted,['old3','old4']);assert.ok(events.indexOf('VERIFIED')<events.indexOf('DELETE'));}
   else{await assert.rejects(backup.upload(path));assert.deepEqual(deleted,[]);assert.ok(backup.status().error);assert.equal(!!backup.status().lastSuccess,scenario==='delete-failed');}
  }finally{db.close();await rm(dir,{recursive:true,force:true});}
 });

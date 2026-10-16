@@ -2,3 +2,6 @@ data/
 .env
 *.sqlite*
 node_modules/
+
+backup-bin/
+node_modules

@@ -1,3 +1,4 @@
+import {resticBackup} from './restic-backup.mjs';
 import {randomBytes,createHash} from 'node:crypto';
 import {createReadStream,createWriteStream} from 'node:fs';
 import {stat,mkdtemp,rm} from 'node:fs/promises';
@@ -7,7 +8,7 @@ import {pipeline} from 'node:stream/promises';
 import {restoreRecoveryBackup} from './backup.mjs';
 const SCOPE='https://www.googleapis.com/auth/drive.file';
 const API='https://www.googleapis.com/drive/v3/files';
-export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=process.env}){
+export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=process.env,incrementalBackup=resticBackup}){
  store.db.exec('CREATE TABLE IF NOT EXISTS google_backup(id INTEGER PRIMARY KEY,token TEXT,lastSuccess INTEGER,lastAttempt INTEGER,error TEXT); CREATE TABLE IF NOT EXISTS google_backup_states(state TEXT PRIMARY KEY,sid TEXT,expires INTEGER)');
  const folder=()=>env.GOOGLE_BACKUP_FOLDER_ID||'';
  const family=()=>createHash('sha256').update('drive-backup-family:'+secret).digest('hex').slice(0,32);
@@ -91,6 +92,18 @@ export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=pr
     const access=await fetcher(API+'/'+encodeURIComponent(folder())+'?fields=id,mimeType,trashed,capabilities(canAddChildren)',{headers,signal:AbortSignal.timeout(20000)});
     if(!access.ok)throw failure('The selected Drive folder is not accessible to Our Place. Grant access to this folder. Existing backups were kept.');
     const info=await access.json();if(info.mimeType!=='application/vnd.google-apps.folder'||info.trashed||!info.capabilities?.canAddChildren)throw failure('The selected Drive folder is not writable. Existing backups were kept.');
+   }
+   if(env.GOOGLE_BACKUP_MODE==='restic'||(env.NODE_ENV==='production'&&env.GOOGLE_BACKUP_MODE!=='legacy')){
+    try{
+     const result=await incrementalBackup({archive:path,secret,folder:folder(),clientId:env.GOOGLE_BACKUP_CLIENT_ID,clientSecret:env.GOOGLE_BACKUP_CLIENT_SECRET,token:{access_token:t.access_token,refresh_token:open(row().token).refresh,token_type:'Bearer',expiry:new Date(Date.now()+(t.expires_in||3600)*1000).toISOString()}});
+     store.db.prepare('UPDATE google_backup SET lastSuccess=?,error=NULL WHERE id=1').run(Date.now());
+     console.info(JSON.stringify({event:'google_backup_verified',folderId:folder(),format:'restic-v1',...result}));
+     if(result.retentionWarning)console.warn(JSON.stringify({event:'google_backup_retention_warning',format:'restic-v1'}));
+     return;
+    }catch{
+     // The old independent recovery archive remains the safety fallback during migration.
+     console.warn(JSON.stringify({event:'google_backup_incremental_fallback',reason:'Incremental backup did not verify; using full archive.'}));
+    }
    }
    const size=(await stat(path)).size,hash=createHash('md5');for await(const chunk of createReadStream(path))hash.update(chunk);const checksum=hash.digest('hex');
    const start=await fetcher('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,size,md5Checksum',{method:'POST',headers:{...headers,'Content-Type':'application/json','X-Upload-Content-Type':'application/octet-stream','X-Upload-Content-Length':String(size)},body:JSON.stringify({name:basename(path),appProperties:{ourPlaceBackup:'v1'},...(folder()?{parents:[folder()]}:{})}),signal:AbortSignal.timeout(20000)});
