@@ -27,10 +27,10 @@ test('HTTP notification endpoints require auth and same origin; expose no stored
 });
 test('a quiet like cannot replace an already queued comment alert',async t=>{const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());push.enqueue({...event(),kind:'wall',target:{tab:'space',post:'p'},body:'A comment'});push.enqueue({...event(),kind:'wall',target:{tab:'space',post:'p'},quiet:true,body:'A like'});advance(2000);await push.drain();assert.equal(sent[0].body.body,'A comment');assert.equal(sent[0].body.quiet,false);});
 test('wall replies notify the other participant even when the post owner replies',()=>{const before={items:[{id:'p',by:'Mahmoud',comments:[],likes:[]}]},after=structuredClone(before);after.items[0].comments.push({id:'c',by:'Mahmoud',text:'Reply'});const result=attentionEvents(before,after,'Mahmoud');assert.equal(result[0].to,'Safy');assert.equal(result[0].target.post,'p');});
-function clientFixture({supported=true,iphone=false,installed=false,existing=false,failBind=false}={}){
- const nodes=new Map(),handlers={},requests=[];let permissionCalls=0,subscriptionCalls=0;
+function clientFixture({supported=true,iphone=false,installed=false,existing=false,failBind=false,subscribeError=null}={}){
+ const nodes=new Map(),handlers={},requests=[];let permissionCalls=0,subscriptionCalls=0,unsubscribeCalls=0;
  const node=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,showModal(){},close(){}});return nodes.get(id);};
- const sub=subscription(),registration={pushManager:{getSubscription:async()=>existing?{...sub,toJSON:()=>sub}:null,subscribe:async()=>{subscriptionCalls++;return {...sub,toJSON:()=>sub,unsubscribe:async()=>{}};}},getNotifications:async()=>[]};
+ const sub=subscription(),registration={pushManager:{getSubscription:async()=>existing?{...sub,toJSON:()=>sub,unsubscribe:async()=>{unsubscribeCalls++;}}:null,subscribe:async()=>{subscriptionCalls++;if(subscribeError)throw subscribeError;return {...sub,toJSON:()=>sub,unsubscribe:async()=>{}};}},getNotifications:async()=>[]};
  const document={visibilityState:'visible',hidden:false,hasFocus:()=>true,querySelector:node,addEventListener:(n,f)=>{const prev=handlers[n];handlers[n]=(...args)=>{prev?.(...args);f(...args);};}};
  const navigator={userAgent:iphone?'iPhone':'Android',platform:'',standalone:installed};
  if(supported)navigator.serviceWorker={register:async()=>registration,ready:Promise.resolve(registration),addEventListener(){}};
@@ -38,7 +38,7 @@ function clientFixture({supported=true,iphone=false,installed=false,existing=fal
  const Notification={permission:'default',requestPermission:async()=>{permissionCalls++;Notification.permission='granted';return 'granted';}};
  const context={AbortController,AbortSignal,setTimeout,clearTimeout,queueMicrotask,window,document,navigator,crypto:{randomUUID},matchMedia:()=>({matches:installed}),location:{href:'https://example.test/',origin:'https://example.test'},history:{replaceState(){}},URL,Uint8Array,atob,CustomEvent:class{},setInterval(){},fetch:async(path,options)=>{requests.push({path,options});if(path.endsWith('/subscribe')&&failBind){failBind=false;throw Error('offline');}return {ok:true,json:async()=>path==='/api/notifications'?{publicKey:sub.keys.p256dh}:{ok:true}};},...(supported?{Notification}:{})};
  vm.runInNewContext(readFileSync(new URL('../public/notifications.js',import.meta.url),'utf8'),context);window.OurNotifications.connection(true);
- return {window,document,navigator,nodes,node,handlers,requests,get permissionCalls(){return permissionCalls;},get subscriptionCalls(){return subscriptionCalls;}};
+ return {window,document,navigator,nodes,node,handlers,requests,get unsubscribeCalls(){return unsubscribeCalls;},get permissionCalls(){return permissionCalls;},get subscriptionCalls(){return subscriptionCalls;}};
 }
 test('client never prompts on sign-in; explicit Enable opts in and visibility updates are sent',async()=>{const c=clientFixture();c.window.OurNotifications.sync({who:'Mahmoud'});await new Promise(setImmediate);assert.equal(c.permissionCalls,0);assert.ok(c.requests.some(r=>r.path.endsWith('/presence')&&JSON.parse(r.options.body).visible));await c.node('#notifications-enable').onclick();assert.equal(c.permissionCalls,1);assert.equal(c.subscriptionCalls,1);assert.ok(c.requests.some(r=>r.path.endsWith('/subscribe')));c.window.OurNotifications.reset();assert.equal(JSON.parse(c.requests.at(-1).options.body).visible,false);});
 test('unsupported browsers and non-installed iPhones show usable guidance without permission prompts',async()=>{for(const opts of [{supported:false},{iphone:true}]){const c=clientFixture(opts);c.node('#notifications-open').onclick();await new Promise(setImmediate);assert.equal(c.node('#notifications-enable').disabled,true);assert.ok(c.node('#notifications-status').textContent.length>20);assert.equal(c.permissionCalls,0);}});
@@ -128,4 +128,15 @@ test('chat push survives a short offline period and still expires after an hour'
 test('new messages alert again on a collapsed notification while quiet updates stay silent',async()=>{
  const w=worker(),data={owner:'Safy',expires:Date.now()+60000,tag:'same-chat',body:'Message'};await w.push(data);await w.push({...data,body:'Next message'});assert.equal(w.shown.length,2);assert.equal(w.shown[1][1].tag,w.shown[0][1].tag);assert.equal(w.shown[1][1].renotify,true);
  await w.push({...data,quiet:true});assert.equal(w.shown[2][1].renotify,false);assert.equal(w.shown[2][1].silent,true);
+});
+
+test('Enable reconnects an existing browser subscription without deleting or recreating it',async()=>{
+ const c=clientFixture({existing:true});c.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);await c.node('#notifications-enable').onclick();assert.equal(c.unsubscribeCalls,0);assert.equal(c.subscriptionCalls,0);assert.ok(c.requests.some(r=>r.path.endsWith('/subscribe')));
+});
+test('Enable preserves the browser subscription when server registration fails',async()=>{
+ const c=clientFixture({existing:true,failBind:true});c.navigator.onLine=false;c.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);await c.node('#notifications-enable').onclick();assert.equal(c.unsubscribeCalls,0);assert.equal(c.subscriptionCalls,0);assert.match(c.node('#notifications-status').textContent,/subscription is saved/);
+ await c.node('#notifications-enable').onclick();assert.equal(c.unsubscribeCalls,0);assert.equal(c.requests.filter(r=>r.path.endsWith('/subscribe')).length,2);
+});
+test('Enable shows the actual browser registration failure instead of blaming the connection',async()=>{
+ const c=clientFixture({subscribeError:Object.assign(Error('Registration failed - push service error'),{name:'AbortError'})});c.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);await c.node('#notifications-enable').onclick();assert.equal(c.subscriptionCalls,2);assert.match(c.node('#notifications-status').textContent,/AbortError/);assert.match(c.node('#notifications-status').textContent,/push service error/);
 });

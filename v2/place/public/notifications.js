@@ -28,35 +28,33 @@ async function refresh(){
 $('#notifications-open').onclick=()=>{dialog.showModal();refresh().catch(e=>status.textContent=e.message);};
 $('#notifications-close').onclick=()=>dialog.close();
 enable.onclick=async()=>{
- if(busy||!who)return;busy=true;enable.disabled=true;const current=epoch;
+ if(busy||!who)return;busy=true;enable.disabled=true;const current=epoch;let stage='permission';
  try{
-  // Permission must be requested directly from the tap, including on iPhone.
+  // Request permission directly from the tap, including on iPhone.
   const permission=await Notification.requestPermission();if(permission!=='granted'){await refresh();return;}
-  const r=await ready;if(!r)throw Error('Notifications could not start. Reload Our Place and try again.');
-  const config=await request('');const bytes=Uint8Array.from(atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-config.publicKey.length%4)%4)),c=>c.charCodeAt(0));
-  let sub=await r.pushManager.getSubscription();
-  // A browser may keep an old subscription after the server-side binding has
-  // disappeared or after the VAPID key changed. Recreate it once before
-  // reporting a push-service failure.
-  if(sub){
-   let registered=false;
-   try{registered=(await request('/status',{endpoint:sub.endpoint})).registered;}catch{}
-   if(!registered){try{await sub.unsubscribe();}catch{}sub=null;}
-  }
+  stage='worker';const r=await ready;if(!r)throw Error('Reload Our Place to start notifications.');
+  stage='server';const config=await request('');if(current!==epoch)return;
+  const bytes=Uint8Array.from(atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-config.publicKey.length%4)%4)),c=>c.charCodeAt(0));
+  stage='device';let sub=await r.pushManager.getSubscription();if(current!==epoch)return;
+  // Missing server binding does not mean the browser subscription is broken.
+  // Replace only an explicitly different application key, never on a network failure.
+  const oldKey=sub?.options?.applicationServerKey;
+  if(oldKey){const previous=new Uint8Array(oldKey);if(previous.length!==bytes.length||previous.some((v,i)=>v!==bytes[i])){await sub.unsubscribe();sub=null;}}
   const subscribe=()=>r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes});
   try{sub=sub||await subscribe();}
   catch(first){
-   // Chrome/Android can transiently retain a broken PushManager record.
-   // Clear it and retry once from the same explicit user action.
-   const stale=await r.pushManager.getSubscription().catch(()=>null);
-   if(stale)try{await stale.unsubscribe();}catch{}
-   sub=await subscribe();
+   if(first?.name!=='AbortError')throw first;
+   sub=await r.pushManager.getSubscription();if(current!==epoch)return;
+   sub=sub||await subscribe();
   }
-  if(current!==epoch){await sub.unsubscribe();return;}
-  try{await request('/subscribe',sub.toJSON());}
-  catch(serverError){try{await sub.unsubscribe();}catch{}throw serverError;}
-  bound=who;await refresh();
- }catch(e){console.error('notification registration',e);status.textContent=(e?.name==='AbortError'||e?.name==='NotAllowedError'||/push service|registration/i.test(e?.message||''))?'Push registration failed. Check your connection, then tap Enable once more. If it still fails, restart the installed Our Place app and try again.':(e.message||'Notifications could not start.');}finally{busy=false;enable.disabled=!supported||Notification.permission==='denied';disable.disabled=false;}
+  if(current!==epoch)return;
+  stage='save';await request('/subscribe',sub.toJSON());if(current!==epoch)return;
+  bound=who;bindAfter=Date.now()+60000;stage='verify';await refresh();
+ }catch(e){
+  if(current!==epoch)return;
+  const detail=String(e?.message||'Please try again.').slice(0,220),code=String(e?.name||'Error');
+  status.textContent=Notification.permission==='denied'?'Notifications are blocked. Allow them in your phone or browser settings, then return here.':stage==='device'?'Your browser could not register this device for push notifications ('+code+'): '+detail:stage==='save'?'Your device subscription is saved in this browser, but Our Place could not connect it yet. Tap Enable to retry. '+detail:'Could not enable notifications ('+stage+'): '+detail;
+ }finally{busy=false;enable.disabled=!supported||Notification.permission==='denied';disable.disabled=false;}
 };
 disable.onclick=async()=>{if(busy)return;busy=true;disable.disabled=true;try{const r=await ready,sub=r&&await r.pushManager.getSubscription();if(sub){await request('/unsubscribe',{endpoint:sub.endpoint});await sub.unsubscribe();}bound=null;await clearShown();await refresh();}catch(e){status.textContent=e.message;}finally{busy=false;disable.disabled=false;}};
 testButton.onclick=async()=>{
