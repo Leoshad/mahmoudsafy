@@ -20,7 +20,7 @@ self.addEventListener('push',event=>event.waitUntil((async()=>{
  if(windows.some(w=>w.visibilityState==='visible'&&w.focused===true)){await receipt(data,'foreground');return;}
  // Verify account. Daily posts suppress only foreground windows on this device.
  try{const r=await fetch('/api/notifications',{cache:'no-store',signal:AbortSignal.timeout(4000)});if(r.status===401)return;if(r.ok){const status=await r.json();if(status.who!==data.owner){await receipt(data,'wrong-account');return;}if(!data.deviceOnly&&status.visible){await receipt(data,'foreground');return;}}}catch{}
- const options={body:String(data.body||'You have an update.').slice(0,180),icon:'/icon-192.png',tag:String(data.tag||'our-place').slice(0,64),renotify:false,data:{url:destination(data.target)}};
+ const options={body:String(data.body||'You have an update.').slice(0,180),icon:'/icon-192.png',tag:String(data.tag||'our-place').slice(0,64),renotify:!data.quiet,data:{url:destination(data.target)}};
  if(data.quiet)options.silent=true;else options.vibrate=[180];
  try{await self.registration.showNotification('Our Place',options);await receipt(data,'shown');}catch{await receipt(data,'display-failed');}
 })()));

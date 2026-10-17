@@ -1,11 +1,11 @@
 (()=>{'use strict';
-let who=null,registration=null,bound=null,pending=null,busy=false,epoch=0,sequence=0,presenceFlight=null,realtime=false,realtimeAt=0;
+let who=null,registration=null,bound=null,pending=null,busy=false,epoch=0,sequence=0,presenceFlight=null,realtime=false,realtimeAt=0,bindFlight=null,bindAfter=0;
 const client=crypto.randomUUID(),supported='serviceWorker'in navigator&&'PushManager'in window&&'Notification'in window;
 const $=s=>document.querySelector(s),dialog=$('#notifications-dialog'),status=$('#notifications-status'),enable=$('#notifications-enable'),disable=$('#notifications-disable'),testButton=$('#notifications-test');
 const iphone=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
 const installed=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
 const ready=supported?navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(()=>navigator.serviceWorker.ready).then(r=>(registration=r,r)).catch(()=>null):Promise.resolve(null);
-async function request(path,data,keepalive=false,signal){const r=await fetch('/api/notifications'+path,{method:data?'POST':'GET',headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined,keepalive,signal});if(!r.ok){const v=await r.json();throw Error(v.error||'Could not update notifications. Try again.');}return r.json();}
+async function request(path,data,keepalive=false,signal){const r=await fetch('/api/notifications'+path,{method:data?'POST':'GET',headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined,keepalive,signal:signal||AbortSignal.timeout(10000)});if(!r.ok){const v=await r.json();throw Error(v.error||'Could not update notifications. Try again.');}return r.json();}
 // hasFocus includes focused descendants (including the embedded player).
 // Do not infer focus from a remembered iframe or fullscreen element.
 function foreground(){return document.visibilityState==='visible'&&document.hasFocus()&&navigator.onLine!==false;}
@@ -63,14 +63,25 @@ testButton.onclick=async()=>{
  if(busy||!who)return;busy=true;testButton.disabled=true;
  try{const r=await ready,sub=r&&await r.pushManager.getSubscription();if(!sub)throw Error('Enable notifications on this device first.');await request('/test',{endpoint:sub.endpoint});status.textContent='Test scheduled. Leave Our Place now; it will be sent in 5 seconds.';}catch(e){status.textContent=e.message;}finally{busy=false;testButton.disabled=false;}
 };
-async function bind(){const current=epoch,name=who,r=await ready;if(!name||!r||bound===name)return;const sub=await r.pushManager.getSubscription();if(sub&&current===epoch){await request('/subscribe',sub.toJSON());if(current===epoch)bound=name;}}
+async function bind(){
+ if(!who||busy||bindFlight||navigator.onLine===false||Date.now()<bindAfter)return;
+ const current=epoch,name=who;bindAfter=Date.now()+15000;
+ const flight=(async()=>{const r=await ready;if(!r||current!==epoch)return;const sub=await r.pushManager.getSubscription();if(current!==epoch)return;
+  if(sub){const status=await request('/status',{endpoint:sub.endpoint});if(current!==epoch)return;if(!status.registered)await request('/subscribe',sub.toJSON());if(current!==epoch)return;bound=name;}
+  bindAfter=Date.now()+60000;
+ })();bindFlight=flight;try{await flight;}finally{if(bindFlight===flight)bindFlight=null;}
+}
+function recoverBinding(){if(!document.hidden){bindAfter=0;bind().catch(()=>{});}}
+window.addEventListener('online',recoverBinding);window.addEventListener('focus',recoverBinding);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)recoverBinding();});
+setInterval(()=>{if(who&&!document.hidden)bind().catch(()=>{});},15000);
 function receive(url){try{const u=new URL(url,location.origin);if(u.origin!==location.origin)return;const value=JSON.parse(u.searchParams.get('notice'));if(value&&['chat','space','together'].includes(value.tab))pending=value;}catch{}deliver();}
 function deliver(){if(who&&pending){const value=pending;pending=null;window.dispatchEvent(new CustomEvent('our-place-notification',{detail:value}));}}
 if(supported)navigator.serviceWorker.addEventListener('message',e=>{if(e.data?.type==='notification-open')receive(e.data.url);});
 window.addEventListener('focus',presence);window.addEventListener('blur',()=>queueMicrotask(presence));window.addEventListener('online',presence);window.addEventListener('offline',presence);document.addEventListener('fullscreenchange',()=>queueMicrotask(presence));
 document.addEventListener('visibilitychange',presence);window.addEventListener('pageshow',presence);window.addEventListener('pagehide',()=>{if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});});
 setInterval(()=>{if(who&&!document.hidden)presence();},1500);
-window.OurNotifications={connection(ok){const changed=realtime!==!!ok;realtime=!!ok;if(ok)realtimeAt=Date.now();if(changed)presence();},refreshPresence:presence,sync(state){if(who!==state.who){presenceFlight?.controller.abort();presenceFlight=null;who=state.who;epoch++;bound=null;presence();bind().catch(()=>{});}deliver();},reset(){if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});presenceFlight?.controller.abort();presenceFlight=null;realtime=false;who=null;bound=null;epoch++;dialog.close();clearShown().catch(()=>{});}};
+window.OurNotifications={connection(ok){const changed=realtime!==!!ok;realtime=!!ok;if(ok)realtimeAt=Date.now();if(changed)presence();},refreshPresence:presence,sync(state){if(who!==state.who){presenceFlight?.controller.abort();presenceFlight=null;who=state.who;epoch++;bound=null;bindAfter=0;presence();bind().catch(()=>{});}deliver();},reset(){if(who)request('/presence',{client,visible:false,sequence:++sequence},true).catch(()=>{});presenceFlight?.controller.abort();presenceFlight=null;realtime=false;who=null;bound=null;bindAfter=0;epoch++;dialog.close();clearShown().catch(()=>{});}};
 receive(location.href);if(new URL(location.href).searchParams.has('notice'))history.replaceState(history.state,'','/');
 })();
 

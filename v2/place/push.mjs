@@ -50,7 +50,7 @@ export class PushNotifications{
  enqueue(e){if(!this.mark(e.key))return;
  if(['wall','daily','invitation'].includes(e.kind)||/invited you|mentioned you/.test(e.body)){this.db.prepare('INSERT OR IGNORE INTO notification_inbox VALUES(?,?,?,?,NULL)').run(e.key,e.to,JSON.stringify({body:e.body,target:e.target}),this.now());this.db.prepare('DELETE FROM notification_inbox WHERE owner=? AND id NOT IN (SELECT id FROM notification_inbox WHERE owner=? ORDER BY created DESC LIMIT 100)').run(e.to,e.to);}
 const topic=digest(e.to+':'+(e.kind==='message'?'messages':(e.kind==='test'?e.key:JSON.stringify(e.target)))).slice(0,24),id=e.to+':'+topic;
- const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,kind:e.kind,deviceOnly:['daily','test','invitation'].includes(e.kind),subscriptionId:e.subscriptionId,quiet:!!e.quiet,tag:topic,createdAt:this.now(),expires:this.now()+(['daily','invitation'].includes(e.kind)?12*3600000:120000)};
+ const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,kind:e.kind,deviceOnly:['daily','test','invitation'].includes(e.kind),subscriptionId:e.subscriptionId,quiet:!!e.quiet,tag:topic,createdAt:this.now(),expires:this.now()+(['daily','invitation'].includes(e.kind)?12*3600000:(e.kind==='message'||e.kind==='echo'?3600000:120000))};
  this.db.prepare(`INSERT INTO push_queue(id,owner,topic,body,due,expires) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=CASE WHEN json_extract(excluded.body,'$.quiet')=1 AND json_extract(push_queue.body,'$.quiet')=0 THEN push_queue.body ELSE excluded.body END,expires=excluded.expires`).run(id,e.to,topic,JSON.stringify(body),this.now()+(e.kind==='test'?5000:300),body.expires);
  }
  scan(actor){const current=this.store.state();
