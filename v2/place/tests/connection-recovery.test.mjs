@@ -6,10 +6,10 @@ const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8');
 function transport({initialState={who:'Mahmoud'},load=async()=>{},probe=async c=>c.state}={}){
  let now=0,watchdog,syncs=0,drains=0,polls=0;const streams=[],windowEvents={},documentEvents={},timers=[];
  class Stream{constructor(){this.readyState=0;this.events={};this.closed=false;streams.push(this);}addEventListener(t,f){this.events[t]=f;}close(){this.closed=true;this.readyState=2;}emit(t,data={}){if(t==='open')this.readyState=1;this.events[t]?.({data:JSON.stringify(data)});}}
- const c={AbortController,snapshotSerial:0,api:async()=>{polls++;return probe(c);},state:initialState,source:null,lastEvent:0,reconnectTimer:null,sessionEpoch:0,connectionWanted:true,recoveryTask:null,recoveryAfter:0,recoveryFailures:0,typingUntil:0,online:[],presenceReceivedAt:0,receivePresence(){},EventSource:Stream,Date:{now:()=>now},navigator:{onLine:true},document:{hidden:false,addEventListener:(t,f)=>documentEvents[t]=f},window:{addEventListener:(t,f)=>windowEvents[t]=f},setInterval:f=>watchdog=f,setTimeout:(fn,delay)=>(timers.push({fn,delay}),timers.length),clearTimeout(){},paintPresence(){},paintTyping(){},receiveTyping(){},absorb(s){c.state=s;},signOutUI(){c.connectionWanted=false;},drainOutbox:async()=>{drains++;},sync:async()=>{syncs++;await load(c);},older:[],paintFeed(){}};
+ const c={AbortController,snapshotSerial:0,api:async()=>{polls++;return probe(c);},state:initialState,source:null,lastEvent:0,reconnectTimer:null,sessionEpoch:0,connectionWanted:true,recoveryTask:null,recoveryAfter:0,recoveryFailures:0,typingUntil:0,online:[],presenceReceivedAt:0,receivePresence(){},EventSource:Stream,Date:{now:()=>now},navigator:{onLine:true},document:{hidden:false,addEventListener:(t,f)=>documentEvents[t]=f},window:{addEventListener:(t,f)=>windowEvents[t]=f},setInterval:f=>watchdog=f,setTimeout:(fn,delay)=>(timers.push({fn,delay}),timers.length),clearTimeout(id){if(timers[id-1])timers[id-1].cancelled=true;},paintPresence(){},paintTyping(){},receiveTyping(){},absorb(s){c.state=s;},signOutUI(){c.connectionWanted=false;},drainOutbox:async()=>{drains++;},sync:async()=>{syncs++;await load(c);},older:[],paintFeed(){}};
  vm.createContext(c);vm.runInContext(source.slice(source.indexOf('function connect(){'),source.indexOf("$('#login-form').onsubmit")),c);
  vm.runInContext(source.slice(source.indexOf('let connectionProbe='),source.indexOf('window.OurComfort?.init')),c);
- return {c,streams,windowEvents,documentEvents,get polls(){return polls;},get syncs(){return syncs;},get drains(){return drains;},time:n=>now=n,runTimers:delay=>{for(const t of timers.splice(0))if(t.delay===delay)t.fn();},tick:()=>watchdog()};
+ return {c,streams,windowEvents,documentEvents,get polls(){return polls;},get syncs(){return syncs;},get drains(){return drains;},time:n=>now=n,runTimers:delay=>{for(const t of [...timers])if(!t.cancelled&&t.delay===delay){t.cancelled=true;t.fn();}},tick:()=>watchdog()};
 }
 test('a slow 10-second connection survives the 8-second watchdog and opens',async()=>{
  const h=transport();h.c.connect();h.time(8000);h.tick();assert.equal(h.streams.length,1);assert.equal(h.streams[0].closed,false);
@@ -94,4 +94,48 @@ test('resume discards a CONNECTING stream inherited from the previous network im
  h.c.document.hidden=false;h.documentEvents.visibilitychange();
  assert.equal(old.closed,true);assert.equal(h.streams.length,2);
  await new Promise(r=>setImmediate(r));assert.equal(h.streams.length,2);
+});
+
+
+test('failed background stream closes once and resumes immediately with fresh messages',async()=>{
+ const h=transport({probe:async()=>({who:'Mahmoud',messages:[{id:'missed-in-background'}]})});
+ h.c.connect();const old=h.streams[0];old.emit('open');
+ h.c.document.hidden=true;h.documentEvents.visibilitychange();old.onerror();
+ assert.equal(old.closed,true);assert.equal(h.c.source,null);
+ h.time(60000);h.runTimers(500);h.tick();assert.equal(h.streams.length,1);
+ h.c.document.hidden=false;h.documentEvents.visibilitychange();
+ assert.equal(h.streams.length,2);await new Promise(r=>setImmediate(r));
+ assert.equal(h.c.state.messages[0].id,'missed-in-background');
+ old.onerror();assert.equal(h.c.source,h.streams[1]);
+});
+test('foreground failures back off with a cap; HTTP fallback cannot bypass the delay',async()=>{
+ const h=transport();h.c.connect();let clock=0;
+ for(const delay of [500,1000,2000,4000,8000,8000]){
+  const stream=h.c.source;stream.onerror();assert.equal(stream.closed,true);
+  const count=h.streams.length;await h.c.probeConnection(true);assert.equal(h.streams.length,count);
+  h.time(clock+delay-1);h.c.connect();assert.equal(h.streams.length,count);
+  clock+=delay;h.time(clock);h.runTimers(delay);assert.equal(h.streams.length,count+1);
+ }
+ h.c.source.emit('snapshot',{who:'Mahmoud'});h.c.source.onerror();
+ h.time(clock+500);h.runTimers(500);assert.ok(h.c.source);
+});
+test('network restoration bypasses an old retry delay and keeps a single fresh stream',async()=>{
+ const h=transport();h.c.connect();h.c.source.onerror();
+ h.c.navigator.onLine=false;h.windowEvents.offline();
+ h.c.navigator.onLine=true;h.windowEvents.online();h.windowEvents.focus();
+ assert.equal(h.streams.length,2);h.time(500);h.runTimers(500);assert.equal(h.streams.length,2);
+ await new Promise(r=>setImmediate(r));assert.equal(h.streams.length,2);
+});
+test('initial SSE failure retries without a loaded state; sign-out cancels stale retry effects',()=>{
+ const h=transport({initialState:null});h.c.connect();h.c.source.onerror();
+ h.time(500);h.runTimers(500);assert.equal(h.streams.length,2);
+ h.c.source.onerror();h.c.sessionEpoch++;h.c.connectionWanted=false;
+ h.time(1500);h.runTimers(1000);assert.equal(h.streams.length,2);
+});
+test('backgrounding cancels a pending retry and a connecting socket without new requests',()=>{
+ const h=transport();h.c.connect();h.c.source.onerror();
+ h.c.document.hidden=true;h.documentEvents.visibilitychange();
+ h.time(500);h.runTimers(500);assert.equal(h.streams.length,1);
+ const cold=transport();cold.c.connect();cold.c.document.hidden=true;cold.documentEvents.visibilitychange();
+ assert.equal(cold.streams[0].closed,true);assert.equal(cold.c.source,null);
 });

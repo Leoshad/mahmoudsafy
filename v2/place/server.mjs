@@ -70,6 +70,8 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   const key=Buffer.from(hash(secret),'hex'),cookieName=testing?'ms_place':'__Host-ms_place';
   initMemories(store);
   const sharedTouch=new SharedTouch({onComplete:(moment,now)=>{if(saveTouchMemory(store,moment,now))queueMicrotask(()=>refresh());}});
+  store.db.exec(`CREATE TABLE IF NOT EXISTS session_credentials(id TEXT PRIMARY KEY,body TEXT NOT NULL);
+    CREATE TRIGGER IF NOT EXISTS remove_session_credentials AFTER DELETE ON sessions BEGIN DELETE FROM session_credentials WHERE id=OLD.id; END;`);
   const streams=new Map(),running=new Map(),cache=new Map(),rates=new Map(),authFlights=new Map();
   // Concurrent state, presence and stream requests share provider work. Keep the
   // existing authorization lifetime; never extend it on a failed verification.
@@ -85,16 +87,48 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   function limit(id,max,ms=60000){const now=Date.now();let r=rates.get(id);if(!r||r.until<now){r={n:0,until:now+ms};rates.set(id,r);}check(++r.n<=max,'Please wait a moment before trying again.',429);if(rates.size>5000)for(const [k,v]of rates)if(v.until<now)rates.delete(k);}
   async function sb(path,data,token,method){let r;try{r=await authFetch(V2+'/auth/v1/'+path,{method:method||(data?'POST':'GET'),headers:{apikey:process.env.SUPABASE_PUBLISHABLE_KEY??'',...(token?{Authorization:'Bearer '+token}:{}),'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined,signal:AbortSignal.timeout(10000)});}catch{throw new Fault('Account service is temporarily unavailable. Please try again.',503);}if(r.status>=500||[408,409].includes(r.status))throw new Fault('Account service is temporarily unavailable. Please try again.',503);if(!r.ok){let e={};try{e=await r.json();}catch{}const code=e.error_code||e.code;const messages={weak_password:'Choose a stronger password (at least 12 characters).',same_password:'Choose a different new password.',email_exists:'This email is already in use.',email_address_invalid:'Enter a valid email address.',email_address_not_authorized:'Email delivery is not configured for this address yet.',over_email_send_rate_limit:'Too many emails requested. Please try again later.',otp_expired:'This link expired or was already used. Request a new one.',invalid_credentials:'The email or current password is incorrect.'};throw new Fault(messages[code]||(r.status===429?'Please wait before requesting another email.':'Could not verify your account or complete the change. Please try again.'),r.status===429?429:method==='PUT'||path.startsWith('recover')?400:401);}return r.status===204?{}:r.json();}
   function member(user){return identify(store,user);}
-  function issue(res,t,who,keep){const sid=keep||randomUUID(),until=Date.now()+604800000;store.db.prepare('INSERT OR REPLACE INTO sessions VALUES(?,?)').run(sid,until);bindSession(store,sid,who,{fresh:true});cookie(res,seal({sid,token:t.access_token,refresh:t.refresh_token,exp:Date.now()+t.expires_in*1000,until}));return sid;}
+  const sessionLife=604800000;
+  function saveSession(session){store.db.prepare('INSERT INTO session_credentials VALUES(?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(session.sid,seal(session));}
+  function issue(res,t,who,keep){
+    const sid=keep||randomUUID(),until=Date.now()+sessionLife;
+    const session={sid,token:t.access_token,refresh:t.refresh_token,exp:Date.now()+t.expires_in*1000,until};
+    store.tx(()=>{store.db.prepare('INSERT INTO sessions VALUES(?,?) ON CONFLICT(id) DO UPDATE SET expires=excluded.expires').run(sid,until);bindSession(store,sid,who,{fresh:true});saveSession(session);});
+    cookie(res,seal(session));return sid;
+  }
+  function requireSession(sid){const row=store.db.prepare('SELECT expires FROM sessions WHERE id=?').get(sid);if(!row||row.expires<=Date.now())throw Object.assign(new Fault('Please sign in again.',401),{code:row?'session_expired':'session_revoked_or_missing'});}
   async function auth(req,res){
-    const raw=(req.headers.cookie??'').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='))?.slice(cookieName.length+1);check(raw,'Please sign in.',401);let session=open(raw);check(session.until>Date.now()&&store.db.prepare('SELECT 1 FROM sessions WHERE id=? AND expires>?').get(session.sid,Date.now()),'Please sign in again.',401);req.sessionId=session.sid;
+    const raw=(req.headers.cookie??'').split(';').map(x=>x.trim()).find(x=>x.startsWith(cookieName+'='))?.slice(cookieName.length+1);
+    if(!raw)throw Object.assign(new Fault('Please sign in.',401),{code:'session_cookie_missing'});let incoming;try{incoming=open(raw);}catch(e){e.code='session_cookie_invalid';throw e;}requireSession(incoming.sid);req.sessionId=incoming.sid;
     const authStarted=performance.now();
-    if(session.exp<Date.now()+30000){const t=await authOnce('refresh:'+hash(session.refresh),()=>sb('token?grant_type=refresh_token',{refresh_token:session.refresh}));session={...session,token:t.access_token,refresh:t.refresh_token,exp:Date.now()+t.expires_in*1000};cookie(res,seal(session));}
-    let c=cache.get(hash(session.token));if(!c||c.until<Date.now()){c=await authOnce('user:'+hash(session.token),async()=>{const user=await sb('user',null,session.token);return {name:member(user),until:Date.now()+30000};});cache.set(hash(session.token),c);if(cache.size>100)cache.clear();}
-    // A logout/password change may have revoked this session during the await.
-    check(store.db.prepare('SELECT 1 FROM sessions WHERE id=? AND expires>?').get(session.sid,Date.now()),'Please sign in again.',401);
-    req.authMs=Math.round(performance.now()-authStarted);
-    bindSession(store,session.sid,c.name);req.authSession=session;return c.name;
+    const result=await authOnce('session:'+incoming.sid,async()=>{
+      requireSession(incoming.sid);
+      const saved=store.db.prepare('SELECT body FROM session_credentials WHERE id=?').get(incoming.sid);
+      let session=saved?open(saved.body):incoming;
+      check(session.sid===incoming.sid&&session.until>Date.now(),'Please sign in again.',401);
+      if(session.exp<Date.now()+30000){
+        const t=await sb('token?grant_type=refresh_token',{refresh_token:session.refresh});
+        requireSession(session.sid);
+        session={...session,token:t.access_token,refresh:t.refresh_token,exp:Date.now()+t.expires_in*1000};
+        // Persist rotated credentials before replying: a dropped response or old
+        // browser cookie must not replay an already-used provider refresh token.
+        saveSession(session);
+      }
+      let c=cache.get(hash(session.token));
+      if(!c||c.until<Date.now()){
+        c=await authOnce('user:'+hash(session.token),async()=>{const user=await sb('user',null,session.token);return {name:member(user),until:Date.now()+30000};});
+        cache.set(hash(session.token),c);if(cache.size>100)cache.clear();
+      }
+      requireSession(session.sid);bindSession(store,session.sid,c.name);
+      // Seven days of inactivity, renewed at most daily after successful auth.
+      // Revoked and already-expired sessions never reach this renewal.
+      if(session.until<Date.now()+sessionLife-86400000){session={...session,until:Date.now()+sessionLife};store.db.prepare('UPDATE sessions SET expires=? WHERE id=?').run(session.until,session.sid);}
+      const current=store.db.prepare('SELECT body FROM session_credentials WHERE id=?').get(session.sid);
+      if(!current||open(current.body).until!==session.until)saveSession(session);
+      return {session,name:c.name};
+    });
+    requireSession(incoming.sid);bindSession(store,incoming.sid,result.name);
+    if(incoming.token!==result.session.token||incoming.until!==result.session.until)cookie(res,seal(result.session),Math.max(1,Math.ceil((result.session.until-Date.now())/1000)));
+    req.authMs=Math.round(performance.now()-authStarted);req.authSession=result.session;return result.name;
   }
   const send=(res,code,data)=>{res.writeHead(code,{'Content-Type':'application/json; charset=utf-8'});res.end(JSON.stringify(data));};
   async function body(req,max=8*1024*1024){let size=0,chunks=[];for await(const c of req){size+=c.length;check(size<=max,'This attachment is too large.',413);chunks.push(c);}try{return JSON.parse(Buffer.concat(chunks).toString());}catch{throw new Fault('Invalid request.');}}
@@ -403,7 +437,7 @@ publishPresence(true);});return;
   }
   const server=http.createServer((req,res)=>{
     observeConnection(req,res);
-    route(req,res).catch(e=>{if(!e.status||e.status>=500)console.error(JSON.stringify({event:'request_failed',request_id:req.requestId??null,status:e.status??500,code:typeof e.code==='string'?e.code.slice(0,60):'internal'}));if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
+    route(req,res).catch(e=>{if(e.status===401)console.warn(JSON.stringify({event:'session_rejected',request_id:req.requestId??null,code:typeof e.code==='string'?e.code.slice(0,60):'authentication_rejected'}));if(!e.status||e.status>=500)console.error(JSON.stringify({event:'request_failed',request_id:req.requestId??null,status:e.status??500,code:typeof e.code==='string'?e.code.slice(0,60):'internal'}));if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   configureConnectionServer(server);
   server.driveBackup=driveBackup;
   const dominoTimer=setInterval(()=>{try{const current=store.timerView,pinDue=store.nextPinExpiry<=Date.now();if(!pinDue&&!drawDue(current)&&!dominoDue(current)&&!ochoDue(current))return;const changed=store.tx(()=>{const s=store.state();const a=drawTick(s),d=dominoTick(s),o=ochoTick(s);if(!d&&!o&&!a)return pinDue;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
