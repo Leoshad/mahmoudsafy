@@ -75,3 +75,17 @@ Synthetic 100 MiB attachment trial: initial packed data 105010837 bytes; +100 te
 - Validation: 702 main tests passed, 32 notification tests passed after final timeout change; build/PDF check passed. Physical-phone permissions and OS delivery still require a test on each phone.
 
 - Follow-up: user supplied the exact Enable failure. Enable no longer deletes an existing browser subscription merely because its server binding is absent or server registration fails. Replacement is limited to a mismatched VAPID application key; transient AbortError gets one bounded retry. Errors retain their real browser cause and distinguish server save failures. All 35 notification tests pass, including preservation on failed registration and error reporting. The physical-device registration error still requires a post-deploy retry to confirm.
+
+
+## 2026-10-26 — Hold Hands implementation checkpoint (NOT DEPLOYED)
+- User approved realistic hands with lavender and brown sleeves and explicitly requested implementation. Upward swipe now shows Hug / Hold Hands together; selection remains within the original drag and commits only on release over an option. Cancelling does not invite the partner. Side fingerprint swipe remains.
+- Added distinct hands readiness, shared animation synchronization, explicit tap-to-join with heartbeat until exit, and a deduplicated Together memory with date/time. Existing Hug press/hold remains.
+- BLOCKER: approved storyboard is still images only. Actual continuous `public/hold-hands-motion.mp4` and final `public/hold-hands-memory.webp` are NOT present. Never deploy this checkpoint until real media is supplied and visually verified. Do not replace the approved artwork with the hug test fixture, crossfaded stills, or a drawing.
+- Higgsfield read-only quote: Seedance 2.5, one silent 5-second 720p video = 35 credits; account balance 4. No generation, purchase, subscription or deployment performed.
+- Validation: 708 unit/integration tests pass, including 43 shared-moment/readiness tests. Browser regression was updated for the new gesture; it explicitly uses the existing hug clip as a hands transport fixture only. Browser execution could not launch Chromium in this environment. Build syntax checks ran, but full check failed in Chromium/PDF runtime (font extraction chown EINVAL); no mobile visual or real video acceptance claimed.
+- Source is a local unpushed checkpoint on v2/first-slice only. Existing production remains unchanged.
+
+## 2026-10-26 — Hold Hands media completed
+- User supplied and approved `1000428252.mp4` and requested deployment. Added original 720p/24fps video with audio removed losslessly; ten-second natural playback, then retain final frame with existing glow. Added a small final-frame memory image and range-enabled video route.
+- Hands now use a ten-second shared fill; Hug/Touch retain four seconds. Two browser processes at mobile width passed native touch choice, cancellation, existing Hug pause/resume, hands tap acceptance, one completion, explicit exit, and unchanged side-touch behavior. Actual video used, foreground simulated; physical Android not tested.
+- 708 unit/integration tests passed. Complete syntax/PDF check passed using a local Chromium runtime adapter (no production dependency changes). Previous missing-media/runtime blockers above are resolved.

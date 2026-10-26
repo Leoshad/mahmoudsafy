@@ -2,6 +2,7 @@ import {randomUUID,createHash} from 'node:crypto';
 import {check} from './domain.mjs';
 const names=['Mahmoud','Safy'];
 export const SHARED_MOMENT_FILL_MS=4000;
+export const HANDS_MOMENT_FILL_MS=10000;
 export const SHARED_MOMENT_RELEASE_MS=1000;
 export const SHARED_MOMENT_FADE_MS=1400;
 export class SharedTouch {
@@ -12,8 +13,8 @@ export class SharedTouch {
   if(this.requireReady&&!s.participants.every(k=>this.readiness.get(k)?.until>now)){this.close(now);return;}
   if(!s.done&&now-s.activity>90000){this.close(now);return;}
   const dt=Math.max(0,Math.min(250,now-s.updated));s.updated=now;
-  const both=(s.kind!=='hug'||s.reveal===1)&&names.every(n=>s.hands[n]?.until>now);
-  if(!s.done){s.progress=both?Math.min(1,s.progress+dt/SHARED_MOMENT_FILL_MS):s.kind==='hug'?s.progress:Math.max(0,s.progress-dt/1100);if(s.progress===1){this.onComplete(s,now);s.done=true;}}
+  const both=(s.kind==='touch'||s.reveal===1)&&names.every(n=>s.hands[n]?.until>now);
+  if(!s.done){s.progress=both?Math.min(1,s.progress+dt/(s.kind==='hands'?HANDS_MOMENT_FILL_MS:SHARED_MOMENT_FILL_MS)):s.kind!=='touch'?s.progress:Math.max(0,s.progress-dt/1100);if(s.progress===1){this.onComplete(s,now);s.done=true;}}
   this.settle(now);
  }
  settle(now){const s=this.session;if(!s)return;const any=names.some(n=>s.hands[n]?.until>now);if(any){s.releaseAt=null;return;}if(!s.done)return;s.releaseAt??=now;if(now-s.releaseAt>=(s.done?SHARED_MOMENT_RELEASE_MS:0)+SHARED_MOMENT_FADE_MS)this.close(now);}
@@ -28,7 +29,7 @@ export class SharedTouch {
   const key=sid+':'+p.client,orderKey=key+(p.action==='ready'?':ready':p.action==='reveal'?':reveal':':touch'),old=this.orders.get(orderKey);
   if(old&&p.seq<=old.seq)return this.view(now);
   this.orders.set(orderKey,{seq:p.seq,at:now});
-  if(p.action==='ready'){if(p.active===true)this.readiness.set(key,{who,sid,hugReady:p.hugReady===true,until:now+3500});else this.readiness.delete(key);this.tick(now);return this.view(now);}
+  if(p.action==='ready'){if(p.active===true)this.readiness.set(key,{who,sid,hugReady:p.hugReady===true,handsReady:p.handsReady===true,until:now+3500});else this.readiness.delete(key);this.tick(now);return this.view(now);}
   this.tick(now);
   if(p.action==='close'){if(this.session?.id===p.id){check(!this.requireReady||this.session.participants.includes(key),'This moment is active on another device.',409);this.close(now);}else this.closed.set(p.id,now);return this.view(now);}
   if(p.action==='start'){
@@ -36,21 +37,22 @@ export class SharedTouch {
    if(this.closed.has(p.id))return this.view(now);
    const participants=names.map(n=>n===who?(this.readiness.get(key)?.until>now?key:null):[...this.readiness].find(([k,v])=>v.who===n&&v.until>now)?.[0]);
    check(!this.requireReady||participants.every(Boolean),'You both need Our Chat open and in focus.',409);
-   check(p.kind===undefined||['touch','hug'].includes(p.kind),'Invalid shared moment.');
+   check(p.kind===undefined||['touch','hug','hands'].includes(p.kind),'Invalid shared moment.');
    check(p.kind!=='hug'||!this.requireReady||participants.every(k=>this.readiness.get(k)?.hugReady),'The hug animation is still getting ready on one of your devices.',409);
+   check(p.kind!=='hands'||!this.requireReady||participants.every(k=>this.readiness.get(k)?.handsReady),'The hand-holding animation is still getting ready on one of your devices.',409);
    if(this.session)check(!this.requireReady||this.session.participants.includes(key),'This moment is active on another device.',409);
-   if(!this.session)this.session={id:p.id||randomUUID(),kind:p.kind||'touch',starter:who,opener:key,reveal:p.kind==='hug'?(p.reveal??1):1,participants,audience:participants.filter(Boolean).map(k=>k.slice(k.lastIndexOf(':')+1)),created:now,activity:now,updated:now,hands:{},progress:0,done:false,releaseAt:null};
+   if(!this.session)this.session={id:p.id||randomUUID(),kind:p.kind||'touch',starter:who,opener:key,reveal:p.kind!=='touch'?(p.reveal??1):1,participants,audience:participants.filter(Boolean).map(k=>k.slice(k.lastIndexOf(':')+1)),created:now,activity:now,updated:now,hands:{},progress:0,done:false,releaseAt:null};
    return this.view(now);
   }
   const s=this.session;if(!s||s.id!==p.id)return this.view(now);
   check(!this.requireReady||s.participants.includes(key),'Your touch is active on another device.',409);
   if(p.action==='reveal'){
-   check(s.kind==='hug'&&s.opener===key,'Only the initiating device can reveal this hug.',409);
+   check(s.kind!=='touch'&&s.opener===key,'Only the initiating device can reveal this hug.',409);
    check(typeof p.reveal==='number'&&Number.isFinite(p.reveal)&&p.reveal>=0&&p.reveal<=1,'Invalid reveal progress.');
    if(s.reveal<1)s.reveal=p.reveal;s.activity=now;return this.view(now);
   }
   if(p.action==='hold'){
-   check(s.kind!=='hug'||s.reveal===1,'Wait for the hug scene to open.',409);
+   check(s.kind==='touch'||s.reveal===1,'Wait for the hug scene to open.',409);
    check(!this.requireReady||s.participants.includes(key),'Your touch is active on another device.',409);
    const h=s.hands[who];check(!h||h.until<=now||h.key===key,'Your touch is active on another device.',409);
    s.hands[who]={key,sid,until:now+1200};s.engaged=true;s.activity=now;
@@ -62,6 +64,6 @@ export class SharedTouch {
 }
 
 export function saveTouchMemory(store,moment,now=Date.now()){
- const hug=moment.kind==='hug',id=(hug?'shared-hug:':'shared-touch:')+createHash('sha256').update(moment.id).digest('hex');
- return store.tx(()=>{if(store.db.prepare('SELECT 1 FROM messages WHERE id=?').get(id))return false;store.message({id,author:'Together',text:hug?'A shared hug ♥':'A shared touch ♥',status:'sent'});store.db.prepare('UPDATE messages SET createdAt=? WHERE id=?').run(new Date(now).toISOString(),id);return true;});
+ const hug=moment.kind==='hug',hands=moment.kind==='hands',id=(hands?'shared-hands:':hug?'shared-hug:':'shared-touch:')+createHash('sha256').update(moment.id).digest('hex');
+ return store.tx(()=>{if(store.db.prepare('SELECT 1 FROM messages WHERE id=?').get(id))return false;store.message({id,author:'Together',text:hands?'We held hands ♥':hug?'A shared hug ♥':'A shared touch ♥',status:'sent'});store.db.prepare('UPDATE messages SET createdAt=? WHERE id=?').run(new Date(now).toISOString(),id);return true;});
 }

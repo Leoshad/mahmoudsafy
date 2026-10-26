@@ -40,3 +40,14 @@ test('hug memory is persisted once, distinct from touch, and found by literal ch
 
 test('unfinished hug holds its progress when either or both participants release',()=>{const {s,action}=setup('hug');for(let t=100;t<=1600;t+=100){action('Mahmoud','hold',t);action('Safy','hold',t);}action('Mahmoud','release',1610);action('Safy','release',1620);const progress=s.view(1620).progress;s.tick(5000);assert.equal(s.view(5000).progress,progress);assert.equal(s.view(5000).releaseAt,null);action('Mahmoud','hold',5100);action('Safy','hold',5100);s.tick(5200);assert.ok(s.view(5200).progress>progress);});
 test('only the starter can reveal a hug; holds wait for complete opening; reveal cannot regress afterward',()=>{const s=new SharedTouch({requireReady:false});const act=(who,action,seq,extra={})=>s.action(who,who,{id:'preview-test',client:who+'-device',seq,action,...extra},seq*10);act('Mahmoud','start',1,{kind:'hug',reveal:.1});assert.equal(s.view().reveal,.1);assert.throws(()=>act('Safy','hold',1),/scene to open/);assert.throws(()=>act('Safy','reveal',2,{reveal:.5}),/initiating device/);act('Mahmoud','reveal',2,{reveal:.6});assert.equal(s.view().reveal,.6);act('Mahmoud','reveal',3,{reveal:1});act('Mahmoud','reveal',2,{reveal:.2});assert.equal(s.view().reveal,1);act('Mahmoud','hold',4);act('Safy','hold',3);assert.deepEqual(s.view(40).hands,{Mahmoud:true,Safy:true});});
+
+
+test('hand holding waits for both media-ready participants and records only one completed memory',async()=>{
+ const {Store}=await import('../store.mjs'),{saveTouchMemory}=await import('../shared-touch.mjs');const db=new Store(':memory:');const s=new SharedTouch({onComplete:(m,t)=>saveTouchMemory(db,m,t)});let seq=0;
+ const act=(who,action,t,extra={})=>s.action(who,who,{id:'holding-hands-test',client:who+'-device',seq:++seq,action,...extra},t);
+ try{act('Mahmoud','ready',0,{active:true,handsReady:true});act('Safy','ready',0,{active:true,handsReady:false});assert.throws(()=>act('Mahmoud','start',1,{kind:'hands'}),/still getting ready/);act('Safy','ready',2,{active:true,handsReady:true});act('Mahmoud','start',3,{kind:'hands'});
+ for(let t=100;t<=2000;t+=100){act('Mahmoud','hold',t);s.tick(t);}assert.equal(db.messages().length,0);
+ for(let t=2100;t<=12500;t+=100){for(const who of ['Mahmoud','Safy']){act(who,'ready',t,{active:true,handsReady:true});act(who,'hold',t);}s.tick(t);}
+ assert.equal(s.view(12500).done,true);assert.equal(db.messages().length,1);assert.equal(db.messages()[0].text,'We held hands ♥');assert.match(db.messages()[0].id,/^shared-hands:/);assert.equal(saveTouchMemory(db,s.session,12600),false);act('Safy','close',12700);assert.equal(s.view(),null);assert.equal(db.messages().length,1);
+ }finally{db.close();}
+});

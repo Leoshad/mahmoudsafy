@@ -85,3 +85,14 @@
 #shared-touch.shared-hug .hug-hold{border-color:rgb(var(--hug-glow) / .7);color:rgb(var(--hug-glow));background:rgb(var(--hug-glow) / .13);box-shadow:0 0 calc(14px + var(--hug-progress)*18px) rgb(var(--hug-glow) / calc(.18 + var(--hug-progress)*.32)),inset 0 0 12px rgb(var(--hug-glow) / .12)}
 #shared-touch.shared-hug.touch-holding .hug-hold{background:rgb(var(--hug-glow) / .28);color:#fff0f6;box-shadow:0 0 calc(20px + var(--hug-progress)*20px) rgb(var(--hug-glow) / calc(.3 + var(--hug-progress)*.35)),inset 0 0 12px rgb(var(--hug-glow) / .22)}
 #shared-touch.shared-hug .touch-particles span{color:rgb(var(--hug-glow))}
+
+/* The swipe remains captured until release over one of these two targets. */
+.moment-chooser{position:absolute;left:12px;right:12px;z-index:30;display:flex;gap:10px;padding:8px;border:1px solid #725163;border-radius:22px;background:#20171feb;box-shadow:0 10px 34px #0006;touch-action:none}
+.moment-chooser[hidden]{display:none}
+#our-place-trial .moment-chooser button{flex:1;min-width:0;min-height:56px;padding:10px 8px;background:#352430;border:1px solid #5f4354;border-radius:16px;color:#efd6df;font-size:14px;touch-action:none}
+#our-place-trial .moment-chooser button.is-selected{background:#674357;border-color:#e5b889;color:#ffe4cf;box-shadow:0 0 20px #e6a5bb3d}
+#shared-touch .hug-scene video[hidden]{display:none}
+#shared-touch.shared-hands .hug-scene{mask-image:radial-gradient(ellipse,#000 48%,transparent 76%)}
+#shared-touch.shared-hands .hug-scene video{object-fit:contain}
+#shared-touch.shared-hands .touch-particles{opacity:.4}
+#our-place-trial #feed .shared-hands-memory .touch-memory-icon{width:46px;height:34px;object-fit:cover;border-radius:12px}
