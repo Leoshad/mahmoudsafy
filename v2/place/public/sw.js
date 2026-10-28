@@ -10,7 +10,7 @@ function destination(target){
 }
 async function receipt(data,result){
  if(!data?.tag)return;
- try{await fetch('/api/notifications/receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:data.tag,result}),signal:AbortSignal.timeout(3000)});}catch{}
+ try{const subscription=await self.registration.pushManager?.getSubscription();await fetch('/api/notifications/receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:data.tag,result,createdAt:data.createdAt,endpoint:subscription?.endpoint}),signal:AbortSignal.timeout(3000)});}catch{}
 }
 self.addEventListener('push',event=>event.waitUntil((async()=>{
  let data;try{data=event.data.json();}catch{return;}

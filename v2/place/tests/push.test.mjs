@@ -12,8 +12,11 @@ function subscription(id='a'){const key=createECDH('prime256v1');key.generateKey
 function fixture(t){const store=new Store(':memory:');t.after(()=>store.close());let now=Date.now(),sent=[];for(const name of ['Mahmoud','Safy'])store.db.prepare('INSERT INTO sessions VALUES(?,?)').run(name,now+86400000);const push=new PushNotifications(store,{secret,origin:'https://example.test',now:()=>now,send:async(s,b,o)=>sent.push({sub:s,body:JSON.parse(b),options:o})});return {store,push,sent,advance:n=>now+=n};}
 const event=(to='Safy',key=randomUUID())=>({key,to,body:'A new message.',kind:'message',target:{tab:'chat',message:key}});
 test('subscriptions reject arbitrary hosts, malformed keys and non-HTTPS endpoints',()=>{const valid=subscription();assert.deepEqual(validateSubscription(valid),valid);for(const endpoint of ['http://fcm.googleapis.com/x','https://localhost/x','https://fcm.googleapis.com.attacker.test/x','https://fcm.googleapis.com:8000/x','https://user@fcm.googleapis.com/x'])assert.throws(()=>validateSubscription({...valid,endpoint}));assert.throws(()=>validateSubscription({...valid,keys:{p256dh:'x',auth:'x'}}));});
-test('visible recipient suppresses alerts independently of the other person and across tabs',async t=>{const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());push.subscribe('Mahmoud','Mahmoud',subscription('b'));push.presence('Mahmoud','Mahmoud',{client:randomUUID(),visible:true});const client=randomUUID();push.presence('Safy','Safy',{client,visible:true});push.presence('Safy','Safy',{client:randomUUID(),visible:false});push.enqueue(event());advance(2000);await push.drain();assert.equal(sent.length,0);push.presence('Safy','Safy',{client,visible:false});push.enqueue(event());push.enqueue(event('Mahmoud'));advance(2000);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].body.owner,'Safy');assert.equal(sent[0].options.urgency,'high');});
-test('returning to the app clears pending alerts; closed app receives collapsed notifications once',async t=>{const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());const a=event();push.enqueue(a);push.enqueue(a);push.enqueue(event());advance(2000);await push.drain();await push.drain();assert.equal(sent.length,1);push.enqueue(event());push.presence('Safy','Safy',{client:randomUUID(),visible:true});advance(2000);await push.drain();assert.equal(sent.length,1);});
+test('messages reach every registered device even while another device is foreground',async t=>{
+ const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription('phone'));push.subscribe('Safy','Safy',subscription('desktop'));
+ const client=randomUUID();push.presence('Safy','Safy',{client,visible:true,sequence:1});const e=event();push.enqueue(e);push.enqueue(e);
+ push.presence('Safy','Safy',{client,visible:true,sequence:2});advance(400);await push.drain();await push.drain();assert.equal(sent.length,2);assert.ok(sent.every(x=>x.body.deviceOnly&&x.options.urgency==='high'));
+});
 test('expired alerts and logged-out sessions cannot deliver',async t=>{const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());push.enqueue(event());advance(3600001);await push.drain();assert.equal(sent.length,0);push.enqueue(event());push.logout('Safy');advance(2000);await push.drain();assert.equal(sent.length,0);});
 test('keys and endpoints are encrypted at rest; restart keeps the same VAPID identity',t=>{const {push,store}=fixture(t),sub=subscription();push.subscribe('Safy','Safy',sub);const raw=store.db.prepare('SELECT body FROM push_subscriptions').get().body;assert.ok(!raw.includes(sub.endpoint));assert.deepEqual(push.open(raw),sub);const again=new PushNotifications(store,{secret,origin:'https://example.test'});assert.equal(again.vapid.publicKey,push.vapid.publicKey);assert.ok(!store.db.prepare('SELECT body FROM push_meta').get().body.includes(push.vapid.privateKey));});
 test('retries do not notify successful devices again, and expired subscriptions are removed',async t=>{const {push,store,advance}=fixture(t);push.subscribe('Safy','Safy',subscription('good'));push.subscribe('Safy','Safy',subscription('retry'));let good=0,retry=0;push.send=async sub=>{if(sub.endpoint.endsWith('good'))good++;else if(++retry===1)throw Object.assign(Error(),{statusCode:503});};push.enqueue(event());advance(2000);await push.drain();advance(16000);await push.drain();assert.equal(good,1);assert.equal(retry,2);push.send=async()=>{throw Object.assign(Error(),{statusCode:410});};push.enqueue(event());advance(2000);await push.drain();assert.equal(store.db.prepare('SELECT COUNT(*) n FROM push_subscriptions').get().n,0);});
@@ -27,7 +30,7 @@ test('HTTP notification endpoints require auth and same origin; expose no stored
 });
 test('a quiet like cannot replace an already queued comment alert',async t=>{const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());push.enqueue({...event(),kind:'wall',target:{tab:'space',post:'p'},body:'A comment'});push.enqueue({...event(),kind:'wall',target:{tab:'space',post:'p'},quiet:true,body:'A like'});advance(2000);await push.drain();assert.equal(sent[0].body.body,'A comment');assert.equal(sent[0].body.quiet,false);});
 test('wall replies notify the other participant even when the post owner replies',()=>{const before={items:[{id:'p',by:'Mahmoud',comments:[],likes:[]}]},after=structuredClone(before);after.items[0].comments.push({id:'c',by:'Mahmoud',text:'Reply'});const result=attentionEvents(before,after,'Mahmoud');assert.equal(result[0].to,'Safy');assert.equal(result[0].target.post,'p');});
-function clientFixture({supported=true,iphone=false,installed=false,existing=false,failBind=false,subscribeError=null}={}){
+function clientFixture({supported=true,iphone=false,installed=false,existing=false,failBind=false,subscribeError=null,delivery=null}={}){
  const nodes=new Map(),handlers={},requests=[];let permissionCalls=0,subscriptionCalls=0,unsubscribeCalls=0;
  const node=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,showModal(){},close(){}});return nodes.get(id);};
  const sub=subscription(),registration={pushManager:{getSubscription:async()=>existing?{...sub,toJSON:()=>sub,unsubscribe:async()=>{unsubscribeCalls++;}}:null,subscribe:async()=>{subscriptionCalls++;if(subscribeError)throw subscribeError;return {...sub,toJSON:()=>sub,unsubscribe:async()=>{}};}},getNotifications:async()=>[]};
@@ -36,29 +39,17 @@ function clientFixture({supported=true,iphone=false,installed=false,existing=fal
  if(supported)navigator.serviceWorker={register:async()=>registration,ready:Promise.resolve(registration),addEventListener(){}};
  const window={addEventListener:(n,f)=>{const prev=handlers[n];handlers[n]=(...args)=>{prev?.(...args);f(...args);};},dispatchEvent(){},...(supported?{PushManager:{},Notification:{}}:{})};
  const Notification={permission:'default',requestPermission:async()=>{permissionCalls++;Notification.permission='granted';return 'granted';}};
- const context={AbortController,AbortSignal,setTimeout,clearTimeout,queueMicrotask,window,document,navigator,crypto:{randomUUID},matchMedia:()=>({matches:installed}),location:{href:'https://example.test/',origin:'https://example.test'},history:{replaceState(){}},URL,Uint8Array,atob,CustomEvent:class{},setInterval(){},fetch:async(path,options)=>{requests.push({path,options});if(path.endsWith('/subscribe')&&failBind){failBind=false;throw Error('offline');}return {ok:true,json:async()=>path==='/api/notifications'?{publicKey:sub.keys.p256dh}:{ok:true}};},...(supported?{Notification}:{})};
+ const context={AbortController,AbortSignal,setTimeout,clearTimeout,queueMicrotask,window,document,navigator,crypto:{randomUUID},matchMedia:()=>({matches:installed}),location:{href:'https://example.test/',origin:'https://example.test'},history:{replaceState(){}},URL,Uint8Array,atob,CustomEvent:class{},setInterval(){},fetch:async(path,options)=>{requests.push({path,options});if(path.endsWith('/subscribe')&&failBind){failBind=false;throw Error('offline');}return {ok:true,json:async()=>path==='/api/notifications'?{publicKey:sub.keys.p256dh}:path.endsWith('/status')&&delivery?{registered:true,delivery}:{ok:true}};},...(supported?{Notification}:{})};
  vm.runInNewContext(readFileSync(new URL('../public/notifications.js',import.meta.url),'utf8'),context);window.OurNotifications.connection(true);
  return {window,document,navigator,nodes,node,handlers,requests,get unsubscribeCalls(){return unsubscribeCalls;},get permissionCalls(){return permissionCalls;},get subscriptionCalls(){return subscriptionCalls;}};
 }
 test('client never prompts on sign-in; explicit Enable opts in and visibility updates are sent',async()=>{const c=clientFixture();c.window.OurNotifications.sync({who:'Mahmoud'});await new Promise(setImmediate);assert.equal(c.permissionCalls,0);assert.ok(c.requests.some(r=>r.path.endsWith('/presence')&&JSON.parse(r.options.body).visible));await c.node('#notifications-enable').onclick();assert.equal(c.permissionCalls,1);assert.equal(c.subscriptionCalls,1);assert.ok(c.requests.some(r=>r.path.endsWith('/subscribe')));c.window.OurNotifications.reset();assert.equal(JSON.parse(c.requests.at(-1).options.body).visible,false);});
 test('unsupported browsers and non-installed iPhones show usable guidance without permission prompts',async()=>{for(const opts of [{supported:false},{iphone:true}]){const c=clientFixture(opts);c.node('#notifications-open').onclick();await new Promise(setImmediate);assert.equal(c.node('#notifications-enable').disabled,true);assert.ok(c.node('#notifications-status').textContent.length>20);assert.equal(c.permissionCalls,0);}});
 
-test('Echo reply survives a late background transition instead of being lost to the previous foreground lease',async t=>{
- const {push,store,sent,advance}=fixture(t),client=randomUUID();push.subscribe('Safy','Safy',subscription());
- push.presence('Safy','Safy',{client,visible:true,sequence:1});
- store.message({id:randomUUID(),author:'Echo',text:'Hello'});push.scan();advance(2000);await push.drain();assert.equal(sent.length,0);
- push.presence('Safy','Safy',{client,visible:false,sequence:3});
- push.presence('Safy','Safy',{client,visible:true,sequence:2}); // An older heartbeat arrives out of order.
- assert.equal(push.visible('Safy'),false);advance(2000);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].body.owner,'Safy');assert.equal(sent[0].options.urgency,'high');
-});
-test('fresh foreground acknowledgement cancels pending replies and avoids a later stale alert',async t=>{
- const {push,sent,advance}=fixture(t),client=randomUUID();push.subscribe('Safy','Safy',subscription());
- push.presence('Safy','Safy',{client,visible:true,sequence:1});push.enqueue(event());advance(2000);await push.drain();
- push.presence('Safy','Safy',{client,visible:true,sequence:2});advance(46000);await push.drain();assert.equal(sent.length,0);
-});
-test('a killed background process cannot permanently suppress a new reply',async t=>{
- const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());push.presence('Safy','Safy',{client:randomUUID(),visible:true,sequence:1});
- push.enqueue(event());advance(2000);await push.drain();assert.equal(sent.length,0);advance(6500);await push.drain();assert.equal(sent.length,1);
+test('Echo replies are not lost to another device foreground heartbeat',async t=>{
+ const {push,store,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());const client=randomUUID();
+ push.presence('Safy','Safy',{client,visible:true,sequence:1});store.message({id:randomUUID(),author:'Echo',text:'Hello'});push.scan();
+ push.presence('Safy','Safy',{client,visible:true,sequence:2});advance(400);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].body.deviceOnly,true);
 });
 test('subscription status checks the current account and login session, not just browser permission',t=>{
  const {push}=fixture(t),sub=subscription();assert.equal(push.registered('Safy','Safy',sub.endpoint),false);push.subscribe('Safy','Safy',sub);assert.equal(push.registered('Safy','Safy',sub.endpoint),true);assert.equal(push.registered('Safy','old-session',sub.endpoint),false);assert.equal(push.registered('Mahmoud','Mahmoud',sub.endpoint),false);push.logout('Safy');assert.equal(push.registered('Safy','Safy',sub.endpoint),false);
@@ -139,4 +130,26 @@ test('Enable preserves the browser subscription when server registration fails',
 });
 test('Enable shows the actual browser registration failure instead of blaming the connection',async()=>{
  const c=clientFixture({subscribeError:Object.assign(Error('Registration failed - push service error'),{name:'AbortError'})});c.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);await c.node('#notifications-enable').onclick();assert.equal(c.subscriptionCalls,2);assert.match(c.node('#notifications-status').textContent,/AbortError/);assert.match(c.node('#notifications-status').textContent,/push service error/);
+});
+
+test('message worker displays on background device despite remote presence but suppresses its own foreground',async()=>{
+ const data={owner:'Safy',deviceOnly:true,kind:'message',expires:Date.now()+60000};
+ const background=worker({remoteVisible:true});await background.push(data);assert.equal(background.shown.length,1);
+ const foreground=worker({visible:true});await foreground.push(data);assert.equal(foreground.shown.length,0);
+ const otherAccount=worker({owner:'Mahmoud'});await otherAccount.push(data);assert.equal(otherAccount.shown.length,0);
+});
+test('device diagnostics distinguish provider acceptance from display and reject stale or other-device receipts',async t=>{
+ const {push,sent,advance}=fixture(t),sub=subscription();push.subscribe('Safy','Safy',sub);push.enqueue(event());advance(400);await push.drain();
+ let status=push.deliveryStatus('Safy','Safy',sub.endpoint);assert.ok(status.accepted);assert.equal(status.result,null);
+ assert.equal(push.deliveryStatus('Mahmoud','Mahmoud',sub.endpoint),null);
+ const data={endpoint:sub.endpoint,createdAt:sent[0].body.createdAt,result:'shown'};
+ assert.throws(()=>push.receipt('Mahmoud','Mahmoud',data));push.receipt('Safy','Safy',data);assert.equal(push.deliveryStatus('Safy','Safy',sub.endpoint).result,'shown');
+ push.enqueue(event());advance(400);await push.drain();push.receipt('Safy','Safy',data);assert.equal(push.deliveryStatus('Safy','Safy',sub.endpoint).result,null);
+ push.logout('Safy');assert.equal(push.deliveryStatus('Safy','Safy',sub.endpoint),null);
+});
+
+test('notification settings distinguish accepted and displayed delivery on the current device',async()=>{
+ for(const [delivery,expected] of [[{accepted:1,result:null},/has not confirmed display/],[{accepted:1,result:'shown'},/browser confirmed display/],[{accepted:1,result:'display-failed'},/could not display/]]){
+ const c=clientFixture({existing:true,delivery});c.node('#notifications-open').onclick();await new Promise(setImmediate);assert.match(c.node('#notifications-status').textContent,expected);
+ }
 });

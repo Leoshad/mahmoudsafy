@@ -280,13 +280,13 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(path.startsWith('/api/notifications/')&&req.method==='POST'){
         const data=await body(req,path==='/api/notifications/seen'?32768:8000);
         if(path==='/api/notifications/seen'){notifications.seenInbox(who,data.ids);refresh(who);return send(res,200,{ok:true});}
-        if(path.endsWith('/status'))return send(res,200,{registered:notifications.registered(who,req.sessionId,data.endpoint)});
+        if(path.endsWith('/status'))return send(res,200,{registered:notifications.registered(who,req.sessionId,data.endpoint),delivery:notifications.deliveryStatus(who,req.sessionId,data.endpoint)});
         if(path.endsWith('/read')){notifications.readInbox(who,data.id);refresh(who);return send(res,200,{ok:true});}
         if(path.endsWith('/presence')){notifications.presence(who,req.sessionId,data);publishPresence();return send(res,200,{ok:true,who,online:['Mahmoud','Safy'].filter(name=>notifications.visible(name)),serverNow:Date.now()});}
         else if(path.endsWith('/subscribe')){limit('push:'+who,30);notifications.subscribe(who,req.sessionId,data);}
         else if(path.endsWith('/unsubscribe'))notifications.unsubscribe(who,data.endpoint);
         else if(path.endsWith('/test')){limit('push-test:'+who,3,60000);notifications.test(who,req.sessionId,data.endpoint);}
-        else if(path.endsWith('/receipt')){limit('push-receipt:'+who,60,60000);check(['shown','foreground','wrong-account','expired','display-failed'].includes(data.result)&&typeof data.tag==='string'&&/^[a-f0-9]{24}$/.test(data.tag),'Invalid notification receipt.');console.info('Push device: result='+data.result+' tag='+data.tag);}
+        else if(path.endsWith('/receipt')){limit('push-receipt:'+who,60,60000);check(['shown','foreground','wrong-account','expired','display-failed'].includes(data.result)&&typeof data.tag==='string'&&/^[a-f0-9]{24}$/.test(data.tag),'Invalid notification receipt.');notifications.receipt(who,req.sessionId,data);console.info('Push device: result='+data.result+' tag='+data.tag);}
         else throw new Fault('Not found.',404);
         return send(res,200,{ok:true});
       }

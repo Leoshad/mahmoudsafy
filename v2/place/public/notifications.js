@@ -21,9 +21,12 @@ function presence(){
 async function clearShown(){const r=await ready;if(r)for(const n of await r.getNotifications())n.close();}
 async function refresh(){
  const r=await ready,sub=r?await r.pushManager.getSubscription():null;
- const registered=sub?(await request('/status',{endpoint:sub.endpoint})).registered:false;
+ const device=sub?await request('/status',{endpoint:sub.endpoint}):null,registered=!!device?.registered;
  testButton.hidden=!(sub&&registered);testButton.disabled=busy;enable.hidden=!!sub&&registered;disable.hidden=!sub;enable.disabled=busy||!supported||(iphone&&!installed)||Notification.permission==='denied';disable.disabled=busy;
  status.textContent=iphone&&!installed?'On iPhone, add Our Place to your Home Screen from Safari. Open that icon, then enable notifications here.':!supported?'This browser does not support notifications. Open Our Place in an up-to-date browser.':Notification.permission==='denied'?'Notifications are blocked. Allow them in your phone or browser settings, then return here.':sub&&!registered?'This device is not connected for notifications yet. Tap Enable to reconnect.':sub?'On for this device. You’ll only be alerted while Our Place is in the background.':'Off for this device.';
+ if(sub&&registered&&device.delivery){const d=device.delivery;
+  status.textContent+=' '+(d.result==='shown'?'Last notification: this browser confirmed display. If it was silent, check notification sound and Do Not Disturb on this phone.':d.result==='foreground'?'Last notification was muted because Our Place was open on this device.':d.result==='display-failed'?'This browser could not display the last notification. Check this phone’s notification permissions.':d.result==='expired'?'The last notification reached this device too late. Check background activity and battery restrictions.':d.accepted?'Last notification was accepted for delivery, but this device has not confirmed display. Run Test notification, lock your phone, then return here to check.':'No delivery confirmation yet. Run Test notification and leave Our Place.');
+ }
 }
 $('#notifications-open').onclick=()=>{dialog.showModal();refresh().catch(e=>status.textContent=e.message);};
 $('#notifications-close').onclick=()=>dialog.close();
@@ -69,7 +72,7 @@ async function bind(){
   bindAfter=Date.now()+60000;
  })();bindFlight=flight;try{await flight;}finally{if(bindFlight===flight)bindFlight=null;}
 }
-function recoverBinding(){if(!document.hidden){bindAfter=0;bind().catch(()=>{});}}
+function recoverBinding(){if(!document.hidden){bindAfter=0;bind().catch(()=>{});if(dialog.open)refresh().catch(e=>status.textContent=e.message);}}
 window.addEventListener('online',recoverBinding);window.addEventListener('focus',recoverBinding);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)recoverBinding();});
 setInterval(()=>{if(who&&!document.hidden)bind().catch(()=>{});},15000);
