@@ -10,19 +10,48 @@ function destination(target){
 }
 async function receipt(data,result){
  if(!data?.tag)return;
- try{const subscription=await self.registration.pushManager?.getSubscription();await fetch('/api/notifications/receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:data.tag,result,createdAt:data.createdAt,endpoint:subscription?.endpoint}),signal:AbortSignal.timeout(3000)});}catch{}
+ try{
+  if(data.receiptToken){await fetch('/api/push-receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:data.receiptToken,result}),signal:AbortSignal.timeout(3000)});return;}
+  const subscription=await self.registration.pushManager?.getSubscription();
+  await fetch('/api/notifications/receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:data.tag,result,createdAt:data.createdAt,endpoint:subscription?.endpoint}),signal:AbortSignal.timeout(3000)});
+ }catch{}
 }
 self.addEventListener('push',event=>event.waitUntil((async()=>{
- let data;try{data=event.data.json();}catch{return;}
- if(!data||!['Mahmoud','Safy'].includes(data.owner)||!Number.isFinite(data.expires))return;
- if(data.expires<Date.now()){await receipt(data,'expired');return;}
- const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
- if(windows.some(w=>w.visibilityState==='visible'&&w.focused===true)){await receipt(data,'foreground');return;}
- // Verify account. Daily posts suppress only foreground windows on this device.
- try{const r=await fetch('/api/notifications',{cache:'no-store',signal:AbortSignal.timeout(4000)});if(r.status===401)return;if(r.ok){const status=await r.json();if(status.who!==data.owner){await receipt(data,'wrong-account');return;}if(!data.deviceOnly&&status.visible){await receipt(data,'foreground');return;}}}catch{}
- const options={body:String(data.body||'You have an update.').slice(0,180),icon:'/icon-192.png',tag:String(data.tag||'our-place').slice(0,64),renotify:!data.quiet,data:{url:destination(data.target)}};
- if(data.quiet)options.silent=true;else options.vibrate=[180];
- try{await self.registration.showNotification('Our Place',options);await receipt(data,'shown');}catch{await receipt(data,'display-failed');}
+ let data;try{data=event.data.json();}catch{data={};}
+ if(!data||typeof data!=='object')data={};
+ const arrival=receipt(data,'received');
+ let reason=null,verified=false,foreground=false;
+ if(!['Mahmoud','Safy'].includes(data.owner)||!Number.isFinite(data.expires))reason='invalid-payload';
+ else if(data.expires<Date.now())reason='expired';
+ try{const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});foreground=windows.some(w=>w.visibilityState==='visible'&&w.focused===true);}catch{}
+ if(!reason){
+  try{
+   const r=await fetch('/api/notifications',{cache:'no-store',signal:AbortSignal.timeout(1500)});
+   if(r.status===401)reason='auth-required';
+   else if(r.ok){const status=await r.json();if(status.who!==data.owner)reason='wrong-account';else verified=true;}
+   else reason='auth-unavailable';
+  }catch{reason='auth-unavailable';}
+ }
+ // Never consume a push silently: WebKit can revoke the subscription.
+ // Foreground devices are filtered on the server. A foreground race is silent,
+ // but still visible; account failures use generic content and no private link.
+ const quiet=!!data.quiet||foreground||!!reason;
+ const options={body:verified?String(data.body||'You have an update.').slice(0,180):'Open Our Place to check your updates.',icon:'/icon-192.png',tag:String(data.tag||'our-place').slice(0,64),renotify:!quiet,data:{url:verified?destination(data.target):'/'}};
+ if(quiet)options.silent=true;else options.vibrate=[180];
+ try{
+  await self.registration.showNotification('Our Place',options);
+  await Promise.all([arrival,...(reason?[receipt(data,reason)]:[]),...(foreground?[receipt(data,'foreground')]:[])]);
+  await receipt(data,'shown');
+ }catch{await Promise.all([arrival,receipt(data,'display-failed')]);}
+})()));
+self.addEventListener('pushsubscriptionchange',event=>event.waitUntil((async()=>{
+ // Preserve browser-provided rotation when supported. Foreground repair retries
+ // server binding if this fetch fails offline. Never request permission here.
+ try{
+  let sub=event.newSubscription;
+  if(!sub&&event.oldSubscription?.options)sub=await self.registration.pushManager.subscribe(event.oldSubscription.options);
+  if(sub)await fetch('/api/notifications/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(sub.toJSON()),signal:AbortSignal.timeout(10000)});
+ }catch{}
 })()));
 self.addEventListener('notificationclick',event=>{
  event.notification.close();event.waitUntil((async()=>{

@@ -13,32 +13,52 @@ function fixture(t){const store=new Store(':memory:');t.after(()=>store.close())
 const event=(to='Safy',key=randomUUID())=>({key,to,body:'A new message.',kind:'message',target:{tab:'chat',message:key}});
 test('subscriptions reject arbitrary hosts, malformed keys and non-HTTPS endpoints',()=>{const valid=subscription();assert.deepEqual(validateSubscription(valid),valid);for(const endpoint of ['http://fcm.googleapis.com/x','https://localhost/x','https://fcm.googleapis.com.attacker.test/x','https://fcm.googleapis.com:8000/x','https://user@fcm.googleapis.com/x'])assert.throws(()=>validateSubscription({...valid,endpoint}));assert.throws(()=>validateSubscription({...valid,keys:{p256dh:'x',auth:'x'}}));});
 test('messages reach every registered device even while another device is foreground',async t=>{
- const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription('phone'));push.subscribe('Safy','Safy',subscription('desktop'));
- const client=randomUUID();push.presence('Safy','Safy',{client,visible:true,sequence:1});const e=event();push.enqueue(e);push.enqueue(e);
- push.presence('Safy','Safy',{client,visible:true,sequence:2});advance(400);await push.drain();await push.drain();assert.equal(sent.length,2);assert.ok(sent.every(x=>x.body.deviceOnly&&x.options.urgency==='high'));
+ const {push,store,sent,advance}=fixture(t);store.db.prepare('INSERT INTO sessions VALUES(?,?)').run('desktop',Date.now()+86400000);push.subscribe('Safy','Safy',subscription('phone'));push.subscribe('Safy','desktop',subscription('desktop'));
+ const client=randomUUID();push.presence('Safy','desktop',{client,visible:true,sequence:1});const e=event();push.enqueue(e);push.enqueue(e);
+ push.presence('Safy','desktop',{client,visible:true,sequence:2});advance(400);await push.drain();await push.drain();assert.equal(sent.length,1);assert.ok(sent[0].sub.endpoint.endsWith('phone'));assert.ok(sent.every(x=>x.body.deviceOnly&&x.options.urgency==='high'));
 });
 test('expired alerts and logged-out sessions cannot deliver',async t=>{const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());push.enqueue(event());advance(3600001);await push.drain();assert.equal(sent.length,0);push.enqueue(event());push.logout('Safy');advance(2000);await push.drain();assert.equal(sent.length,0);});
 test('keys and endpoints are encrypted at rest; restart keeps the same VAPID identity',t=>{const {push,store}=fixture(t),sub=subscription();push.subscribe('Safy','Safy',sub);const raw=store.db.prepare('SELECT body FROM push_subscriptions').get().body;assert.ok(!raw.includes(sub.endpoint));assert.deepEqual(push.open(raw),sub);const again=new PushNotifications(store,{secret,origin:'https://example.test'});assert.equal(again.vapid.publicKey,push.vapid.publicKey);assert.ok(!store.db.prepare('SELECT body FROM push_meta').get().body.includes(push.vapid.privateKey));});
 test('retries do not notify successful devices again, and expired subscriptions are removed',async t=>{const {push,store,advance}=fixture(t);push.subscribe('Safy','Safy',subscription('good'));push.subscribe('Safy','Safy',subscription('retry'));let good=0,retry=0;push.send=async sub=>{if(sub.endpoint.endsWith('good'))good++;else if(++retry===1)throw Object.assign(Error(),{statusCode:503});};push.enqueue(event());advance(2000);await push.drain();advance(16000);await push.drain();assert.equal(good,1);assert.equal(retry,2);push.send=async()=>{throw Object.assign(Error(),{statusCode:410});};push.enqueue(event());advance(2000);await push.drain();assert.equal(store.db.prepare('SELECT COUNT(*) n FROM push_subscriptions').get().n,0);});
 test('chat scan skips history and own actions, waits for completed Echo replies',async t=>{const store=new Store(':memory:');t.after(()=>store.close());store.message({id:randomUUID(),author:'Mahmoud',text:'Old private text'});let now=Date.now(),sent=[];store.db.prepare('INSERT INTO sessions VALUES(?,?)').run('s',now+86400000);const push=new PushNotifications(store,{secret,origin:'https://example.test',now:()=>now,send:async(s,b)=>sent.push(JSON.parse(b))});push.subscribe('Safy','s',subscription());push.scan();now+=2000;await push.drain();assert.equal(sent.length,0);store.message({id:randomUUID(),author:'Safy',text:'Own'});push.scan('Safy');now+=2000;await push.drain();assert.equal(sent.length,0);const id=randomUUID();store.message({id,author:'Echo',text:'secret text',status:'streaming'});push.scan();now+=2000;await push.drain();assert.equal(sent.length,0);store.db.prepare("UPDATE messages SET status='sent' WHERE id=?").run(id);push.scan();now+=2000;await push.drain();assert.equal(sent.length,1);assert.ok(!JSON.stringify(sent).includes('secret text'));});
 test('event policy: invitations and turns need attention; strokes and own actions do not; likes are quiet',()=>{const before={items:[{id:'p',by:'Mahmoud',comments:[],likes:[]}],draw:{strokes:[]}},after=structuredClone(before);after.draw.strokes.push({points:[1,2]});assert.deepEqual(attentionEvents(before,after,'Safy'),[]);after.items[0].likes.push('Safy');const like=attentionEvents(before,after,'Safy');assert.equal(like[0].quiet,true);assert.equal(like[0].to,'Mahmoud');after.ocho={shared:{id:'g',owner:'Mahmoud',status:'waiting'}};assert.equal(attentionEvents(before,after,'Mahmoud').find(e=>e.to==='Safy').target.game,'ocho');const active={ocho:{shared:{id:'g',owner:'Mahmoud',status:'active',turn:'Safy',revision:3}}};assert.equal(attentionEvents(after,active,'Mahmoud').filter(e=>e.to==='Safy').length,1);});
-function worker({visible=false,focused=visible,remoteVisible=false,owner='Safy'}={}){const handlers={},shown=[],posted=[];const self={location:{origin:'https://example.test'},addEventListener:(n,f)=>{const prev=handlers[n];handlers[n]=(...args)=>{prev?.(...args);f(...args);};},registration:{showNotification:async(...v)=>shown.push(v)},clients:{matchAll:async()=>[{url:'https://example.test/',visibilityState:visible?'visible':'hidden',focused,focus:async()=>{},postMessage:v=>posted.push(v)}],openWindow:async u=>posted.push(u)}};vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,URL,Date,AbortSignal,fetch:async()=>({ok:true,json:async()=>({who:owner,visible:remoteVisible})})});return {shown,posted,async push(data){await new Promise((resolve,reject)=>handlers.push({data:{json:()=>data},waitUntil:p=>p.then(resolve,reject)}));},async click(url){await new Promise((resolve,reject)=>handlers.notificationclick({notification:{close(){},data:{url}},waitUntil:p=>p.then(resolve,reject)}));}};}
-test('worker suppresses foreground tabs, other visible devices, stale and wrong-account pushes',async()=>{const data={owner:'Safy',expires:Date.now()+120000,body:'Update',target:{tab:'chat'}};for(const opts of [{visible:true},{remoteVisible:true},{owner:'Mahmoud'}]){const w=worker(opts);await w.push(data);assert.equal(w.shown.length,0);}const w=worker();await w.push({...data,expires:0});assert.equal(w.shown.length,0);await w.push(data);assert.equal(w.shown.length,1);assert.deepEqual([...w.shown[0][1].vibrate],[180]);});
+function worker({visible=false,focused=visible,remoteVisible=false,owner='Safy',statusCode=200,networkError=false}={}){
+ const handlers={},shown=[],posted=[],requests=[];
+ const self={location:{origin:'https://example.test'},addEventListener:(n,f)=>{handlers[n]=f;},registration:{showNotification:async(...v)=>shown.push(v)},clients:{matchAll:async()=>[{url:'https://example.test/',visibilityState:visible?'visible':'hidden',focused,focus:async()=>{},postMessage:v=>posted.push(v)}],openWindow:async u=>posted.push(u)}};
+ vm.runInNewContext(readFileSync(new URL('../public/sw.js',import.meta.url),'utf8'),{self,URL,Date,AbortSignal,fetch:async(path,options)=>{requests.push({path,options});if(networkError&&path==='/api/notifications')throw Error('offline');return {status:statusCode,ok:statusCode===200,json:async()=>({who:owner,visible:remoteVisible})};}});
+ return {shown,posted,requests,async push(data){await new Promise((resolve,reject)=>handlers.push({data:{json:()=>data},waitUntil:p=>p.then(resolve,reject)}));},async click(url){await new Promise((resolve,reject)=>handlers.notificationclick({notification:{close(){},data:{url}},waitUntil:p=>p.then(resolve,reject)}));}};
+}
+test('received push always displays; unverified or expired content is replaced by a private generic fallback',async()=>{
+ const data={owner:'Safy',expires:Date.now()+120000,body:'Private sender',target:{tab:'chat',message:'private-id'}};
+ for(const opts of [{owner:'Mahmoud'},{statusCode:401},{statusCode:503},{networkError:true}]){
+  const w=worker(opts);await w.push(data);assert.equal(w.shown.length,1);assert.equal(w.shown[0][1].body,'Open Our Place to check your updates.');assert.equal(w.shown[0][1].data.url,'/');
+ }
+ const expired=worker();await expired.push({...data,expires:0});assert.equal(expired.shown.length,1);assert.equal(expired.shown[0][1].data.url,'/');
+ const malformed=worker();await malformed.push(null);assert.equal(malformed.shown.length,1);
+ const w=worker();await w.push(data);assert.equal(w.shown.length,1);assert.deepEqual([...w.shown[0][1].vibrate],[180]);
+});
 test('worker keeps likes silent and notification navigation same-origin',async()=>{const w=worker();await w.push({owner:'Safy',expires:Date.now()+120000,quiet:true,target:{tab:'space',post:'abc'}});assert.equal(w.shown[0][1].silent,true);assert.equal(w.shown[0][1].vibrate,undefined);await w.click('https://evil.test/');assert.equal(w.posted.length,0);await w.click(w.shown[0][1].data.url);assert.ok(w.posted[0].url.startsWith('https://example.test/?notice='));});
 test('HTTP notification endpoints require auth and same origin; expose no stored keys; logout removes registration',async t=>{
- process.env.MAHMOUD_EMAIL='mahmoud@example.test';const store=new Store(':memory:');const user={id:'m',email:'mahmoud@example.test',email_confirmed_at:'2026-01-01'};const server=createApp({store,origin:'http://localhost',secret,testing:true,authFetch:async url=>Response.json(url.includes('/token?')?{user,access_token:'m',refresh_token:'m',expires_in:3600}:user),pushSend:async()=>{}});await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(async()=>{await new Promise(r=>server.close(r));store.close();});const base='http://127.0.0.1:'+server.address().port;let cookie='';const req=(path,data,origin='http://localhost')=>fetch(base+path,{method:data?'POST':'GET',headers:{Origin:origin,Cookie:cookie,'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined});assert.equal((await req('/api/notifications')).status,401);const login=await req('/api/login',{email:user.email,password:'test-password'});cookie=login.headers.get('set-cookie').split(';')[0];assert.equal((await req('/api/notifications/subscribe',subscription(),'http://evil.test')).status,403);const device=subscription();assert.equal((await req('/api/notifications/subscribe',device)).status,200);assert.equal((await req('/api/notifications/test',{endpoint:device.endpoint},'http://evil.test')).status,403);assert.equal((await req('/api/notifications/test',{endpoint:device.endpoint})).status,200);assert.equal((await req('/api/notifications/test',{endpoint:subscription('not-mine').endpoint})).status,400);assert.equal((await req('/api/notifications/receipt',{tag:'a'.repeat(24),result:'shown'})).status,200);assert.equal((await req('/api/notifications/receipt',{tag:'invalid',result:'shown'})).status,400);const config=await (await req('/api/notifications')).json();assert.deepEqual(Object.keys(config).sort(),['publicKey','visible','who']);assert.equal((await req('/api/notifications/presence',{client:randomUUID(),visible:true})).status,200);assert.equal((await(await req('/api/notifications')).json()).visible,true);assert.equal((await req('/sw.js')).status,200);await req('/api/logout',{});assert.equal(store.db.prepare('SELECT COUNT(*) n FROM push_subscriptions').get().n,0);assert.equal((await req('/api/notifications')).status,401);
+ process.env.MAHMOUD_EMAIL='mahmoud@example.test';const store=new Store(':memory:');const user={id:'m',email:'mahmoud@example.test',email_confirmed_at:'2026-01-01'};const server=createApp({store,origin:'http://localhost',secret,testing:true,authFetch:async url=>Response.json(url.includes('/token?')?{user,access_token:'m',refresh_token:'m',expires_in:3600}:user),pushSend:async()=>{}});await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(async()=>{await new Promise(r=>server.close(r));store.close();});const base='http://127.0.0.1:'+server.address().port;let cookie='';const req=(path,data,origin='http://localhost')=>fetch(base+path,{method:data?'POST':'GET',headers:{Origin:origin,Cookie:cookie,'Content-Type':'application/json'},body:data?JSON.stringify(data):undefined});assert.equal((await req('/api/notifications')).status,401);
+ const receiptService=new PushNotifications(store,{secret,origin:'http://localhost'}),proof=receiptService.seal({purpose:'push-receipt-v1',owner:'Mahmoud',device:'test-device',delivery:'test-delivery',created:Date.now(),expires:Date.now()+60000});
+ assert.equal((await req('/api/push-receipt',{token:proof,result:'shown'})).status,200);
+ assert.equal((await req('/api/push-receipt',{token:proof,result:'shown'},'http://evil.test')).status,403);
+ assert.equal((await req('/api/push-receipt',{token:'forged',result:'shown'})).status,403);
+ assert.equal((await req('/api/notifications')).status,401);
+ const login=await req('/api/login',{email:user.email,password:'test-password'});cookie=login.headers.get('set-cookie').split(';')[0];assert.equal((await req('/api/notifications/subscribe',subscription(),'http://evil.test')).status,403);const device=subscription();assert.equal((await req('/api/notifications/subscribe',device)).status,200);assert.equal((await req('/api/notifications/test',{endpoint:device.endpoint},'http://evil.test')).status,403);assert.equal((await req('/api/notifications/test',{endpoint:device.endpoint})).status,200);assert.equal((await req('/api/notifications/test',{endpoint:subscription('not-mine').endpoint})).status,400);assert.equal((await req('/api/notifications/receipt',{tag:'a'.repeat(24),result:'shown'})).status,200);assert.equal((await req('/api/notifications/receipt',{tag:'invalid',result:'shown'})).status,400);const config=await (await req('/api/notifications')).json();assert.deepEqual(Object.keys(config).sort(),['publicKey','visible','who']);assert.equal((await req('/api/notifications/presence',{client:randomUUID(),visible:true})).status,200);assert.equal((await(await req('/api/notifications')).json()).visible,true);assert.equal((await req('/sw.js')).status,200);await req('/api/logout',{});assert.equal(store.db.prepare('SELECT COUNT(*) n FROM push_subscriptions').get().n,0);assert.equal((await req('/api/notifications')).status,401);
 });
 test('a quiet like cannot replace an already queued comment alert',async t=>{const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());push.enqueue({...event(),kind:'wall',target:{tab:'space',post:'p'},body:'A comment'});push.enqueue({...event(),kind:'wall',target:{tab:'space',post:'p'},quiet:true,body:'A like'});advance(2000);await push.drain();assert.equal(sent[0].body.body,'A comment');assert.equal(sent[0].body.quiet,false);});
 test('wall replies notify the other participant even when the post owner replies',()=>{const before={items:[{id:'p',by:'Mahmoud',comments:[],likes:[]}]},after=structuredClone(before);after.items[0].comments.push({id:'c',by:'Mahmoud',text:'Reply'});const result=attentionEvents(before,after,'Mahmoud');assert.equal(result[0].to,'Safy');assert.equal(result[0].target.post,'p');});
-function clientFixture({supported=true,iphone=false,installed=false,existing=false,failBind=false,subscribeError=null,delivery=null}={}){
+function clientFixture({supported=true,iphone=false,installed=false,existing=false,failBind=false,subscribeError=null,delivery=null,permission='default',optIn}={}){
  const nodes=new Map(),handlers={},requests=[];let permissionCalls=0,subscriptionCalls=0,unsubscribeCalls=0;
  const node=id=>{if(!nodes.has(id))nodes.set(id,{hidden:false,disabled:false,showModal(){},close(){}});return nodes.get(id);};
  const sub=subscription(),registration={pushManager:{getSubscription:async()=>existing?{...sub,toJSON:()=>sub,unsubscribe:async()=>{unsubscribeCalls++;}}:null,subscribe:async()=>{subscriptionCalls++;if(subscribeError)throw subscribeError;return {...sub,toJSON:()=>sub,unsubscribe:async()=>{}};}},getNotifications:async()=>[]};
  const document={visibilityState:'visible',hidden:false,hasFocus:()=>true,querySelector:node,addEventListener:(n,f)=>{const prev=handlers[n];handlers[n]=(...args)=>{prev?.(...args);f(...args);};}};
  const navigator={userAgent:iphone?'iPhone':'Android',platform:'',standalone:installed};
  if(supported)navigator.serviceWorker={register:async()=>registration,ready:Promise.resolve(registration),addEventListener(){}};
- const window={addEventListener:(n,f)=>{const prev=handlers[n];handlers[n]=(...args)=>{prev?.(...args);f(...args);};},dispatchEvent(){},...(supported?{PushManager:{},Notification:{}}:{})};
- const Notification={permission:'default',requestPermission:async()=>{permissionCalls++;Notification.permission='granted';return 'granted';}};
+ const saved=new Map(optIn?[['our-place-push:Safy',optIn]]:[]);
+ const window={localStorage:{getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v)},addEventListener:(n,f)=>{const prev=handlers[n];handlers[n]=(...args)=>{prev?.(...args);f(...args);};},dispatchEvent(){},...(supported?{PushManager:{},Notification:{}}:{})};
+ const Notification={permission,requestPermission:async()=>{permissionCalls++;Notification.permission='granted';return 'granted';}};
  const context={AbortController,AbortSignal,setTimeout,clearTimeout,queueMicrotask,window,document,navigator,crypto:{randomUUID},matchMedia:()=>({matches:installed}),location:{href:'https://example.test/',origin:'https://example.test'},history:{replaceState(){}},URL,Uint8Array,atob,CustomEvent:class{},setInterval(){},fetch:async(path,options)=>{requests.push({path,options});if(path.endsWith('/subscribe')&&failBind){failBind=false;throw Error('offline');}return {ok:true,json:async()=>path==='/api/notifications'?{publicKey:sub.keys.p256dh}:path.endsWith('/status')&&delivery?{registered:true,delivery}:{ok:true}};},...(supported?{Notification}:{})};
  vm.runInNewContext(readFileSync(new URL('../public/notifications.js',import.meta.url),'utf8'),context);window.OurNotifications.connection(true);
  return {window,document,navigator,nodes,node,handlers,requests,get unsubscribeCalls(){return unsubscribeCalls;},get permissionCalls(){return permissionCalls;},get subscriptionCalls(){return subscriptionCalls;}};
@@ -48,8 +68,9 @@ test('unsupported browsers and non-installed iPhones show usable guidance withou
 
 test('Echo replies are not lost to another device foreground heartbeat',async t=>{
  const {push,store,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());const client=randomUUID();
- push.presence('Safy','Safy',{client,visible:true,sequence:1});store.message({id:randomUUID(),author:'Echo',text:'Hello'});push.scan();
- push.presence('Safy','Safy',{client,visible:true,sequence:2});advance(400);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].body.deviceOnly,true);
+ store.db.prepare('INSERT INTO sessions VALUES(?,?)').run('desktop',Date.now()+86400000);
+ push.presence('Safy','desktop',{client,visible:true,sequence:1});store.message({id:randomUUID(),author:'Echo',text:'Hello'});push.scan();
+ push.presence('Safy','desktop',{client,visible:true,sequence:2});advance(400);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].body.deviceOnly,true);
 });
 test('subscription status checks the current account and login session, not just browser permission',t=>{
  const {push}=fixture(t),sub=subscription();assert.equal(push.registered('Safy','Safy',sub.endpoint),false);push.subscribe('Safy','Safy',sub);assert.equal(push.registered('Safy','Safy',sub.endpoint),true);assert.equal(push.registered('Safy','old-session',sub.endpoint),false);assert.equal(push.registered('Mahmoud','Mahmoud',sub.endpoint),false);push.logout('Safy');assert.equal(push.registered('Safy','Safy',sub.endpoint),false);
@@ -69,10 +90,10 @@ test('daily post reaches both registered devices despite another visible device,
  push.scan();advance(1000);await push.drain();assert.equal(sent.length,2);
  const off=store.state();off.items.unshift({id:'daily-off',by:'Echo',daily:{notify:false}});store.save(off);push.scan();advance(1000);await push.drain();assert.equal(sent.length,2);
 });
-test('daily worker alerts a background phone even if another device is active, but never its own foreground',async()=>{
+test('daily worker displays quietly if foreground changes after send',async()=>{
  const data={owner:'Safy',deviceOnly:true,kind:'daily',expires:Date.now()+43200000,target:{tab:'space',post:'daily'}};
  const background=worker({remoteVisible:true});await background.push(data);assert.equal(background.shown.length,1);
- for(const opts of [{visible:true},{owner:'Mahmoud'}]){const w=worker(opts);await w.push(data);assert.equal(w.shown.length,0);}
+ const foreground=worker({visible:true});await foreground.push(data);assert.equal(foreground.shown.length,1);assert.equal(foreground.shown[0][1].silent,true);
 });
 test('notification test is delayed and restricted to the requesting registered device',async t=>{
  const {push,sent,advance}=fixture(t),mine=subscription('mine');push.subscribe('Mahmoud','Mahmoud',mine);push.subscribe('Mahmoud','Mahmoud',subscription('other'));
@@ -84,7 +105,7 @@ test('notification test is delayed and restricted to the requesting registered d
 
 for(const owner of ['Mahmoud','Safy'])test('court invitation reaches partner device despite another active device: '+owner,async t=>{
  const {push,store,sent,advance}=fixture(t),other=owner==='Mahmoud'?'Safy':'Mahmoud';
- push.subscribe(other,other,subscription(other));push.presence(other,other,{client:randomUUID(),visible:true});
+ push.subscribe(other,other,subscription(other));store.db.prepare('INSERT INTO sessions VALUES(?,?)').run('desktop',Date.now()+86400000);push.presence(other,'desktop',{client:randomUUID(),visible:true});
  const state=store.state();state.court={cases:[{id:'invite-case',owner,stage:'invited',round:1,questions:[]}]};store.save(state);
  push.scan(owner);advance(400);await push.drain();assert.equal(sent.length,1);assert.equal(sent[0].body.owner,other);assert.equal(sent[0].body.target.caseId,'invite-case');assert.equal(sent[0].body.kind,'invitation');assert.ok(sent[0].options.TTL>36000);
  push.scan(owner);await push.drain();assert.equal(sent.length,1);
@@ -132,11 +153,11 @@ test('Enable shows the actual browser registration failure instead of blaming th
  const c=clientFixture({subscribeError:Object.assign(Error('Registration failed - push service error'),{name:'AbortError'})});c.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);await c.node('#notifications-enable').onclick();assert.equal(c.subscriptionCalls,2);assert.match(c.node('#notifications-status').textContent,/AbortError/);assert.match(c.node('#notifications-status').textContent,/push service error/);
 });
 
-test('message worker displays on background device despite remote presence but suppresses its own foreground',async()=>{
+test('message worker retains visible delivery for a foreground race without sound',async()=>{
  const data={owner:'Safy',deviceOnly:true,kind:'message',expires:Date.now()+60000};
  const background=worker({remoteVisible:true});await background.push(data);assert.equal(background.shown.length,1);
- const foreground=worker({visible:true});await foreground.push(data);assert.equal(foreground.shown.length,0);
- const otherAccount=worker({owner:'Mahmoud'});await otherAccount.push(data);assert.equal(otherAccount.shown.length,0);
+ const foreground=worker({visible:true});await foreground.push(data);assert.equal(foreground.shown.length,1);assert.equal(foreground.shown[0][1].silent,true);
+ const otherAccount=worker({owner:'Mahmoud'});await otherAccount.push(data);assert.equal(otherAccount.shown.length,1);assert.equal(otherAccount.shown[0][1].data.url,'/');
 });
 test('device diagnostics distinguish provider acceptance from display and reject stale or other-device receipts',async t=>{
  const {push,sent,advance}=fixture(t),sub=subscription();push.subscribe('Safy','Safy',sub);push.enqueue(event());advance(400);await push.drain();
@@ -152,4 +173,41 @@ test('notification settings distinguish accepted and displayed delivery on the c
  for(const [delivery,expected] of [[{accepted:1,result:null},/has not confirmed display/],[{accepted:1,result:'shown'},/browser confirmed display/],[{accepted:1,result:'display-failed'},/could not display/]]){
  const c=clientFixture({existing:true,delivery});c.node('#notifications-open').onclick();await new Promise(setImmediate);assert.match(c.node('#notifications-status').textContent,expected);
  }
+});
+
+test('a lost opted-in subscription is recreated without asking permission; explicit off stays off',async()=>{
+ const c=clientFixture({permission:'granted',optIn:'on'});c.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);
+ assert.equal(c.permissionCalls,0);assert.equal(c.subscriptionCalls,1);assert.ok(c.requests.some(r=>r.path.endsWith('/subscribe')));
+ const off=clientFixture({permission:'granted',optIn:'off'});off.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);assert.equal(off.subscriptionCalls,0);
+});
+test('failed automatic recreation is visible instead of silently leaving notifications off',async()=>{
+ const c=clientFixture({permission:'granted',optIn:'on',subscribeError:Object.assign(Error('Gesture required'),{name:'NotAllowedError'})});c.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);
+ assert.equal(c.permissionCalls,0);assert.match(c.node('#notifications-open').textContent,/reconnect/);assert.match(c.node('#notifications-status').textContent,/Gesture required/);
+});
+test('notification evidence survives session loss, rejects forged and expired proofs, and deduplicates receipts',async t=>{
+ const {push,store,sent,advance}=fixture(t),sub=subscription();push.subscribe('Safy','Safy',sub);push.enqueue(event());advance(400);await push.drain();
+ const token=sent[0].body.receiptToken;assert.ok(token);push.logout('Safy');store.db.prepare('DELETE FROM sessions WHERE id=?').run('Safy');
+ push.tokenReceipt(token,'received');push.tokenReceipt(token,'shown');push.tokenReceipt(token,'shown');
+ const history=push.history('Safy',sub.endpoint);assert.equal(history.filter(e=>e.event==='shown').length,1);assert.ok(history.some(e=>e.event==='provider-accepted'));assert.ok(history.some(e=>e.event==='logged-out'));
+ assert.equal(push.history('Mahmoud',sub.endpoint).length,0);assert.throws(()=>push.tokenReceipt(token.slice(0,-5)+'AAAAA','shown'));assert.throws(()=>push.tokenReceipt(token,'made-up'));
+ advance(86400001);assert.throws(()=>push.tokenReceipt(token,'shown'));
+});
+test('worker receipt uses its restricted proof without relying on cookies or a fresh push subscription',async()=>{
+ const w=worker({statusCode:401});await w.push({owner:'Safy',tag:'a'.repeat(24),expires:Date.now()+60000,receiptToken:'restricted-proof'});
+ const reports=w.requests.filter(r=>r.path==='/api/push-receipt').map(r=>JSON.parse(r.options.body));
+ assert.ok(reports.some(r=>r.result==='received'));assert.ok(reports.some(r=>r.result==='auth-required'));assert.ok(reports.some(r=>r.result==='shown'));assert.ok(reports.every(r=>r.token==='restricted-proof'));
+});
+test('inactive and expired device sessions produce a specific recorded reason',async t=>{
+ const {push,store,sent,advance}=fixture(t),sub=subscription();push.subscribe('Safy','Safy',sub);
+ store.db.prepare('UPDATE sessions SET expires=0 WHERE id=?').run('Safy');push.enqueue(event());advance(400);await push.drain();
+ assert.equal(sent.length,0);assert.ok(push.history('Safy',sub.endpoint).some(e=>e.event==='session-expired'));
+});
+test('temporary provider outage keeps retrying beyond the old nine-second cutoff',async t=>{
+ const {push,sent,advance}=fixture(t);push.subscribe('Safy','Safy',subscription());let attempts=0;push.send=async(s,b)=>{if(++attempts<=3)throw Object.assign(Error('Unavailable'),{statusCode:503});sent.push(JSON.parse(b));};
+ push.enqueue(event());advance(400);await push.drain();advance(3000);await push.drain();advance(6000);await push.drain();assert.equal(sent.length,0);advance(12000);await push.drain();assert.equal(sent.length,1);
+});
+test('same-device foreground is filtered before provider delivery, while a later background message is delivered',async t=>{
+ const {push,sent,advance}=fixture(t),client=randomUUID();push.subscribe('Safy','Safy',subscription());
+ push.presence('Safy','Safy',{client,visible:true,sequence:1});push.enqueue(event());advance(400);await push.drain();assert.equal(sent.length,0);
+ push.presence('Safy','Safy',{client,visible:false,sequence:2});push.enqueue(event());advance(400);await push.drain();assert.equal(sent.length,1);
 });

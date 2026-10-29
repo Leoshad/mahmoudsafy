@@ -13,7 +13,9 @@ export function validateSubscription(raw){
 export class PushNotifications{
  constructor(store,{secret,origin,send=webpush.sendNotification.bind(webpush),now=Date.now}={}){
   this.store=store;this.db=store.db;this.send=send;this.now=now;this.origin=origin;this.key=createHash('sha256').update(secret).digest();this.busy=false;this.previous=store.state();
-  this.db.exec(`CREATE TABLE IF NOT EXISTS push_delivery_status(id TEXT PRIMARY KEY,created INTEGER NOT NULL,accepted INTEGER,result TEXT,received INTEGER);
+  this.db.exec(`CREATE TABLE IF NOT EXISTS push_audit(id INTEGER PRIMARY KEY AUTOINCREMENT,at INTEGER NOT NULL,owner TEXT NOT NULL,device TEXT NOT NULL,event TEXT NOT NULL,delivery TEXT NOT NULL,code TEXT NOT NULL);
+ CREATE INDEX IF NOT EXISTS push_audit_device ON push_audit(owner,device,at);
+ CREATE TABLE IF NOT EXISTS push_delivery_status(id TEXT PRIMARY KEY,created INTEGER NOT NULL,accepted INTEGER,result TEXT,received INTEGER);
  CREATE TABLE IF NOT EXISTS push_meta(id INTEGER PRIMARY KEY,body TEXT NOT NULL);
  CREATE TABLE IF NOT EXISTS push_subscriptions(id TEXT PRIMARY KEY,owner TEXT NOT NULL,session TEXT NOT NULL,body TEXT NOT NULL,created INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS push_presence(client TEXT PRIMARY KEY,owner TEXT NOT NULL,session TEXT NOT NULL,visible INTEGER NOT NULL,updated INTEGER NOT NULL);
@@ -33,10 +35,25 @@ export class PushNotifications{
   check(typeof data.client==='string'&&/^[\w-]{16,80}$/.test(data.client)&&typeof data.visible==='boolean','Invalid visibility update.');
   const sequence=data.sequence??0;check(Number.isSafeInteger(sequence)&&sequence>=0,'Invalid visibility sequence.');
   const changed=this.db.prepare('INSERT INTO push_presence(client,owner,session,visible,updated,sequence) VALUES(?,?,?,?,?,?) ON CONFLICT(client) DO UPDATE SET owner=excluded.owner,session=excluded.session,visible=excluded.visible,updated=excluded.updated,sequence=excluded.sequence WHERE excluded.sequence>push_presence.sequence OR excluded.sequence=0 AND push_presence.sequence=0').run(data.client,who,sid,data.visible?1:0,this.now(),sequence).changes;
-  if(changed&&data.visible)this.db.prepare("DELETE FROM push_queue WHERE owner=? AND COALESCE(json_extract(body,'$.deviceOnly'),0)=0").run(who);
+  // Foreground suppression is per login/device at send time, never account-wide.
  }
  registered(who,sid,endpoint){return typeof endpoint==='string'&&!!this.db.prepare('SELECT 1 FROM push_subscriptions WHERE id=? AND owner=? AND session=?').get(digest(endpoint),who,sid);}
 
+ audit(owner,device,event,delivery='',code=''){
+  this.db.prepare('INSERT INTO push_audit(at,owner,device,event,delivery,code) VALUES(?,?,?,?,?,?)').run(this.now(),owner,device,event,delivery,String(code).slice(0,60));
+  console.info(JSON.stringify({event:'push_lifecycle',at:this.now(),owner,device:device.slice(0,12),stage:event,delivery:delivery.slice(0,24),code:String(code).slice(0,60)}));
+ }
+ history(who,endpoint){return typeof endpoint==='string'?this.db.prepare('SELECT at,event,delivery,code FROM push_audit WHERE owner=? AND device=? ORDER BY id DESC LIMIT 40').all(who,digest(endpoint)):[];}
+ deviceVisible(sid){return !!this.db.prepare('SELECT 1 FROM push_presence WHERE session=? AND visible=1 AND updated>?').get(sid,this.now()-5000);}
+ receiptToken(sub,payload,delivery){return this.seal({purpose:'push-receipt-v1',owner:sub.owner,device:sub.id,delivery,created:payload.createdAt,expires:this.now()+86400000});}
+ tokenReceipt(token,result){
+  check(typeof token==='string'&&token.length<2000,'Invalid receipt.',403);let proof;try{proof=this.open(token);}catch{check(false,'Invalid receipt.',403);}
+  check(proof?.purpose==='push-receipt-v1'&&proof.expires>this.now()&&names.includes(proof.owner),'Expired or invalid receipt.',403);
+  check(['received','shown','foreground','expired','wrong-account','auth-required','auth-unavailable','invalid-payload','display-failed'].includes(result),'Invalid receipt result.');
+  if(this.db.prepare('SELECT 1 FROM push_audit WHERE delivery=? AND event=?').get(proof.delivery,result))return;
+  this.audit(proof.owner,proof.device,result,proof.delivery);
+  if(result!=='received')this.db.prepare('UPDATE push_delivery_status SET result=?,received=? WHERE id=? AND created=?').run(result,this.now(),proof.device,proof.created);
+ }
  deliveryStatus(who,sid,endpoint){if(!this.registered(who,sid,endpoint))return null;return this.db.prepare('SELECT accepted,result,received FROM push_delivery_status WHERE id=?').get(digest(endpoint))??null;}
  receipt(who,sid,data){
   if(!data.endpoint)return; // Older installed workers only send a tag.
@@ -44,9 +61,9 @@ export class PushNotifications{
   check(Number.isFinite(data.createdAt),'Invalid notification receipt time.');
   this.db.prepare('UPDATE push_delivery_status SET result=?,received=? WHERE id=? AND created=?').run(data.result,this.now(),digest(data.endpoint),data.createdAt);
  }
- subscribe(who,sid,raw){const sub=validateSubscription(raw),id=digest(sub.endpoint);check(this.db.prepare('SELECT COUNT(*) n FROM push_subscriptions WHERE owner=?').get(who).n<10||this.db.prepare('SELECT 1 FROM push_subscriptions WHERE id=? AND owner=?').get(id,who),'Too many devices. Disable notifications on an old device first.');this.db.prepare('INSERT INTO push_subscriptions VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,session=excluded.session,body=excluded.body').run(id,who,sid,this.seal(sub),this.now());return {id};}
- unsubscribe(who,endpoint){check(typeof endpoint==='string','Invalid subscription.');this.db.prepare('DELETE FROM push_subscriptions WHERE id=? AND owner=?').run(digest(endpoint),who);}
- logout(sid){this.db.prepare('DELETE FROM push_subscriptions WHERE session=?').run(sid);this.db.prepare('DELETE FROM push_presence WHERE session=?').run(sid);}
+ subscribe(who,sid,raw){const sub=validateSubscription(raw),id=digest(sub.endpoint);check(this.db.prepare('SELECT COUNT(*) n FROM push_subscriptions WHERE owner=?').get(who).n<10||this.db.prepare('SELECT 1 FROM push_subscriptions WHERE id=? AND owner=?').get(id,who),'Too many devices. Disable notifications on an old device first.');this.db.prepare('INSERT INTO push_subscriptions VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,session=excluded.session,body=excluded.body').run(id,who,sid,this.seal(sub),this.now());this.audit(who,id,'registered');return {id};}
+ unsubscribe(who,endpoint){check(typeof endpoint==='string','Invalid subscription.');this.audit(who,digest(endpoint),'disabled');this.db.prepare('DELETE FROM push_subscriptions WHERE id=? AND owner=?').run(digest(endpoint),who);}
+ logout(sid){for(const sub of this.db.prepare('SELECT id,owner FROM push_subscriptions WHERE session=?').all(sid))this.audit(sub.owner,sub.id,'logged-out');this.db.prepare('DELETE FROM push_subscriptions WHERE session=?').run(sid);this.db.prepare('DELETE FROM push_presence WHERE session=?').run(sid);}
  test(who,sid,endpoint){
  check(this.registered(who,sid,endpoint),'Enable notifications on this device first.');
  const key='test:'+randomBytes(12).toString('hex');
@@ -58,7 +75,7 @@ export class PushNotifications{
  enqueue(e){if(!this.mark(e.key))return;
  if(['wall','daily','invitation'].includes(e.kind)||/invited you|mentioned you/.test(e.body)){this.db.prepare('INSERT OR IGNORE INTO notification_inbox VALUES(?,?,?,?,NULL)').run(e.key,e.to,JSON.stringify({body:e.body,target:e.target}),this.now());this.db.prepare('DELETE FROM notification_inbox WHERE owner=? AND id NOT IN (SELECT id FROM notification_inbox WHERE owner=? ORDER BY created DESC LIMIT 100)').run(e.to,e.to);}
 const topic=digest(e.to+':'+(e.kind==='message'?'messages':(e.kind==='test'?e.key:JSON.stringify(e.target)))).slice(0,24),id=e.to+':'+topic;
- const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,kind:e.kind,deviceOnly:['message','echo','daily','test','invitation'].includes(e.kind),subscriptionId:e.subscriptionId,quiet:!!e.quiet,tag:topic,createdAt:this.now(),expires:this.now()+(['daily','invitation'].includes(e.kind)?12*3600000:(e.kind==='message'||e.kind==='echo'?3600000:120000))};
+ const body={title:'Our Place',owner:e.to,body:e.body,target:e.target,kind:e.kind,deviceOnly:true,subscriptionId:e.subscriptionId,quiet:!!e.quiet,tag:topic,createdAt:this.now(),expires:this.now()+(['daily','invitation'].includes(e.kind)?12*3600000:(e.kind==='message'||e.kind==='echo'?3600000:120000))};
  this.db.prepare(`INSERT INTO push_queue(id,owner,topic,body,due,expires) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=CASE WHEN json_extract(excluded.body,'$.quiet')=1 AND json_extract(push_queue.body,'$.quiet')=0 THEN push_queue.body ELSE excluded.body END,expires=excluded.expires`).run(id,e.to,topic,JSON.stringify(body),this.now()+(e.kind==='test'?5000:300),body.expires);
  }
  scan(actor){const current=this.store.state();
@@ -72,18 +89,43 @@ for(const e of attentionEvents(this.previous,current,actor))this.enqueue(e);this
   }
  }
  async drain(){if(this.busy||this.stopped)return;this.busy=true;try{
+  for(const job of this.db.prepare('SELECT owner,topic FROM push_queue WHERE expires<?').all(this.now()))this.audit(job.owner,'','queue-expired',job.topic);
   this.db.prepare('DELETE FROM push_queue WHERE expires<?').run(this.now());
   const jobs=this.db.prepare('SELECT * FROM push_queue WHERE due<=? ORDER BY due LIMIT 10').all(this.now());
-  for(const job of jobs){if(this.stopped)return;const payload=JSON.parse(job.body);if(!payload.deviceOnly&&this.visible(job.owner)){this.db.prepare('UPDATE push_queue SET due=? WHERE id=? AND body=?').run(this.now()+300,job.id,job.body);continue;}
-   const subs=this.db.prepare('SELECT p.* FROM push_subscriptions p JOIN sessions s ON p.session=s.id WHERE p.owner=? AND s.expires>?').all(job.owner,this.now()).filter(s=>!payload.subscriptionId||s.id===payload.subscriptionId);let retry=false,foreground=false;if(!subs.length)console.info('Push skipped: reason=no_active_subscription kind='+(payload.kind||'unknown')+' tag='+job.topic);
-   for(const sub of subs){if(this.stopped)return;if(!payload.deviceOnly&&this.visible(job.owner)){foreground=true;break;}try{const delivery='delivery:'+digest(sub.id+job.body);if(this.db.prepare('SELECT 1 FROM push_seen WHERE id=?').get(delivery))continue;const started=this.now();this.db.prepare('INSERT INTO push_delivery_status(id,created) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET created=excluded.created,accepted=NULL,result=NULL,received=NULL WHERE excluded.created>push_delivery_status.created').run(sub.id,payload.createdAt);await this.send(this.open(sub.body),job.body,{vapidDetails:{subject:this.origin,publicKey:this.vapid.publicKey,privateKey:this.vapid.privateKey},TTL:Math.max(1,Math.ceil((job.expires-this.now())/1000)),urgency:JSON.parse(job.body).quiet?'normal':'high',topic:job.topic,timeout:8000});if(this.stopped)return;this.mark(delivery);this.db.prepare('UPDATE push_delivery_status SET accepted=? WHERE id=? AND created=?').run(this.now(),sub.id,payload.createdAt);console.info('Push accepted: kind='+(payload.kind||'unknown')+' tag='+job.topic+' device='+sub.id.slice(0,12)+' queue_ms='+Math.max(0,started-(JSON.parse(job.body).createdAt??started))+' provider_ms='+(this.now()-started));}
-    catch(e){if(this.stopped)return;console.error('Push provider delivery failed; status='+String(Number(e.statusCode)||0));if([404,410].includes(e.statusCode))this.db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(sub.id);else retry=true;}
+  for(const job of jobs){
+   if(this.stopped)return;
+   const payload=JSON.parse(job.body);
+   const subs=this.db.prepare('SELECT p.*,s.expires AS sessionExpires FROM push_subscriptions p LEFT JOIN sessions s ON p.session=s.id WHERE p.owner=?').all(job.owner).filter(s=>!payload.subscriptionId||s.id===payload.subscriptionId);
+   let retry=false;
+   if(!subs.length)this.audit(job.owner,'','no-subscription',job.topic);
+   for(const sub of subs){
+    if(this.stopped)return;
+    const delivery=digest(sub.id+job.body),seen='delivery:'+delivery;
+    if(this.db.prepare('SELECT 1 FROM push_seen WHERE id=?').get(seen))continue;
+    if(!sub.sessionExpires||sub.sessionExpires<=this.now()){this.audit(job.owner,sub.id,sub.sessionExpires?'session-expired':'session-revoked',delivery);this.mark(seen);continue;}
+    // Do not send a push just to discard it silently on a visible device.
+    if(this.deviceVisible(sub.session)){this.audit(job.owner,sub.id,'foreground-skip',delivery);this.mark(seen);continue;}
+    try{
+     const started=this.now();
+     this.db.prepare('INSERT INTO push_delivery_status(id,created) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET created=excluded.created,accepted=NULL,result=NULL,received=NULL WHERE excluded.created>push_delivery_status.created').run(sub.id,payload.createdAt);
+     const wire=JSON.stringify({...payload,receiptToken:this.receiptToken(sub,payload,delivery)});
+     this.audit(job.owner,sub.id,'send-attempt',delivery,job.attempts);
+     await this.send(this.open(sub.body),wire,{vapidDetails:{subject:this.origin,publicKey:this.vapid.publicKey,privateKey:this.vapid.privateKey},TTL:Math.max(1,Math.ceil((job.expires-this.now())/1000)),urgency:payload.quiet?'normal':'high',topic:job.topic,timeout:8000});
+     if(this.stopped)return;this.mark(seen);
+     this.db.prepare('UPDATE push_delivery_status SET accepted=? WHERE id=? AND created=?').run(this.now(),sub.id,payload.createdAt);
+     this.audit(job.owner,sub.id,'provider-accepted',delivery);
+     console.info('Push accepted: kind='+(payload.kind||'unknown')+' tag='+job.topic+' device='+sub.id.slice(0,12)+' queue_ms='+Math.max(0,started-(payload.createdAt??started))+' provider_ms='+(this.now()-started));
+    }catch(e){
+     if(this.stopped)return;const status=Number(e.statusCode)||0;this.audit(job.owner,sub.id,'provider-failed',delivery,status||String(e.code||e.name||'transport-error'));
+     if([404,410].includes(status)){this.db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(sub.id);this.audit(job.owner,sub.id,'subscription-invalid',delivery,status);}
+     else retry=true;
+    }
    }
-   if(foreground){this.db.prepare('UPDATE push_queue SET due=? WHERE id=? AND body=?').run(this.now()+300,job.id,job.body);continue;}
-   if(retry&&job.attempts<2)this.db.prepare('UPDATE push_queue SET attempts=attempts+1,due=? WHERE id=? AND body=?').run(this.now()+3000,job.id,job.body);else this.db.prepare('DELETE FROM push_queue WHERE id=? AND body=?').run(job.id,job.body);
+   if(retry&&job.attempts<6)this.db.prepare('UPDATE push_queue SET attempts=attempts+1,due=? WHERE id=? AND body=?').run(this.now()+Math.min(60000,3000*2**job.attempts),job.id,job.body);
+   else {if(retry)this.audit(job.owner,'','retries-exhausted',job.topic);this.db.prepare('DELETE FROM push_queue WHERE id=? AND body=?').run(job.id,job.body);}
   }
   this.db.prepare('DELETE FROM push_presence WHERE updated<?').run(this.now()-86400000);
   this.db.prepare("DELETE FROM push_seen WHERE created<? AND id NOT LIKE 'message:%'").run(this.now()-7*86400000);
+  this.db.prepare('DELETE FROM push_audit WHERE at<? OR id NOT IN (SELECT id FROM push_audit ORDER BY id DESC LIMIT 5000)').run(this.now()-30*86400000);
  }finally{this.busy=false;}}
 }
-

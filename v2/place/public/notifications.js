@@ -3,6 +3,13 @@ let who=null,registration=null,bound=null,pending=null,busy=false,epoch=0,sequen
 const client=crypto.randomUUID(),supported='serviceWorker'in navigator&&'PushManager'in window&&'Notification'in window;
 const $=s=>document.querySelector(s),dialog=$('#notifications-dialog'),status=$('#notifications-status'),enable=$('#notifications-enable'),disable=$('#notifications-disable'),testButton=$('#notifications-test');
 const iphone=/iPhone|iPad|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+const choices={};
+function preference(name,value){
+ const key='our-place-push:'+name;
+ if(value!==undefined){choices[name]=value;try{window.localStorage?.setItem(key,value);}catch{}}
+ try{return window.localStorage?.getItem(key)??choices[name];}catch{return choices[name];}
+}
+function repairNotice(message){status.textContent=message;$('#notifications-open').textContent='Notifications — reconnect';}
 const installed=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
 const ready=supported?navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(()=>navigator.serviceWorker.ready).then(r=>(registration=r,r)).catch(()=>null):Promise.resolve(null);
 async function request(path,data,keepalive=false,signal){const r=await fetch('/api/notifications'+path,{method:data?'POST':'GET',headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined,keepalive,signal:signal||AbortSignal.timeout(10000)});if(!r.ok){const v=await r.json();throw Error(v.error||'Could not update notifications. Try again.');}return r.json();}
@@ -10,7 +17,7 @@ async function request(path,data,keepalive=false,signal){const r=await fetch('/a
 // Do not infer focus from a remembered iframe or fullscreen element.
 function foreground(){return document.visibilityState==='visible'&&document.hasFocus()&&navigator.onLine!==false;}
 function presence(){
- const visible=foreground()&&realtime&&Date.now()-realtimeAt<5000;if(foreground())clearShown().catch(()=>{});if(!who)return;
+ const visible=foreground()&&realtime&&Date.now()-realtimeAt<5000;if(!who)return;
  if(presenceFlight?.visible===visible)return;
  presenceFlight?.controller.abort();const controller=new AbortController(),current=epoch,owner=who,order=++sequence;
  const flight={controller,visible};presenceFlight=flight;const timer=setTimeout(()=>controller.abort(),4000);
@@ -35,7 +42,7 @@ enable.onclick=async()=>{
  try{
   // Request permission directly from the tap, including on iPhone.
   const permission=await Notification.requestPermission();if(permission!=='granted'){await refresh();return;}
-  stage='worker';const r=await ready;if(!r)throw Error('Reload Our Place to start notifications.');
+  preference(who,'on');stage='worker';const r=await ready;if(!r)throw Error('Reload Our Place to start notifications.');
   stage='server';const config=await request('');if(current!==epoch)return;
   const bytes=Uint8Array.from(atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-config.publicKey.length%4)%4)),c=>c.charCodeAt(0));
   stage='device';let sub=await r.pushManager.getSubscription();if(current!==epoch)return;
@@ -59,18 +66,42 @@ enable.onclick=async()=>{
   status.textContent=Notification.permission==='denied'?'Notifications are blocked. Allow them in your phone or browser settings, then return here.':stage==='device'?'Your browser could not register this device for push notifications ('+code+'): '+detail:stage==='save'?'Your device subscription is saved in this browser, but Our Place could not connect it yet. Tap Enable to retry. '+detail:'Could not enable notifications ('+stage+'): '+detail;
  }finally{busy=false;enable.disabled=!supported||Notification.permission==='denied';disable.disabled=false;}
 };
-disable.onclick=async()=>{if(busy)return;busy=true;disable.disabled=true;try{const r=await ready,sub=r&&await r.pushManager.getSubscription();if(sub){await request('/unsubscribe',{endpoint:sub.endpoint});await sub.unsubscribe();}bound=null;await clearShown();await refresh();}catch(e){status.textContent=e.message;}finally{busy=false;disable.disabled=false;}};
+disable.onclick=async()=>{if(busy)return;preference(who,'off');busy=true;disable.disabled=true;try{const r=await ready,sub=r&&await r.pushManager.getSubscription();if(sub){await request('/unsubscribe',{endpoint:sub.endpoint});await sub.unsubscribe();}bound=null;await clearShown();await refresh();}catch(e){status.textContent=e.message;}finally{busy=false;disable.disabled=false;}};
 testButton.onclick=async()=>{
  if(busy||!who)return;busy=true;testButton.disabled=true;
  try{const r=await ready,sub=r&&await r.pushManager.getSubscription();if(!sub)throw Error('Enable notifications on this device first.');await request('/test',{endpoint:sub.endpoint});status.textContent='Test scheduled. Leave Our Place now; it will be sent in 5 seconds.';}catch(e){status.textContent=e.message;}finally{busy=false;testButton.disabled=false;}
 };
 async function bind(){
- if(!who||busy||bindFlight||navigator.onLine===false||Date.now()<bindAfter)return;
+ if(!who||busy||bindFlight||navigator.onLine===false||Date.now()<bindAfter||preference(who)==='off')return;
  const current=epoch,name=who;bindAfter=Date.now()+15000;
- const flight=(async()=>{const r=await ready;if(!r||current!==epoch)return;const sub=await r.pushManager.getSubscription();if(current!==epoch)return;
-  if(sub){const status=await request('/status',{endpoint:sub.endpoint});if(current!==epoch)return;if(!status.registered)await request('/subscribe',sub.toJSON());if(current!==epoch)return;bound=name;}
+ const flight=(async()=>{
+  const r=await ready;if(!r||current!==epoch)return;
+  let sub=await r.pushManager.getSubscription();if(current!==epoch)return;
+  if(sub){
+   preference(name,'on');
+   const state=await request('/status',{endpoint:sub.endpoint});if(current!==epoch)return;
+   const invalid=state.history?.find(e=>e.event==='subscription-invalid');
+   if(!state.registered&&invalid){
+    // Only a definitive provider rejection permits replacing an existing token.
+    await sub.unsubscribe();sub=null;
+   }else if(!state.registered)await request('/subscribe',sub.toJSON());
+  }
+  if(current!==epoch)return;
+  if(!sub&&preference(name)==='on'&&Notification.permission==='granted'){
+   const config=await request('');if(current!==epoch)return;
+   const bytes=Uint8Array.from(atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-config.publicKey.length%4)%4)),c=>c.charCodeAt(0));
+   sub=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes});
+   if(current!==epoch)return;
+   await request('/subscribe',sub.toJSON());
+  }
+  if(current!==epoch)return;
+  if(sub){bound=name;$('#notifications-open').textContent='Notifications';}
+  else if(preference(name)==='on')repairNotice('Notifications need reconnecting on this device. Open Notifications and tap Enable.');
   bindAfter=Date.now()+60000;
- })();bindFlight=flight;try{await flight;}finally{if(bindFlight===flight)bindFlight=null;}
+ })();bindFlight=flight;
+ try{await flight;}catch(e){
+  if(current===epoch&&name===who)repairNotice('Notifications could not reconnect yet. Open Notifications and tap Enable. '+String(e?.message||'').slice(0,140));
+ }finally{if(bindFlight===flight)bindFlight=null;}
 }
 function recoverBinding(){if(!document.hidden){bindAfter=0;bind().catch(()=>{});if(dialog.open)refresh().catch(e=>status.textContent=e.message);}}
 window.addEventListener('online',recoverBinding);window.addEventListener('focus',recoverBinding);

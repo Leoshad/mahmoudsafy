@@ -215,6 +215,10 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       res.setHeader('Set-Cookie','__Host-drive-state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
       res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});return res.end('<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Drive connected</title><body><h1>Google Drive connected</h1><p>A backup has been requested. Open backup status to check the result.</p><a href="/api/backup/google">Continue to backup status</a></body></html>');
     }
+    if(path==='/api/push-receipt'&&req.method==='POST'){
+      limit('push-receipt-token:'+req.socket.remoteAddress,120,60000);
+      const data=await body(req,3000);notifications.tokenReceipt(data.token,data.result);return send(res,200,{ok:true});
+    }
     if(await accountHandler(req,res,path))return;
     if(path==='/api/health'){check(store.db.prepare('SELECT 1 FROM state WHERE id=1').get(),'Storage is unavailable.',503);return send(res,200,{ok:true,product:'Our Place',aiConfigured:!!process.env.OPENAI_API_KEY,youtubeConfigured:!!process.env.YOUTUBE_API_KEY});}
     if(path==='/api/login'&&req.method==='POST'){
@@ -280,7 +284,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(path.startsWith('/api/notifications/')&&req.method==='POST'){
         const data=await body(req,path==='/api/notifications/seen'?32768:8000);
         if(path==='/api/notifications/seen'){notifications.seenInbox(who,data.ids);refresh(who);return send(res,200,{ok:true});}
-        if(path.endsWith('/status'))return send(res,200,{registered:notifications.registered(who,req.sessionId,data.endpoint),delivery:notifications.deliveryStatus(who,req.sessionId,data.endpoint)});
+        if(path.endsWith('/status'))return send(res,200,{registered:notifications.registered(who,req.sessionId,data.endpoint),delivery:notifications.deliveryStatus(who,req.sessionId,data.endpoint),history:notifications.history(who,data.endpoint)});
         if(path.endsWith('/read')){notifications.readInbox(who,data.id);refresh(who);return send(res,200,{ok:true});}
         if(path.endsWith('/presence')){notifications.presence(who,req.sessionId,data);publishPresence();return send(res,200,{ok:true,who,online:['Mahmoud','Safy'].filter(name=>notifications.visible(name)),serverNow:Date.now()});}
         else if(path.endsWith('/subscribe')){limit('push:'+who,30);notifications.subscribe(who,req.sessionId,data);}
