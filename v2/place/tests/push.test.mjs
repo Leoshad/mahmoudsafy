@@ -211,3 +211,50 @@ test('same-device foreground is filtered before provider delivery, while a later
  push.presence('Safy','Safy',{client,visible:true,sequence:1});push.enqueue(event());advance(400);await push.drain();assert.equal(sent.length,0);
  push.presence('Safy','Safy',{client,visible:false,sequence:2});push.enqueue(event());advance(400);await push.drain();assert.equal(sent.length,1);
 });
+
+test('full legacy registry with seven expired sessions accepts the current phone and delivers',async t=>{
+ const {push,store,sent,advance}=fixture(t);
+ for(let i=0;i<10;i++){const sid='legacy-'+i;store.db.prepare('INSERT INTO sessions VALUES(?,?)').run(sid,Date.now()+86400000);push.subscribe('Safy',sid,subscription(sid));}
+ store.db.prepare("UPDATE sessions SET expires=0 WHERE id IN ('legacy-0','legacy-1','legacy-2','legacy-3','legacy-4','legacy-5','legacy-6')").run();
+ const phone=subscription('current-phone');push.subscribe('Safy','Safy',phone);
+ assert.equal(store.db.prepare("SELECT COUNT(*) n FROM push_subscriptions WHERE owner='Safy'").get().n,4);
+ assert.equal(push.registered('Safy','Safy',phone.endpoint),true);
+ push.enqueue(event());advance(400);await push.drain();assert.equal(sent.length,4);assert.ok(sent.some(s=>s.sub.endpoint===phone.endpoint));
+ assert.equal(store.db.prepare("SELECT COUNT(*) n FROM push_audit WHERE event='subscription-pruned' AND code='session-expired'").get().n,7);
+});
+test('repeated token rotation on one installation never fills device capacity or removes another phone',t=>{
+ const {push,store}=fixture(t),deviceId=randomUUID(),other=subscription('other-phone');push.subscribe('Safy','Safy',other);
+ for(let i=0;i<25;i++)push.subscribe('Safy','Safy',{...subscription('rotation-'+i),deviceId});
+ assert.equal(store.db.prepare("SELECT COUNT(*) n FROM push_subscriptions WHERE owner='Safy'").get().n,2);
+ assert.equal(push.registered('Safy','Safy',other.endpoint),true);
+ assert.equal(push.registered('Safy','Safy',subscription('rotation-24').endpoint),true);
+});
+
+test('startup and periodic cleanup remove revoked/expired bindings without touching active registrations',t=>{
+ const {push,store,advance}=fixture(t),live=subscription('live'),dead=subscription('dead');push.subscribe('Safy','Safy',live);push.subscribe('Mahmoud','Mahmoud',dead);
+ store.db.prepare("DELETE FROM sessions WHERE id='Mahmoud'").run();
+ const restarted=new PushNotifications(store,{secret,origin:'https://example.test'});
+ assert.equal(restarted.registered('Safy','Safy',live.endpoint),true);assert.equal(restarted.registered('Mahmoud','Mahmoud',dead.endpoint),false);
+ assert.ok(restarted.history('Mahmoud',dead.endpoint).some(e=>e.event==='subscription-pruned'&&e.code==='session-revoked'));
+ advance(86400001);push.pruneSubscriptions();assert.equal(store.db.prepare('SELECT COUNT(*) n FROM push_subscriptions').get().n,0);
+});
+test('rotation preserves installation identity; previous endpoint cannot remove another owner or session',t=>{
+ const {push,store}=fixture(t),old=subscription('old'),next=subscription('next'),other=subscription('other'),deviceId=randomUUID();
+ push.subscribe('Safy','Safy',{...old,deviceId});push.subscribe('Mahmoud','Mahmoud',other);
+ push.subscribe('Safy','Safy',{...next,previousEndpoint:old.endpoint});assert.equal(push.registered('Safy','Safy',old.endpoint),false);
+ assert.equal(store.db.prepare('SELECT installation FROM push_subscriptions WHERE owner=?').get('Safy').installation,deviceId);
+ push.subscribe('Safy','Safy',{...subscription('new'),previousEndpoint:other.endpoint});assert.equal(push.registered('Mahmoud','Mahmoud',other.endpoint),true);
+ store.db.prepare('INSERT INTO sessions VALUES(?,?)').run('other-session',Date.now()+86400000);
+ push.subscribe('Safy','other-session',{...subscription('separate'),previousEndpoint:next.endpoint});assert.equal(push.registered('Safy','Safy',next.endpoint),true);
+});
+test('a genuinely full active registry preserves all devices and records capacity rejection; rebinding still succeeds',t=>{
+ const {push,store}=fixture(t),subs=Array.from({length:10},(_,i)=>subscription('active-'+i));for(const sub of subs)push.subscribe('Safy','Safy',sub);
+ const rejected=subscription('eleven');assert.throws(()=>push.subscribe('Safy','Safy',rejected),e=>e.status===409);
+ assert.equal(store.db.prepare('SELECT COUNT(*) n FROM push_subscriptions').get().n,10);assert.ok(subs.every(sub=>push.registered('Safy','Safy',sub.endpoint)));
+ assert.ok(push.history('Safy',rejected.endpoint).some(e=>e.event==='registration-blocked'));
+ push.subscribe('Safy','Safy',{...subs[0],deviceId:randomUUID()});assert.equal(store.db.prepare('SELECT COUNT(*) n FROM push_subscriptions').get().n,10);
+});
+test('client sends one stable installation identity on automatic recovery and explicit enable',async()=>{
+ const c=clientFixture({existing:true,permission:'granted'});c.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);await c.node('#notifications-enable').onclick();
+ const registrations=c.requests.filter(r=>r.path.endsWith('/subscribe')).map(r=>JSON.parse(r.options.body));assert.ok(registrations.length>=2);assert.match(registrations[0].deviceId,/^[\w-]{16,80}$/);assert.ok(registrations.every(r=>r.deviceId===registrations[0].deviceId));
+});

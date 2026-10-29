@@ -50,7 +50,7 @@ self.addEventListener('pushsubscriptionchange',event=>event.waitUntil((async()=>
  try{
   let sub=event.newSubscription;
   if(!sub&&event.oldSubscription?.options)sub=await self.registration.pushManager.subscribe(event.oldSubscription.options);
-  if(sub)await fetch('/api/notifications/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(sub.toJSON()),signal:AbortSignal.timeout(10000)});
+  if(sub)await fetch('/api/notifications/subscribe',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...sub.toJSON(),previousEndpoint:event.oldSubscription?.endpoint}),signal:AbortSignal.timeout(10000)});
  }catch{}
 })()));
 self.addEventListener('notificationclick',event=>{

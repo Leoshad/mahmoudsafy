@@ -23,6 +23,8 @@ export class PushNotifications{
  CREATE TABLE IF NOT EXISTS push_seen(id TEXT PRIMARY KEY,created INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS push_queue(id TEXT PRIMARY KEY,owner TEXT NOT NULL,topic TEXT NOT NULL,body TEXT NOT NULL,due INTEGER NOT NULL,expires INTEGER NOT NULL,attempts INTEGER NOT NULL DEFAULT 0);`);
   if(!this.db.prepare('PRAGMA table_info(push_presence)').all().some(c=>c.name==='sequence'))this.db.exec('ALTER TABLE push_presence ADD COLUMN sequence INTEGER NOT NULL DEFAULT 0');
+  if(!this.db.prepare('PRAGMA table_info(push_subscriptions)').all().some(c=>c.name==='installation'))this.db.exec('ALTER TABLE push_subscriptions ADD COLUMN installation TEXT');
+  this.pruneSubscriptions();
   const saved=this.db.prepare('SELECT body FROM push_meta WHERE id=1').get();this.vapid=saved?this.open(saved.body):webpush.generateVAPIDKeys();if(!saved)this.db.prepare('INSERT INTO push_meta VALUES(1,?)').run(this.seal(this.vapid));
   // Starting the notification service never replays historical chat.
   for(const m of store.messages())if(m.status==='sent')this.mark('message:'+m.id);
@@ -61,7 +63,36 @@ export class PushNotifications{
   check(Number.isFinite(data.createdAt),'Invalid notification receipt time.');
   this.db.prepare('UPDATE push_delivery_status SET result=?,received=? WHERE id=? AND created=?').run(data.result,this.now(),digest(data.endpoint),data.createdAt);
  }
- subscribe(who,sid,raw){const sub=validateSubscription(raw),id=digest(sub.endpoint);check(this.db.prepare('SELECT COUNT(*) n FROM push_subscriptions WHERE owner=?').get(who).n<10||this.db.prepare('SELECT 1 FROM push_subscriptions WHERE id=? AND owner=?').get(id,who),'Too many devices. Disable notifications on an old device first.');this.db.prepare('INSERT INTO push_subscriptions VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,session=excluded.session,body=excluded.body').run(id,who,sid,this.seal(sub),this.now());this.audit(who,id,'registered');return {id};}
+ pruneSubscriptions(){
+  const stale=this.db.prepare('SELECT p.id,p.owner,s.expires FROM push_subscriptions p LEFT JOIN sessions s ON s.id=p.session WHERE s.id IS NULL OR s.expires<=?').all(this.now());
+  for(const sub of stale){
+   this.audit(sub.owner,sub.id,'subscription-pruned','',sub.expires==null?'session-revoked':'session-expired');
+   this.db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(sub.id);
+   this.db.prepare('DELETE FROM push_delivery_status WHERE id=?').run(sub.id);
+  }
+  this.nextPrune=this.now()+60000;
+ }
+ subscribe(who,sid,raw){
+  const sub=validateSubscription(raw),id=digest(sub.endpoint);
+  check(raw.deviceId==null||typeof raw.deviceId==='string'&&/^[\w-]{16,80}$/.test(raw.deviceId),'Invalid device identity.');
+  check(raw.previousEndpoint==null||typeof raw.previousEndpoint==='string'&&raw.previousEndpoint.length<4096,'Invalid previous subscription.');
+  check(this.db.prepare('SELECT 1 FROM sessions WHERE id=? AND expires>?').get(sid,this.now()),'Sign in again to reconnect notifications.',401);
+  // Dead login bindings must never consume device capacity. Keep active devices.
+  this.pruneSubscriptions();
+  try{return this.store.tx(()=>{
+   const existing=this.db.prepare('SELECT * FROM push_subscriptions WHERE id=?').get(id);
+   const previous=raw.previousEndpoint?this.db.prepare('SELECT * FROM push_subscriptions WHERE id=? AND owner=? AND session=?').get(digest(raw.previousEndpoint),who,sid):null;
+   const installation=raw.deviceId||(existing?.owner===who?existing.installation:null)||previous?.installation||null;
+   const replaced=this.db.prepare('SELECT id FROM push_subscriptions WHERE owner=? AND id<>? AND ((installation IS NOT NULL AND installation=?) OR id=?)').all(who,id,installation,previous?.id??'');
+   const count=this.db.prepare('SELECT COUNT(*) n FROM push_subscriptions WHERE owner=?').get(who).n;
+   if(count-replaced.length>=10&&existing?.owner!==who){check(false,'Ten active devices are already connected. Turn off notifications on an unused device.',409);}
+   for(const old of replaced){this.db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(old.id);this.db.prepare('DELETE FROM push_delivery_status WHERE id=?').run(old.id);this.audit(who,old.id,'subscription-replaced');}
+   this.db.prepare('INSERT INTO push_subscriptions(id,owner,session,body,created,installation) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,session=excluded.session,body=excluded.body,installation=excluded.installation').run(id,who,sid,this.seal(sub),this.now(),installation);
+   if(!existing||existing.owner!==who||existing.session!==sid||existing.installation!==installation)this.audit(who,id,'registered');
+   return {id};
+  });}catch(e){if(e.status===409)this.audit(who,id,'registration-blocked','','active-device-limit');throw e;}
+ }
+
  unsubscribe(who,endpoint){check(typeof endpoint==='string','Invalid subscription.');this.audit(who,digest(endpoint),'disabled');this.db.prepare('DELETE FROM push_subscriptions WHERE id=? AND owner=?').run(digest(endpoint),who);}
  logout(sid){for(const sub of this.db.prepare('SELECT id,owner FROM push_subscriptions WHERE session=?').all(sid))this.audit(sub.owner,sub.id,'logged-out');this.db.prepare('DELETE FROM push_subscriptions WHERE session=?').run(sid);this.db.prepare('DELETE FROM push_presence WHERE session=?').run(sid);}
  test(who,sid,endpoint){
@@ -89,6 +120,7 @@ for(const e of attentionEvents(this.previous,current,actor))this.enqueue(e);this
   }
  }
  async drain(){if(this.busy||this.stopped)return;this.busy=true;try{
+  if(this.now()>=this.nextPrune)this.pruneSubscriptions();
   for(const job of this.db.prepare('SELECT owner,topic FROM push_queue WHERE expires<?').all(this.now()))this.audit(job.owner,'','queue-expired',job.topic);
   this.db.prepare('DELETE FROM push_queue WHERE expires<?').run(this.now());
   const jobs=this.db.prepare('SELECT * FROM push_queue WHERE due<=? ORDER BY due LIMIT 10').all(this.now());

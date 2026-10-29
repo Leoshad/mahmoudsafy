@@ -9,6 +9,16 @@ function preference(name,value){
  if(value!==undefined){choices[name]=value;try{window.localStorage?.setItem(key,value);}catch{}}
  try{return window.localStorage?.getItem(key)??choices[name];}catch{return choices[name];}
 }
+let installationId;
+function subscriptionData(sub){
+ // Stable per browser installation, independent of rotating push endpoints/login.
+ if(!installationId){
+  try{installationId=window.localStorage?.getItem('our-place-push-device');}catch{}
+  if(!/^[\w-]{16,80}$/.test(installationId||''))installationId=crypto.randomUUID();
+  try{window.localStorage?.setItem('our-place-push-device',installationId);}catch{}
+ }
+ return {...sub.toJSON(),deviceId:installationId};
+}
 function repairNotice(message){status.textContent=message;$('#notifications-open').textContent='Notifications — reconnect';}
 const installed=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
 const ready=supported?navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(()=>navigator.serviceWorker.ready).then(r=>(registration=r,r)).catch(()=>null):Promise.resolve(null);
@@ -58,7 +68,7 @@ enable.onclick=async()=>{
    sub=sub||await subscribe();
   }
   if(current!==epoch)return;
-  stage='save';await request('/subscribe',sub.toJSON());if(current!==epoch)return;
+  stage='save';await request('/subscribe',subscriptionData(sub));if(current!==epoch)return;
   bound=who;bindAfter=Date.now()+60000;stage='verify';await refresh();
  }catch(e){
   if(current!==epoch)return;
@@ -84,7 +94,7 @@ async function bind(){
    if(!state.registered&&invalid){
     // Only a definitive provider rejection permits replacing an existing token.
     await sub.unsubscribe();sub=null;
-   }else if(!state.registered)await request('/subscribe',sub.toJSON());
+   }else await request('/subscribe',subscriptionData(sub));
   }
   if(current!==epoch)return;
   if(!sub&&preference(name)==='on'&&Notification.permission==='granted'){
@@ -92,7 +102,7 @@ async function bind(){
    const bytes=Uint8Array.from(atob(config.publicKey.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-config.publicKey.length%4)%4)),c=>c.charCodeAt(0));
    sub=await r.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes});
    if(current!==epoch)return;
-   await request('/subscribe',sub.toJSON());
+   await request('/subscribe',subscriptionData(sub));
   }
   if(current!==epoch)return;
   if(sub){bound=name;$('#notifications-open').textContent='Notifications';}
