@@ -102,7 +102,7 @@ for(const e of attentionEvents(this.previous,current,actor))this.enqueue(e);this
     if(this.stopped)return;
     const delivery=digest(sub.id+job.body),seen='delivery:'+delivery;
     if(this.db.prepare('SELECT 1 FROM push_seen WHERE id=?').get(seen))continue;
-    if(!sub.sessionExpires||sub.sessionExpires<=this.now()){this.audit(job.owner,sub.id,sub.sessionExpires?'session-expired':'session-revoked',delivery);this.mark(seen);continue;}
+    if(!sub.sessionExpires||sub.sessionExpires<=this.now()){this.audit(job.owner,sub.id,sub.sessionExpires!=null?'session-expired':'session-revoked',delivery);this.mark(seen);continue;}
     // Do not send a push just to discard it silently on a visible device.
     if(this.deviceVisible(sub.session)){this.audit(job.owner,sub.id,'foreground-skip',delivery);this.mark(seen);continue;}
     try{
