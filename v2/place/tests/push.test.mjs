@@ -258,3 +258,13 @@ test('client sends one stable installation identity on automatic recovery and ex
  const c=clientFixture({existing:true,permission:'granted'});c.window.OurNotifications.sync({who:'Safy'});await new Promise(setImmediate);await c.node('#notifications-enable').onclick();
  const registrations=c.requests.filter(r=>r.path.endsWith('/subscribe')).map(r=>JSON.parse(r.options.body));assert.ok(registrations.length>=2);assert.match(registrations[0].deviceId,/^[\w-]{16,80}$/);assert.ok(registrations.every(r=>r.deviceId===registrations[0].deviceId));
 });
+
+test('generic notifications remain audible on account-check failure or clock expiry, without exposing content',async()=>{
+ const data={owner:'Safy',expires:Date.now()+120000,body:'Private',target:{tab:'chat',message:'private-id'}};
+ for(const opts of [{networkError:true},{statusCode:401},{statusCode:503}]){const w=worker(opts);await w.push(data);assert.equal(w.shown[0][1].body,'Open Our Place to check your updates.');assert.equal(w.shown[0][1].data.url,'/');assert.notEqual(w.shown[0][1].silent,true);}
+ const late=worker();await late.push({...data,expires:Date.now()-1000});assert.notEqual(late.shown[0][1].silent,true);assert.equal(late.shown[0][1].data.url,'/');
+});
+test('wrong-account and malformed pushes remain silent, as do likes and foreground races',async()=>{
+ const data={owner:'Safy',expires:Date.now()+120000,body:'Private'};
+ for(const [opts,payload] of [[{owner:'Mahmoud'},data],[{},null],[{},{...data,quiet:true}],[{visible:true},data]]){const w=worker(opts);await w.push(payload);assert.equal(w.shown[0][1].silent,true);}
+});

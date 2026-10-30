@@ -35,7 +35,7 @@ self.addEventListener('push',event=>event.waitUntil((async()=>{
  // Never consume a push silently: WebKit can revoke the subscription.
  // Foreground devices are filtered on the server. A foreground race is silent,
  // but still visible; account failures use generic content and no private link.
- const quiet=!!data.quiet||foreground||!!reason;
+ const quiet=!!data.quiet||foreground||reason==='wrong-account'||reason==='invalid-payload';
  const options={body:verified?String(data.body||'You have an update.').slice(0,180):'Open Our Place to check your updates.',icon:'/icon-192.png',tag:String(data.tag||'our-place').slice(0,64),renotify:!quiet,data:{url:verified?destination(data.target):'/'}};
  if(quiet)options.silent=true;else options.vibrate=[180];
  try{
