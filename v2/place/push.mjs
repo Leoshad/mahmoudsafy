@@ -26,6 +26,7 @@ export class PushNotifications{
   if(!this.db.prepare('PRAGMA table_info(push_subscriptions)').all().some(c=>c.name==='installation'))this.db.exec('ALTER TABLE push_subscriptions ADD COLUMN installation TEXT');
   this.pruneSubscriptions();
   const saved=this.db.prepare('SELECT body FROM push_meta WHERE id=1').get();this.vapid=saved?this.open(saved.body):webpush.generateVAPIDKeys();if(!saved)this.db.prepare('INSERT INTO push_meta VALUES(1,?)').run(this.seal(this.vapid));
+  this.bindingEvidence();
   // Starting the notification service never replays historical chat.
   for(const m of store.messages())if(m.status==='sent')this.mark('message:'+m.id);
  }
@@ -45,15 +46,38 @@ export class PushNotifications{
   this.db.prepare('INSERT INTO push_audit(at,owner,device,event,delivery,code) VALUES(?,?,?,?,?,?)').run(this.now(),owner,device,event,delivery,String(code).slice(0,60));
   console.info(JSON.stringify({event:'push_lifecycle',at:this.now(),owner,device:device.slice(0,12),stage:event,delivery:delivery.slice(0,24),code:String(code).slice(0,60)}));
  }
+ clientEvent(who,d){
+  check(d&&typeof d==='object'&&!Array.isArray(d),'Invalid client event.');
+  check(['permission','worker','server','device','device-retry','save','verify','bind'].includes(d.stage),'Invalid client stage.');
+  check(typeof d.deviceId==='string'&&/^[\w-]{16,80}$/.test(d.deviceId),'Invalid device identity.');
+  check(typeof d.version==='string'&&/^[\w.-]{1,60}$/.test(d.version),'Invalid client version.');
+  const name=['AbortError','NotAllowedError','InvalidStateError','NotSupportedError','TypeError','TimeoutError','Error'].includes(d.name)?d.name:'OtherError';
+  const reason=['push-service-error','network-error','timeout','other'].includes(d.reason)?d.reason:'other';
+  const permission=['granted','denied','default'].includes(d.permission)?d.permission:'unknown';
+  const browser=typeof d.browser==='string'&&/^(Chrome|CriOS|Firefox|FxiOS|Version)\/[0-9.]{1,25}$/.test(d.browser)?d.browser:'unknown';
+  const platform=['ios','android','other'].includes(d.platform)?d.platform:'other',device=digest('installation:'+d.deviceId);
+  const detail={name,reason,version:d.version,permission,browser,platform,standalone:d.standalone===true,online:d.online===true,sinceOffMs:Number.isSafeInteger(d.sinceOffMs)&&d.sinceOffMs>=0&&d.sinceOffMs<=30*86400000?d.sinceOffMs:null};
+  this.audit(who,device,'client-'+d.stage,'',name+':'+reason);
+  console.info(JSON.stringify({event:'push_client',owner:who,device:device.slice(0,12),stage:d.stage,...detail}));
+ }
+ provider(sub){const h=new URL(sub.endpoint).hostname;return h.includes('push.apple.com')?'apple':h.includes('mozilla.com')?'mozilla':h.includes('notify.windows.com')?'windows':'fcm';}
+ bindingEvidence(){
+  // Read-only inventory. No raw endpoint, session, installation ID or keys.
+  for(const row of this.db.prepare('SELECT p.*,s.expires,(SELECT COUNT(*) FROM push_subscriptions x WHERE x.owner=p.owner AND x.session=p.session) AS sameSession FROM push_subscriptions p LEFT JOIN sessions s ON s.id=p.session').all()){
+   let provider='unreadable';try{provider=this.provider(this.open(row.body));}catch{}
+   console.info(JSON.stringify({event:'push_binding',owner:row.owner,device:row.id.slice(0,12),sessionGroup:digest('session:'+row.session).slice(0,12),installation:row.installation?digest('installation:'+row.installation).slice(0,12):null,provider,rowsInSession:row.sameSession,created:row.created,sessionExpires:row.expires}));
+  }
+ }
  history(who,endpoint){return typeof endpoint==='string'?this.db.prepare('SELECT at,event,delivery,code FROM push_audit WHERE owner=? AND device=? ORDER BY id DESC LIMIT 40').all(who,digest(endpoint)):[];}
  deviceVisible(sid){return !!this.db.prepare('SELECT 1 FROM push_presence WHERE session=? AND visible=1 AND updated>?').get(sid,this.now()-5000);}
  receiptToken(sub,payload,delivery){return this.seal({purpose:'push-receipt-v1',owner:sub.owner,device:sub.id,delivery,created:payload.createdAt,expires:this.now()+86400000});}
- tokenReceipt(token,result){
+ tokenReceipt(token,result,version=''){
+  check(typeof version==='string'&&version.length<=60&&/^[\w.-]*$/.test(version),'Invalid worker version.');
   check(typeof token==='string'&&token.length<2000,'Invalid receipt.',403);let proof;try{proof=this.open(token);}catch{check(false,'Invalid receipt.',403);}
   check(proof?.purpose==='push-receipt-v1'&&proof.expires>this.now()&&names.includes(proof.owner),'Expired or invalid receipt.',403);
   check(['received','shown','foreground','expired','wrong-account','auth-required','auth-unavailable','invalid-payload','display-failed'].includes(result),'Invalid receipt result.');
   if(this.db.prepare('SELECT 1 FROM push_audit WHERE delivery=? AND event=?').get(proof.delivery,result))return;
-  this.audit(proof.owner,proof.device,result,proof.delivery);
+  this.audit(proof.owner,proof.device,result,proof.delivery,version);
   if(result!=='received')this.db.prepare('UPDATE push_delivery_status SET result=?,received=? WHERE id=? AND created=?').run(result,this.now(),proof.device,proof.created);
  }
  deliveryStatus(who,sid,endpoint){if(!this.registered(who,sid,endpoint))return null;return this.db.prepare('SELECT accepted,result,received FROM push_delivery_status WHERE id=?').get(digest(endpoint))??null;}
@@ -88,7 +112,7 @@ export class PushNotifications{
    if(count-replaced.length>=10&&existing?.owner!==who){check(false,'Ten active devices are already connected. Turn off notifications on an unused device.',409);}
    for(const old of replaced){this.db.prepare('DELETE FROM push_subscriptions WHERE id=?').run(old.id);this.db.prepare('DELETE FROM push_delivery_status WHERE id=?').run(old.id);this.audit(who,old.id,'subscription-replaced');}
    this.db.prepare('INSERT INTO push_subscriptions(id,owner,session,body,created,installation) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET owner=excluded.owner,session=excluded.session,body=excluded.body,installation=excluded.installation').run(id,who,sid,this.seal(sub),this.now(),installation);
-   if(!existing||existing.owner!==who||existing.session!==sid||existing.installation!==installation)this.audit(who,id,'registered');
+   if(!existing||existing.owner!==who||existing.session!==sid||existing.installation!==installation){this.audit(who,id,'registered','',this.provider(sub));this.bindingEvidence();}
    return {id};
   });}catch(e){if(e.status===409)this.audit(who,id,'registration-blocked','','active-device-limit');throw e;}
  }

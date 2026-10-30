@@ -217,7 +217,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
     }
     if(path==='/api/push-receipt'&&req.method==='POST'){
       limit('push-receipt-token:'+req.socket.remoteAddress,120,60000);
-      const data=await body(req,3000);notifications.tokenReceipt(data.token,data.result);return send(res,200,{ok:true});
+      const data=await body(req,3000);notifications.tokenReceipt(data.token,data.result,data.version);return send(res,200,{ok:true});
     }
     if(await accountHandler(req,res,path))return;
     if(path==='/api/health'){check(store.db.prepare('SELECT 1 FROM state WHERE id=1').get(),'Storage is unavailable.',503);return send(res,200,{ok:true,product:'Our Place',aiConfigured:!!process.env.OPENAI_API_KEY,youtubeConfigured:!!process.env.YOUTUBE_API_KEY});}
@@ -287,6 +287,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         if(path.endsWith('/status'))return send(res,200,{registered:notifications.registered(who,req.sessionId,data.endpoint),delivery:notifications.deliveryStatus(who,req.sessionId,data.endpoint),history:notifications.history(who,data.endpoint)});
         if(path.endsWith('/read')){notifications.readInbox(who,data.id);refresh(who);return send(res,200,{ok:true});}
         if(path.endsWith('/presence')){notifications.presence(who,req.sessionId,data);publishPresence();return send(res,200,{ok:true,who,online:['Mahmoud','Safy'].filter(name=>notifications.visible(name)),serverNow:Date.now()});}
+        else if(path.endsWith('/client-event')){limit('push-client-event:'+who,20,60000);notifications.clientEvent(who,data);}
         else if(path.endsWith('/subscribe')){limit('push:'+who,30);notifications.subscribe(who,req.sessionId,data);}
         else if(path.endsWith('/unsubscribe'))notifications.unsubscribe(who,data.endpoint);
         else if(path.endsWith('/test')){limit('push-test:'+who,3,60000);notifications.test(who,req.sessionId,data.endpoint);}

@@ -9,15 +9,24 @@ function preference(name,value){
  if(value!==undefined){choices[name]=value;try{window.localStorage?.setItem(key,value);}catch{}}
  try{return window.localStorage?.getItem(key)??choices[name];}catch{return choices[name];}
 }
+const CLIENT_VERSION='push-client-2026-10-30.3';
 let installationId;
-function subscriptionData(sub){
+function installation(){
  // Stable per browser installation, independent of rotating push endpoints/login.
  if(!installationId){
   try{installationId=window.localStorage?.getItem('our-place-push-device');}catch{}
   if(!/^[\w-]{16,80}$/.test(installationId||''))installationId=crypto.randomUUID();
   try{window.localStorage?.setItem('our-place-push-device',installationId);}catch{}
  }
- return {...sub.toJSON(),deviceId:installationId};
+ return installationId;
+}
+function subscriptionData(sub){return {...sub.toJSON(),deviceId:installation()};}
+function report(stage,e){
+ if(!who)return;
+ let lastOff=null;try{lastOff=Number(window.localStorage?.getItem('our-place-push-last-off'))||null;}catch{}
+ const message=String(e?.message||'');
+ const reason=/push service error/i.test(message)?'push-service-error':/offline|network|fetch/i.test(message)?'network-error':/timeout|timed out/i.test(message)?'timeout':'other';
+ request('/client-event',{stage,name:String(e?.name||'Error').slice(0,40),reason,deviceId:installation(),version:CLIENT_VERSION,permission:Notification.permission,standalone:!!installed,online:navigator.onLine!==false,sinceOffMs:lastOff?Math.max(0,Date.now()-lastOff):null,browser:(navigator.userAgent.match(/(?:Chrome|CriOS|Firefox|FxiOS|Version)\/[\d.]+/)||[])[0]||'unknown',platform:iphone?'ios':/Android/.test(navigator.userAgent)?'android':'other'},true).catch(()=>{});
 }
 function repairNotice(message){status.textContent=message;$('#notifications-open').textContent='Notifications — reconnect';}
 const installed=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
@@ -72,11 +81,12 @@ enable.onclick=async()=>{
   bound=who;bindAfter=Date.now()+60000;stage='verify';await refresh();
  }catch(e){
   if(current!==epoch)return;
+  report(stage,e);
   const detail=String(e?.message||'Please try again.').slice(0,220),code=String(e?.name||'Error');
   status.textContent=Notification.permission==='denied'?'Notifications are blocked. Allow them in your phone or browser settings, then return here.':stage==='device'?'Your browser could not register this device for push notifications ('+code+'): '+detail:stage==='save'?'Your device subscription is saved in this browser, but Our Place could not connect it yet. Tap Enable to retry. '+detail:'Could not enable notifications ('+stage+'): '+detail;
  }finally{busy=false;enable.disabled=!supported||Notification.permission==='denied';disable.disabled=false;}
 };
-disable.onclick=async()=>{if(busy)return;preference(who,'off');busy=true;disable.disabled=true;try{const r=await ready,sub=r&&await r.pushManager.getSubscription();if(sub){await request('/unsubscribe',{endpoint:sub.endpoint});await sub.unsubscribe();}bound=null;await clearShown();await refresh();}catch(e){status.textContent=e.message;}finally{busy=false;disable.disabled=false;}};
+disable.onclick=async()=>{if(busy)return;preference(who,'off');try{window.localStorage?.setItem('our-place-push-last-off',String(Date.now()));}catch{}busy=true;disable.disabled=true;try{const r=await ready,sub=r&&await r.pushManager.getSubscription();if(sub){await request('/unsubscribe',{endpoint:sub.endpoint});await sub.unsubscribe();}bound=null;await clearShown();await refresh();}catch(e){status.textContent=e.message;}finally{busy=false;disable.disabled=false;}};
 testButton.onclick=async()=>{
  if(busy||!who)return;busy=true;testButton.disabled=true;
  try{const r=await ready,sub=r&&await r.pushManager.getSubscription();if(!sub)throw Error('Enable notifications on this device first.');await request('/test',{endpoint:sub.endpoint});status.textContent='Test scheduled. Leave Our Place now; it will be sent in 5 seconds.';}catch(e){status.textContent=e.message;}finally{busy=false;testButton.disabled=false;}
@@ -110,7 +120,7 @@ async function bind(){
   bindAfter=Date.now()+60000;
  })();bindFlight=flight;
  try{await flight;}catch(e){
-  if(current===epoch&&name===who)repairNotice('Notifications could not reconnect yet. Open Notifications and tap Enable. '+String(e?.message||'').slice(0,140));
+  if(current===epoch&&name===who){report('bind',e);repairNotice('Notifications could not reconnect yet. Open Notifications and tap Enable. '+String(e?.message||'').slice(0,140));}
  }finally{if(bindFlight===flight)bindFlight=null;}
 }
 function recoverBinding(){if(!document.hidden){bindAfter=0;bind().catch(()=>{});if(dialog.open)refresh().catch(e=>status.textContent=e.message);}}

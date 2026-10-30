@@ -1,4 +1,5 @@
 'use strict';
+const WORKER_VERSION='push-worker-2026-10-30.3';
 // Deliberately no fetch handler or private-content cache.
 self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
@@ -11,7 +12,7 @@ function destination(target){
 async function receipt(data,result){
  if(!data?.tag)return;
  try{
-  if(data.receiptToken){await fetch('/api/push-receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:data.receiptToken,result}),signal:AbortSignal.timeout(3000)});return;}
+  if(data.receiptToken){await fetch('/api/push-receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:data.receiptToken,result,version:WORKER_VERSION}),signal:AbortSignal.timeout(3000)});return;}
   const subscription=await self.registration.pushManager?.getSubscription();
   await fetch('/api/notifications/receipt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag:data.tag,result,createdAt:data.createdAt,endpoint:subscription?.endpoint}),signal:AbortSignal.timeout(3000)});
  }catch{}
