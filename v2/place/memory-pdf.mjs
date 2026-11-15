@@ -3,6 +3,7 @@ import {createRequire} from 'node:module';
 import {dirname,resolve} from 'node:path';
 import {check} from './domain.mjs';
 import {memoryHTML} from './memory-document.mjs';
+import {logMemoryObservation} from './memory-observer.mjs';
 const require=createRequire(import.meta.url);
 let active=false,fonts;
 function fontStyles(){
@@ -14,17 +15,18 @@ function fontStyles(){
 }
 export async function renderMemoryPDF(data,store,{origin='',signal}={}){
  check(!active,'Another memory book is being prepared. Try again shortly.',429);active=true;
- let browser,timer;const abort=()=>{void browser?.close().catch(()=>{});};signal?.addEventListener('abort',abort,{once:true});
+ let browser,timer;logMemoryObservation('start');const sample=setInterval(()=>logMemoryObservation('working'),5000);sample.unref();const abort=()=>{void browser?.close().catch(()=>{});};signal?.addEventListener('abort',abort,{once:true});
  try{
-  signal?.throwIfAborted();let size=0;const cache=new Map(),requested=new Map();
+  signal?.throwIfAborted();check(data.messages.length<=100,'This export is too large for one PDF. Reload the app to create multiple parts.',413);let size=0;const cache=new Map(),requested=new Map();
   // Discover only images referenced by rendered, authorized content. Resize one at a time.
   memoryHTML(data,{avatarPhoto:id=>{requested.set('a:'+id,()=>store.db.prepare('SELECT mime,bytes FROM photos WHERE id=?').get(id));return null;},photo:id=>{requested.set('p:'+id,()=>store.db.prepare('SELECT mime,bytes FROM photos WHERE id=?').get(id));return null;},filePhoto:id=>{requested.set('f:'+id,()=>store.db.prepare('SELECT mime,bytes FROM shared_files WHERE id=?').get(id));return null;}});
+  check([...requested.keys()].filter(k=>!k.startsWith('a:')).length<=5,'This export has too many photos for one PDF. Reload the app to create multiple parts.',413);
   const {default:sharp}=await import('sharp');
   for(const [key,read]of requested){
    signal?.throwIfAborted();const p=read();if(!p){cache.set(key,null);continue;}
    check(/^image\/(jpeg|png|webp|gif)$/.test(p.mime),'An image format cannot be exported.',400);
    size+=p.bytes.length;check(size<=32*1024*1024,'This selection has too many images for one PDF. Choose a shorter period.',413);
-   let bytes;try{bytes=await sharp(Buffer.from(p.bytes),{limitInputPixels:25000000}).rotate().resize(key.startsWith('a:')?{width:96,height:96,fit:'cover'}:{width:1400,height:1600,fit:'inside',withoutEnlargement:true}).flatten({background:'#fcfaf6'}).jpeg({quality:85}).toBuffer();}catch{check(false,'A photo could not be prepared. Try exporting a period without that attachment.',422);}
+   let bytes;try{bytes=await sharp(Buffer.from(p.bytes),{limitInputPixels:25000000}).rotate().resize(key.startsWith('a:')?{width:96,height:96,fit:'cover'}:{width:800,height:1000,fit:'inside',withoutEnlargement:true}).flatten({background:'#fcfaf6'}).jpeg({quality:68}).toBuffer();}catch{check(false,'A photo could not be prepared. Try exporting a period without that attachment.',422);}
    cache.set(key,'data:image/jpeg;base64,'+bytes.toString('base64'));
   }
   const html=memoryHTML(data,{origin,fontCSS:fontStyles(),avatarPhoto:id=>cache.get('a:'+id),photo:id=>cache.get('p:'+id),filePhoto:id=>cache.get('f:'+id)});
@@ -40,5 +42,5 @@ export async function renderMemoryPDF(data,store,{origin='',signal}={}){
   await page.evaluate(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode()));});
   signal?.throwIfAborted();
   return Buffer.from(await page.pdf({printBackground:true,preferCSSPageSize:true,tagged:true,displayHeaderFooter:true,headerTemplate:'<span></span>',footerTemplate:'<div style="font:8px Arial;color:#897880;width:100%;padding:0 12mm;display:flex;justify-content:space-between"><span>OUR PLACE · OUR MEMORIES</span><span class="pageNumber"></span></div>',timeout:45000}));
- }finally{clearTimeout(timer);signal?.removeEventListener('abort',abort);await browser?.close().catch(()=>{});active=false;}
+ }finally{clearInterval(sample);clearTimeout(timer);signal?.removeEventListener('abort',abort);await browser?.close().catch(()=>{});logMemoryObservation('end');active=false;}
 }

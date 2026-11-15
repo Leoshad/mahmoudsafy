@@ -12,6 +12,7 @@ import {isMP3} from './audio-format.mjs';
 import {SharedTouch,saveTouchMemory} from './shared-touch.mjs';
 import {initMemories,memoryOptions,memoryData,recordListening} from './memories.mjs';
 import {renderMemoryPDF} from './memory-pdf.mjs';
+import {createMemoryExportJobs} from './memory-export-jobs.mjs';
 import {verifyEchoModels} from './ai-models.mjs';
 import {storedNote} from './note-document.mjs';
 import {noteDocx} from './note-docx.mjs';
@@ -62,6 +63,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   store.db.exec('CREATE TABLE IF NOT EXISTS race_results(id TEXT PRIMARY KEY,body TEXT NOT NULL,created INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS race_sessions(id TEXT PRIMARY KEY,body TEXT NOT NULL)');
   initFiles(store);
   const videos=new ChatVideos(store);
+  const memoryJobs=createMemoryExportJobs({store,renderer:memoryRenderer,origin});
   const race=new RaceService({onResult:result=>{store.db.prepare('INSERT OR IGNORE INTO race_results(id,body,created) VALUES(?,?,?)').run(result.id,JSON.stringify(result),Date.now());store.db.prepare('DELETE FROM race_results WHERE id NOT IN (SELECT id FROM race_results ORDER BY created DESC LIMIT 100)').run();}});
   for(const row of store.db.prepare('SELECT * FROM race_sessions').all()){try{const m=JSON.parse(row.body);if(m.course?.version!==3)continue;m.seen=m.players.map(()=>0);m.inputs.forEach(i=>i.dir=0);m.last=Date.now();m.acc=0;if(['racing','countdown','paused'].includes(m.status)){m.status='paused';m.pausedAt=Date.now();m.reason='Reconnecting — waiting for both players.';}race.matches.set(row.id,m);}catch{console.error('Could not restore a race.');}}
   function saveRaces(){store.tx(()=>{store.db.prepare('DELETE FROM race_sessions').run();for(const [id,m]of race.matches)store.db.prepare('INSERT INTO race_sessions VALUES(?,?)').run(id,JSON.stringify(m));});}
@@ -265,6 +267,16 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         check(false,'Method not allowed.',405);
       }
       if(path==='/api/shared-touch'&&req.method==='POST'){limit('shared-touch:'+who,360);const p=await body(req,2000);const before=JSON.stringify(sharedTouch.view());const moment=sharedTouch.action(who,req.sessionId,p);if(!moment?.localOnly&&(p.action!=='ready'||JSON.stringify(moment)!==before))emit('shared-touch',{moment});return send(res,200,{moment});}
+      if(path==='/api/memory-exports'&&req.method==='POST'){
+        limit('memory-export:'+who,4,60000);const opt=memoryOptions(url.searchParams);const data=memoryData(store,who,opt,{batched:true});return send(res,202,memoryJobs.start(data,who,req.sessionId));
+      }
+      const memoryCancel=/^\/api\/memory-exports\/([a-f0-9-]{36})\/cancel$/.exec(path);
+      if(memoryCancel&&req.method==='POST'){await memoryJobs.cancel(memoryCancel[1],who,req.sessionId);return send(res,200,{ok:true});}
+      const memoryJobRoute=/^\/api\/memory-exports\/([a-f0-9-]{36})(?:\/(\d+))?$/.exec(path);
+      if(memoryJobRoute&&req.method==='GET'){
+        if(memoryJobRoute[2])return memoryJobs.serve(memoryJobRoute[1],who,req.sessionId,Number(memoryJobRoute[2]),res);
+        return send(res,200,memoryJobs.status(memoryJobRoute[1],who,req.sessionId));
+      }
       if(path==='/api/memories.pdf'&&req.method==='GET'){
         limit('memories:'+who,4,60000);const opt=memoryOptions(url.searchParams),data=memoryData(store,who,opt),controller=new AbortController();const close=()=>controller.abort();res.on('close',close);
         try{const pdf=await memoryRenderer(data,store,{origin,signal:controller.signal});if(!res.destroyed){res.setHeader('Content-Disposition','attachment; filename="Our-Place-Memories.pdf"');res.writeHead(200,{'Content-Type':'application/pdf','Content-Length':pdf.length,'Cache-Control':'no-store'});res.end(pdf);}}finally{res.off('close',close);}return;
@@ -450,7 +462,7 @@ publishPresence(true);});return;
   const raceTimer=setInterval(()=>{try{race.tick();}catch{console.error('Race update failed.');}},16);raceTimer.unref();
   const pushTimer=setInterval(()=>notifications.drain().catch(()=>console.error('Notification delivery failed.')),250);pushTimer.unref();
   const dailyTimer=setInterval(()=>daily.tick().catch(()=>console.error('Daily Echo update failed.')),15000);dailyTimer.unref();
-  server.on('close',()=>{clearInterval(touchTimer);clearInterval(raceTimer);clearInterval(raceSaveTimer);saveRaces();clearInterval(dailyTimer);daily.stop();clearTimeout(presenceTimer);clearInterval(presenceSweep);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
+  server.on('close',()=>{void memoryJobs.close();clearInterval(touchTimer);clearInterval(raceTimer);clearInterval(raceSaveTimer);saveRaces();clearInterval(dailyTimer);daily.stop();clearTimeout(presenceTimer);clearInterval(presenceSweep);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});

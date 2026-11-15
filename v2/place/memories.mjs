@@ -19,15 +19,16 @@ export function memoryOptions(params){
  try{new Intl.DateTimeFormat('en',{timeZone:zone}).format();}catch{check(false,'Choose a valid time zone.');}
  return {scope,from,to,zone};
 }
-export function memoryData(store,who,opt){
+export function memoryData(store,who,opt,{batched=false}={}){
  const s=store.state(),view=project(s,who),dated=opt.from||opt.to;
- const day=at=>{if(!at||isNaN(Date.parse(at)))return '';return new Intl.DateTimeFormat('en-CA',{timeZone:opt.zone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(at));};
+ const dayFormatter=new Intl.DateTimeFormat('en-CA',{timeZone:opt.zone,year:'numeric',month:'2-digit',day:'2-digit'});
+ const day=at=>{if(!at||isNaN(Date.parse(at)))return '';return dayFormatter.format(new Date(at));};
  const inside=at=>{const d=day(at);return !dated||!!d&&(!opt.from||d>=opt.from)&&(!opt.to||d<=opt.to);};
  const count=store.db.prepare('SELECT COUNT(*) n FROM messages').get().n;check(count<=100000,'Your archive is very large. Contact support to export it in volumes.',413);
- const all=store.db.prepare('SELECT id,author,text,image,audio,reply,status,createdAt FROM messages ORDER BY rowid').all();
+ const all=store.db.prepare('SELECT id,author,text,image,images,audio,video,document,reply,status,createdAt FROM messages ORDER BY rowid').all();
  const messages=all.filter(m=>inside(m.createdAt)),byId=new Map(all.map(m=>[m.id,m]));
- check(messages.length<=10000,'Choose a shorter period (up to 10,000 messages per PDF).',413);
- for(const m of messages){m.reactions=view.messageReactions[m.id]||{};if(m.reply){const r=byId.get(m.reply);m.source=r?{id:r.id,author:r.author,text:r.text,image:!!r.image,audio:!!r.audio,inRange:inside(r.createdAt)}:null;}}
+ if(!batched)check(messages.length<=10000,'Choose a shorter period (up to 10,000 messages per PDF).',413);
+ for(const m of messages){try{m.images=m.images?JSON.parse(m.images):[];if(!Array.isArray(m.images))m.images=[];}catch{m.images=[];}if(!m.images.length&&m.image)m.images=[m.image];m.reactions=view.messageReactions[m.id]||{};if(m.reply){const r=byId.get(m.reply);m.source=r?{id:r.id,author:r.author,text:r.text,image:!!r.image,audio:!!r.audio,inRange:inside(r.createdAt)}:null;}}
  const listening=store.db.prepare('SELECT * FROM shared_listening ORDER BY startedAt').all().filter(m=>inside(m.startedAt));
  const data={...opt,generatedAt:new Date().toISOString(),who,crown:crownSnapshot(s,who),invitations:store.db.prepare('SELECT * FROM memory_media_invites ORDER BY startedAt').all().filter(m=>inside(m.startedAt)),profiles:Object.fromEntries(Object.entries(personalSnapshot(s,who).profiles).map(([name,p])=>[name,{photo:p.photo}])),messages,listening,items:[],files:[],activities:[],games:[],dates:[],cases:[],drawing:null};
  data.crown.events=(data.crown.events||[]).filter(e=>inside(e.at));
