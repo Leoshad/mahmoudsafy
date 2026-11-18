@@ -160,3 +160,21 @@ test('old-only records are reachable from the first history page, with private r
  assert.equal(view(s,'Mahmoud',now).entries.length,0);assert.equal(view(s,'Mahmoud',now).olderEntries,true);
  assert.equal(careHistory(s,'Mahmoud').entries.length,1);assert.equal(careExport(s,'Safy').entries.length,2);
 });
+
+test('energy check-ins validate and preserve privacy in weekly overview',()=>{
+ const s=initial();
+ change(s,'Safy','care.entry.add',{kind:'checkin',data:{moods:[],energy:2},visibility:'private'},now);
+ assert.equal(view(s,'Safy',now).week[6].energy,2);
+ assert.equal(view(s,'Mahmoud',now).week[6].energy,null);
+ assert.throws(()=>change(s,'Safy','care.entry.add',{kind:'checkin',data:{moods:[],energy:6}},now),/Energy/);
+ assert.throws(()=>change(s,'Safy','care.entry.add',{kind:'checkin',data:{moods:[]}},now),/Choose/);
+});
+
+
+test('check-in symptoms and notes are validated and respect private sharing',()=>{
+ const s=initial();
+ change(s,'Safy','care.entry.add',{kind:'checkin',visibility:'private',data:{symptoms:['headache'],rested:'no',note:'Synthetic note'}},now);
+ assert.equal(view(s,'Safy',now).entries[0].data.symptoms[0],'headache');
+ assert.equal(view(s,'Mahmoud',now).entries.length,0);
+ assert.throws(()=>change(s,'Safy','care.entry.add',{kind:'checkin',data:{symptoms:['unexpected']}},now),/symptoms/);
+});

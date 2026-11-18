@@ -10,6 +10,7 @@ const DAY=86400000;
 export const KINDS=['checkin','belly','bathroom','sleep','period','dose','note','flare'];
 export const MOODS=['okay','tired','pain','sleep'];
 export const WHERE=['colon','stomach','other'];
+const SYMPTOMS=['back pain','colon pain','stomach','nausea','diarrhea','headache','dizzy','tinnitus','cold / flu','other'];
 export const KEY_LABS=['esr','hemoglobin','ferritin','vitamin d'];
 const SCHEDULES=['daily','weekly','as-needed'];
 const LIMITS={entries:20000,labs:2000,meds:100,history:20,import:200,recentDays:120,recentMax:400,page:200};
@@ -33,7 +34,7 @@ function validTime(v,now,label){check(num(v)&&v>=now-5*365*DAY&&v<=now+3600000,'
 function subset(v,allowed,label){check(Array.isArray(v)&&v.length<=allowed.length&&v.every(x=>allowed.includes(x))&&new Set(v).size===v.length,'Choose valid '+label+'.');return v;}
 function entryData(kind,d,ctx){
  const {care,who,now,id,occurredAt,zone}=ctx;d=d&&typeof d==='object'?d:{};
- if(kind==='checkin'){const moods=subset(d.moods,MOODS,'feelings');check(moods.length>0,'Choose how she feels.');return {moods};}
+ if(kind==='checkin'){const moods=subset(d.moods??[],MOODS,'feelings'),symptoms=subset(d.symptoms??[],SYMPTOMS,'symptoms');const energy=d.energy??null,rested=d.rested??null,note=text(d.note,500,'the note');check(energy===null||(Number.isInteger(energy)&&energy>=1&&energy<=5),'Energy must be 1 to 5.');check(rested===null||['no','a little','yes'].includes(rested),'Choose how rested she felt.');check(moods.length>0||energy!==null||symptoms.length||rested||note,'Choose at least one detail.');return {moods,energy,symptoms,rested,note};}
  if(kind==='belly'){
   const pain=d.pain===null||d.pain===undefined?null:d.pain;check(pain===null||(Number.isInteger(pain)&&pain>=0&&pain<=5),'Pain is 0 to 5.');
   const where=subset(d.where??[],WHERE,'places');check(d.diarrhea===undefined||d.diarrhea===null||typeof d.diarrhea==='boolean','Choose diarrhea yes or no.');
@@ -167,7 +168,7 @@ export function careSnapshot(s,who,now=Date.now()){
  const days=[...Array(7)].map((_,i)=>addDays(today,i-6)).map(day=>{
   const list=week.filter(x=>x.day===day).map(x=>x.e),belly=list.filter(e=>e.kind==='belly'),bath=list.filter(e=>e.kind==='bathroom');
   const pains=belly.map(e=>e.data.pain).filter(p=>p!==null),diar=belly.map(e=>e.data.diarrhea).filter(v=>v!==null);
-  return {day,logged:list.length>0,bellyLogged:belly.length>0,pain:pains.length?Math.max(...pains):null,diarrhea:diar.length?diar.includes(true):null,bathroom:bath.length?bath.reduce((n,e)=>n+e.data.count,0):null,sleepHours:sleepHours(week.map(x=>x.e),day,zone,now),moods:[...new Set(list.filter(e=>e.kind==='checkin').flatMap(e=>e.data.moods))]};
+  return {day,logged:list.length>0,bellyLogged:belly.length>0,pain:pains.length?Math.max(...pains):null,diarrhea:diar.length?diar.includes(true):null,bathroom:bath.length?bath.reduce((n,e)=>n+e.data.count,0):null,sleepHours:sleepHours(week.map(x=>x.e),day,zone,now),energy:list.find(e=>e.kind==='checkin'&&Number.isInteger(e.data.energy))?.data.energy??null,moods:[...new Set(list.filter(e=>e.kind==='checkin').flatMap(e=>e.data.moods))]};
  });
  let flare={active:false,since:null,lastEnd:null,lastStart:null,logged:false};
  for(const f of mine.filter(e=>e.kind==='flare').reverse()){flare.logged=true;if(f.data.state==='start'){flare.active=true;flare.since=f.occurredAt;flare.lastStart=f.occurredAt;}else{flare.active=false;flare.since=null;flare.lastEnd=f.occurredAt;}}
@@ -177,7 +178,8 @@ export function careSnapshot(s,who,now=Date.now()){
  const labs=labsView(care),allDoses=mine.filter(e=>e.kind==='dose'),meds=medsView(care,todayList.filter(e=>e.kind==='dose'),allDoses,today);
  const attention=[...labs.filter(t=>t.latest&&outside(t)&&t.trend==='away').map(t=>({type:'lab',key:t.key,test:t.test,status:t.status,direction:t.direction})),...meds.filter(m=>m.scheduledToday&&!m.doneToday).map(m=>({type:'dose',id:m.id,name:m.name,times:m.pendingToday}))];
  const recent=mine.filter(e=>e.occurredAt>=now-LIMITS.recentDays*DAY).slice(0,LIMITS.recentMax);
- const view={zone,today,serverNow:now,canPrivate:who==='Safy',entries:recent.map(e=>strip(e,who)),olderEntries:mine.length>recent.length,week:days,flare,todayBelly:todayBelly&&strip(todayBelly,who),todayBathroom:days[6].bathroom??0,lastCheckin:lastCheckin&&strip(lastCheckin,who),labs,keyLabs:KEY_LABS.map(k=>labs.find(t=>t.latest&&(t.key===k||t.key.startsWith(k+' ')))).filter(Boolean),attention,improving:labs.filter(t=>t.latest&&outside(t)&&t.trend==='better').map(t=>t.test),unchanged:labs.filter(t=>t.latest&&outside(t)&&t.trend==='same').map(t=>t.test),meds};
+ const medWeek=meds.map(m=>({id:m.id,days:days.map(d=>({day:d.day,status:week.filter(x=>x.day===d.day&&x.e.kind==='dose'&&x.e.data.med===m.id).map(x=>x.e.data.status)}))}));
+ const view={zone,today,medWeek,serverNow:now,canPrivate:who==='Safy',entries:recent.map(e=>strip(e,who)),olderEntries:mine.length>recent.length,week:days,flare,todayBelly:todayBelly&&strip(todayBelly,who),todayBathroom:days[6].bathroom??0,lastCheckin:lastCheckin&&strip(lastCheckin,who),labs,keyLabs:KEY_LABS.map(k=>labs.find(t=>t.latest&&(t.key===k||t.key.startsWith(k+' ')))).filter(Boolean),attention,improving:labs.filter(t=>t.latest&&outside(t)&&t.trend==='better').map(t=>t.test),unchanged:labs.filter(t=>t.latest&&outside(t)&&t.trend==='same').map(t=>t.test),meds};
  memo.set(who,{key,view});return view;
 }
 // Older entries, page by page, with the same privacy filter.
