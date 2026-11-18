@@ -129,7 +129,7 @@ body{margin:0;background:#0b0b0e}
  #our-place-trial header{padding:16px;align-items:center}
  #our-place-trial .brand{font-size:23px}
  #our-place-trial .overline{letter-spacing:1.7px}
- #our-place-trial nav{display:grid;grid-template-columns:1fr 1.35fr 1.15fr .7fr;gap:6px;padding:10px 12px}
+ #our-place-trial nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:10px 12px}
  #our-place-trial nav button{font-size:12px;padding:9px 4px;min-height:42px;white-space:nowrap}
  #our-place-trial.signed-in nav{order:0;border-top:1px solid #45303c;border-bottom:0;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#18131b}
  #our-place-trial.signed-in .shell{order:1}
