@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {gunzipSync} from 'node:zlib';
 import {check,names} from './domain.mjs';
 import {instant} from './personal.mjs';
 
@@ -223,7 +224,7 @@ export function careExport(s,who){
 
 // Import a private seed (labs and story steps) supplied by the host. Same rules as the in-app import.
 export function careSeedFromEnv(s,raw,now=Date.now()){
- const data=JSON.parse(Buffer.from(raw,'base64').toString('utf8'));let added=0,skipped=0;
+ const buf=Buffer.from(raw.trim(),'base64');const data=JSON.parse((buf[0]===0x1f&&buf[1]===0x8b?gunzipSync(buf):buf).toString('utf8'));let added=0,skipped=0;
  const before=JSON.stringify([s.care?.labs?.length??0,s.care?.milestones?.length??0]);
  for(let i=0;i<(data.labs??[]).length;i+=LIMITS.import){const r=careChange(s,'Mahmoud','care.labs.import',{labs:data.labs.slice(i,i+LIMITS.import)},now);added+=r.added;skipped+=r.skipped;}
  for(let i=0;i<(data.milestones??[]).length;i+=LIMITS.import){const r=careChange(s,'Mahmoud','care.milestones.import',{milestones:data.milestones.slice(i,i+LIMITS.import)},now);added+=r.added;skipped+=r.skipped;}
