@@ -220,3 +220,12 @@ export function careExport(s,who){
  check(names.includes(who),'Not allowed.',403);const care=s.care??empty();
  return {format:'our-place-care-v1',zone:careZone(s),entries:care.entries.filter(e=>visible(e,who)).sort((a,b)=>a.occurredAt-b.occurredAt).map(e=>({...strip(e,who),history:e.history.filter(h=>h.visibility==='shared'||who==='Safy')})),labs:care.labs,meds:care.meds,milestones:care.milestones??[],doctors:care.doctors??[],crohn:care.crohn??{treatment:''}};
 }
+
+// Import a private seed (labs and story steps) supplied by the host. Same rules as the in-app import.
+export function careSeedFromEnv(s,raw,now=Date.now()){
+ const data=JSON.parse(Buffer.from(raw,'base64').toString('utf8'));let added=0,skipped=0;
+ const before=JSON.stringify([s.care?.labs?.length??0,s.care?.milestones?.length??0]);
+ for(let i=0;i<(data.labs??[]).length;i+=LIMITS.import){const r=careChange(s,'Mahmoud','care.labs.import',{labs:data.labs.slice(i,i+LIMITS.import)},now);added+=r.added;skipped+=r.skipped;}
+ for(let i=0;i<(data.milestones??[]).length;i+=LIMITS.import){const r=careChange(s,'Mahmoud','care.milestones.import',{milestones:data.milestones.slice(i,i+LIMITS.import)},now);added+=r.added;skipped+=r.skipped;}
+ return {added,skipped,changed:before!==JSON.stringify([s.care?.labs?.length??0,s.care?.milestones?.length??0])};
+}

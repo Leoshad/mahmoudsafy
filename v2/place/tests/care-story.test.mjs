@@ -21,3 +21,6 @@ test('doctors and Crohn treatment are shared and exported',()=>{
  assert.equal(careExport(s,'Safy').crohn.treatment,'As prescribed');
 });
 test('older saved records without the new lists still load',()=>{const s=initial();s.care={id:'x',entries:[],labs:[],meds:[],revision:0};const view=v(s,'Safy',now);assert.deepEqual([view.milestones,view.doctors,view.crohn.treatment],[[],[], '']);});
+import {careSeedFromEnv} from '../care.mjs';
+test('host seed imports once and skips duplicates on restart',()=>{const s=initial();const raw=Buffer.from(JSON.stringify({labs:[{test:'Hemoglobin',value:10.5,unit:'g/dL',lo:12,hi:16,date:'2026-11-16',group:'Blood picture',verified:true}],milestones:[{date:'2021',kind:'crohn',title:'Biopsy'}]})).toString('base64');
+ assert.equal(careSeedFromEnv(s,raw,now).added,2);const again=careSeedFromEnv(s,raw,now);assert.deepEqual([again.added,again.skipped,again.changed],[0,2,false]);});

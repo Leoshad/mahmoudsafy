@@ -35,7 +35,9 @@ import {courtView,courtCase,courtChange,courtRequest,courtApply,courtFailure} fr
 import {judge} from './court-ai.mjs';
 import {courtDocument,COURT_PRINT_SCRIPT} from './court-document.mjs';
 import {personalSnapshot,personalChange} from './personal.mjs';
-import {careSnapshot,careChange,careHistory,careExport} from './care.mjs';
+import {careSnapshot,careChange,careHistory,careExport,careSeedFromEnv} from './care.mjs';
+// One-time private import: CARE_SEED (base64 JSON with labs/milestones) is set on the host only, never in the repo. Duplicates are skipped, so restarts change nothing.
+function seedCare(store){const raw=process.env.CARE_SEED;if(!raw)return;try{store.tx(()=>{const s=store.state();const r=careSeedFromEnv(s,raw);if(r.added)store.save(s);console.info(JSON.stringify({event:'care_seed',...r}));});}catch(e){console.error(JSON.stringify({event:'care_seed_failed',error:e.message}));}}
 import {crownSnapshot} from './crown.mjs';
 import {journeyView,journeySave} from './journey.mjs';
 import http from 'node:http';
@@ -470,7 +472,7 @@ publishPresence(true);});return;
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});
   check(process.env.SUPABASE_PUBLISHABLE_KEY&&process.env.MAHMOUD_EMAIL&&process.env.SAFY_EMAIL,'Configure the V2 publishable key and both invited email addresses.',503);check(process.env.MAHMOUD_EMAIL.toLowerCase()!==process.env.SAFY_EMAIL.toLowerCase(),'Use two different invited accounts.',503);
-  const store=new Store(join(dir,'our-place.sqlite'),{enforceLifetimeBudget:false});console.info(JSON.stringify(store.budgetReport()));const server=createApp({store,origin:resolveOrigin(),secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>{console.log('Our Place server ready.');import('./compose-diagnostic.mjs').then(m=>m.diagnoseCompose(store)).catch(()=>console.error('Compose diagnostic unavailable.'));});
+  const store=new Store(join(dir,'our-place.sqlite'),{enforceLifetimeBudget:false});console.info(JSON.stringify(store.budgetReport()));seedCare(store);const server=createApp({store,origin:resolveOrigin(),secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>{console.log('Our Place server ready.');import('./compose-diagnostic.mjs').then(m=>m.diagnoseCompose(store)).catch(()=>console.error('Compose diagnostic unavailable.'));});
   if(process.env.YOUTUBE_API_KEY)youtubeService().resolve('M7lc1UVf-VE').then(()=>console.log('YouTube connection verified')).catch(()=>console.error('YouTube connection check failed; verify the configured key and API restrictions.'));
   void verifyEchoModels();
   const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET,{upload:path=>server.driveBackup.upload(path)});
