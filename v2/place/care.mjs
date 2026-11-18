@@ -16,7 +16,7 @@ export const KEY_LABS=['esr','hemoglobin','ferritin','vitamin d'];
 const SCHEDULES=['daily','weekly','as-needed'];
 const LIMITS={guide:60,milestones:500,doctors:30,entries:20000,labs:2000,meds:100,history:20,import:200,recentDays:120,recentMax:400,page:200};
 const empty=()=>({id:randomUUID(),entries:[],labs:[],meds:[],milestones:[],doctors:[],crohn:{treatment:''},revision:0});
-export const GUIDE_KINDS=['ask','remember','good'];
+export const GUIDE_KINDS=['ask','remember','good','habit','research'];
 export const STORY_KINDS=['crohn','blood','visit','medicine','other'];
 const isStoryDate=v=>typeof v==='string'&&(/^\d{4}$/.test(v)||/^\d{4}-(0[1-9]|1[0-2])$/.test(v)||isDay(v))&&v>='1990';
 const text=(v,max,label='this field')=>{if(v===undefined||v===null)return '';check(typeof v==='string'&&v.trim().length<=max,'Please shorten '+label+'.');return v.trim();};

@@ -222,3 +222,9 @@
 #care .calm-guide-source{font-size:13px;color:#A89DA8!important;text-decoration:none}
 #care .calm-about{font-size:12.5px;line-height:1.4;color:#9A8E99;margin-top:-4px}
 .care-about{margin:-2px 0 4px;font-size:13px;line-height:1.4;color:#A89DA8}
+#care .calm-research{display:flex;flex-direction:column;gap:8px;padding:18px;border-radius:22px;border:1px solid #2C4650;background:linear-gradient(160deg,#16313A 0%,#1C1720 80%)}
+#care .calm-research .calm-eyebrow{color:#8FD0D8}
+#care .calm-research strong{font-family:'Noto Serif',Georgia,serif;font-weight:400;font-size:19px;line-height:1.35}
+#care .calm-research-line{font-size:14px;line-height:1.5;color:#CFC6CD}
+#care .calm-research small{font-size:13px;color:#8FB0B6}
+#care .calm-guide.habit{border-color:#2F4A3A}#care .calm-guide.research{border-color:#2C4650;background:#172328}
