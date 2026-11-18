@@ -127,7 +127,7 @@ function storyEvents(c){const ev=labEvents(c);
  for(const m of c.meds)if(m.startedOn){const d=storyDate(m.startedOn);ev.push({date:m.startedOn,year:d.year,label:d.label,kind:'medicine',title:'Started '+m.name,note:[m.dose,m.notes].filter(Boolean).join(' · ')});}
  return ev.sort((a,b)=>(b.date.padEnd(10,'z')).localeCompare(a.date.padEnd(10,'z')));}
 const KIND_COLOR={crohn:'#C9B8F5',blood:'#CDAE78',visit:'#8FB3C9',medicine:'#E7A3BC',other:'#A89DA8'};
-function render(){const root=$('#care');if(!root)return;const c=care();root.replaceChildren();if(!c)return;if(view==='story')return renderStory(root,c);
+function render(){const root=$('#care');if(!root)return;const c=care();root.replaceChildren();if(!c)return;if(view==='story')return renderStory(root,c);if(view==='guide')return renderGuide(root,c);
  const page=make('div',undefined,root,'calm-page');const head=make('div',undefined,page,'calm-head');
  const top=make('div',undefined,head,'calm-row');make('span',isSafy()?'Your health file':'Kept up to date by you',top,'calm-meta');button('✎ Update',top,openUpdate,'calm-update');
  make('h2','Safy’s health',head);make('p',isSafy()?'Everything about your health, in one quiet place. Nothing to fill in.':'Everything about Safy’s health, in one quiet place.',head,'calm-intro');
@@ -147,11 +147,14 @@ function render(){const root=$('#care');if(!root)return;const c=care();root.repl
   const card=make('div',undefined,s,'calm-card');for(const t of show)labRow(card,t);
   const leg=make('div',undefined,s,'calm-legend');for(const [cls,txt] of [['zone','Normal range'],['was','Before'],['now','Now']]){const x=make('span',undefined,leg);make('i',undefined,x,cls);make('span',txt,x);}}
  else if(!c.labs.length){const e=make('section',undefined,page,'calm-card calm-empty');make('strong','No lab results yet',e);make('p','Add them from a lab sheet with ✎ Update.',e);}
- // Gentle note for the next visit.
- const mention=c.labs.filter(t=>watched(t)&&outsideT(t)&&t.trend!=='better');
- if(mention.length){const n=make('section',undefined,page,'calm-note');make('span','✎',n,'calm-note-icon');const tx=make('span',undefined,n);make('strong','To mention at the next visit',tx);
+ // Gentle note for the next visit, then the guide notes that matter most.
+ const mention=c.labs.filter(t=>watched(t)&&outsideT(t)&&t.trend!=='better');const guide=c.guide??[];
+ if(mention.length||guide.length){const box=make('section',undefined,page,'calm-worth');const n=make('div',undefined,box,'calm-note');make('span','✎',n,'calm-note-icon');const tx=make('span',undefined,n);make('strong',mention.length?'To mention at the next visit':'Worth knowing',tx);
   const names=mention.map(t=>niceName(t)+' ('+pct(t.latest)+')');const below=mention.every(t=>t.status==='below'),above=mention.every(t=>t.status==='above');
-  make('span',(names.length>1?names.slice(0,-1).join(', ')+' and '+names.at(-1)+' are ':names[0]+' is ')+(below?'below':above?'above':'outside')+' the lab’s range.',tx);}
+  if(mention.length)make('span',(names.length>1?names.slice(0,-1).join(', ')+' and '+names.at(-1)+' are ':names[0]+' is ')+(below?'below':above?'above':'outside')+' the lab’s range.',tx);
+  const top=[...guide.filter(g=>g.kind==='remember'),...guide.filter(g=>g.kind==='ask')].slice(0,3);
+  if(top.length){const list=make('div',undefined,box,'calm-worth-list');make('small','DON’T FORGET',list,'calm-worth-label');for(const g of top){const r=button('',list,()=>openGuide(g.id),'calm-worth-item');make('i',g.kind==='ask'?'?':'!',r,g.kind);make('span',g.title,r).dir='auto';}}
+  if(guide.length)button('Read all '+guide.length+' notes ›',box,()=>openGuide(),'calm-worth-more');}
  // Medicines now
  const meds=c.meds.filter(m=>m.active);const ms=make('section',undefined,page,'calm-section');const mh=make('div',undefined,ms,'calm-row');make('h3','MEDICINES NOW',mh);const mc=make('div',undefined,ms,'calm-card');
  if(!meds.length)make('p','No medicines recorded yet.',mc,'calm-quiet');
@@ -164,7 +167,14 @@ function render(){const root=$('#care');if(!root)return;const c=care();root.repl
  const withPaper=ev.filter(e=>e.paper).slice(0,6);if(withPaper.length){const strip=make('div',undefined,ps,'calm-papers');for(const e of withPaper){const b=button('',strip,()=>e.open?e.open():(view='story',storyFilter='all',render()),'calm-paper');make('strong',e.m?.paper||(e.open?'Lab sheets':e.title),b).dir='auto';make('small',(e.label?e.label+' ':'')+e.year,b);}}
  const dc=make('div',undefined,ps,'calm-card');if(!c.doctors.length)make('p','No doctors added yet.',dc,'calm-quiet');for(const d of c.doctors){const r=button('',dc,()=>doctorForm(d),'calm-item');make('span',d.specialty,r).dir='auto';make('small',[d.name,d.phone,d.note].filter(Boolean).join(' · ')||'Details not added yet',r).dir='auto';}
  make('p','Copied from her papers. Numbers exactly as printed; the doctor decides what they mean.',page,'calm-foot');}
-let storyFilter='all';
+let storyFilter='all',guideFocus=null;
+function openGuide(id=null){guideFocus=id;view='guide';render();window.scrollTo?.(0,0);if(id)setTimeout(()=>document.getElementById('guide-'+id)?.scrollIntoView({block:'start',behavior:'smooth'}),60);}
+function renderGuide(root,c){const page=make('div',undefined,root,'calm-page');const head=make('div',undefined,page,'calm-story-head');const back=button('',head,()=>{view='home';render();},'calm-back');back.setAttribute('aria-label','Back');back.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';make('h2','Worth knowing',head);
+ make('p','Notes made for Safy from published medical research and her own papers. Not a doctor’s advice: use them to ask better questions at each visit.',page,'calm-intro');
+ const g=c.guide??[];if(!g.length)make('p','No notes yet.',page,'calm-quiet');
+ for(const [k,label] of [['good','GOOD NEWS'],['ask','ASK THE DOCTOR'],['remember','DON’T FORGET']]){const list=g.filter(x=>x.kind===k);if(!list.length)continue;const sec=make('section',undefined,page,'calm-section');make('h3',label,sec);
+  for(const x of list){const card=make('article',undefined,sec,'calm-guide '+k+(guideFocus===x.id?' focus':''));card.id='guide-'+x.id;make('strong',x.title,card).dir='auto';make('p',x.body,card).dir='auto';if(x.action){const a=make('div',undefined,card,'calm-guide-action');make('small','WHAT TO DO',a);make('span',x.action,a).dir='auto';}
+   if(x.url){const l=make('a',(x.source||'Source')+' ↗',card,'calm-guide-source');l.href=x.url;l.target='_blank';l.rel='noopener noreferrer';}else if(x.source)make('small',x.source,card,'calm-guide-source');}}}
 async function downloadFile(b){if(b.disabled)return;const small=b.querySelector('small'),was=small.textContent;b.disabled=true;small.textContent='Preparing the PDF…';
  try{const r=await fetch('/api/care/file.pdf',{signal:AbortSignal.timeout(90000)});if(!r.ok){let m='Could not prepare the file. Try again.';try{m=(await r.json()).error||m;}catch{}throw new Error(m);}
   const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download='Safy-health-file.pdf';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);small.textContent='Downloaded ✓';setTimeout(()=>{small.textContent=was;},4000);}
@@ -227,5 +237,5 @@ function medForm(m){const root=sheet(m?'Edit medicine':'Add a medicine'),form=ma
  const status=make('p','',form,'personal-status');const row=make('div',undefined,form,'personal-actions');const b=make('button','Save',row,'primary');b.type='submit';
  form.onsubmit=async ev=>{ev.preventDefault();b.disabled=true;try{await run(()=>ctx.command('care.med.save',{...(m?{id:m.id,revision:m.revision}:{}),name:name.value,dose:dose.value,schedule:sched()[0],times:times.value.split(/[,\s]+/).filter(Boolean),weekday:wd().length?Number(wd()[0]):null,startedOn:started.value,notes:notes.value,source:source.value}),status);openMeds();}catch(e){status.textContent=e.message;b.disabled=false;}};}
 let lastWire='';
-window.OurCare={init(c){ctx=c;},sync(s){st=s;const wire=JSON.stringify([s?.who,s?.care]);if(wire===lastWire)return;lastWire=wire;if(!$('#care')?.hidden)render();},tab(next){if(next==='care')render();},reset(){epoch++;st=null;view='home';lastWire='';dialog?.close();$('#care')?.replaceChildren();}};
+window.OurCare={init(c){ctx=c;},sync(s){st=s;const wire=JSON.stringify([s?.who,s?.care]);if(wire===lastWire)return;lastWire=wire;if(!$('#care')?.hidden)render();},tab(next){if(next==='care')render();},reset(){epoch++;st=null;view='home';guideFocus=null;lastWire='';dialog?.close();$('#care')?.replaceChildren();}};
 })();

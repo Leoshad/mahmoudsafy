@@ -37,3 +37,9 @@ test('doctor file lists labs, history and medicines and keeps private notes out 
  for(const x of ['10.50','7.80','Biopsy &lt;b&gt;','historical document','Iron','belly pain 3/5','Below range'.slice(0,0)])assert.ok(h.includes(x),x);
  assert.ok(!h.includes('secret thing'));assert.ok(!h.includes('<script'));
  assert.ok(careDocumentHTML(v(s,'Safy',now),{who:'Safy',now}).includes('secret thing'));});
+test('guide notes import once, show in the snapshot and the doctor file',()=>{const s=initial();
+ const g={guide:[{kind:'ask',title:'Ask about IV iron',body:'Because.',action:'Ask the doctor.',url:'https://example.org/a'},{kind:'remember',title:'Recheck',body:'Every 3 months.'}]};
+ assert.equal(c(s,'Mahmoud','care.guide.import',g,now).added,2);assert.equal(c(s,'Mahmoud','care.guide.import',g,now).skipped,2);
+ assert.throws(()=>c(s,'Mahmoud','care.guide.import',{guide:[{kind:'ask',title:'x',body:'y',url:'javascript:alert(1)'}]},now),/https/);
+ const view=v(s,'Safy',now);assert.equal(view.guide.length,2);assert.ok(careDocumentHTML(view,{who:'Safy',now}).includes('Questions for this visit'));
+ c(s,'Mahmoud','care.guide.delete',{id:view.guide[0].id,revision:1},now);assert.equal(v(s,'Safy',now).guide.length,1);});
