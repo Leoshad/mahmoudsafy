@@ -131,6 +131,7 @@ function render(){const root=$('#care');if(!root)return;const c=care();root.repl
  const page=make('div',undefined,root,'calm-page');const head=make('div',undefined,page,'calm-head');
  const top=make('div',undefined,head,'calm-row');make('span',isSafy()?'Your health file':'Kept up to date by you',top,'calm-meta');button('✎ Update',top,openUpdate,'calm-update');
  make('h2','Safy’s health',head);make('p',isSafy()?'Everything about your health, in one quiet place. Nothing to fill in.':'Everything about Safy’s health, in one quiet place.',head,'calm-intro');
+ const dl=button('',page,()=>downloadFile(dl),'calm-download');make('span','⤓',dl,'calm-download-icon');const dlt=make('span',undefined,dl);make('strong','Download for the doctor',dlt);make('small','One PDF with her story, medicines and labs',dlt);
  // Crohn's first
  const esr=c.labs.find(t=>t.latest&&t.key.startsWith('esr · first'))||c.labs.find(t=>t.latest&&t.key.startsWith('esr'));const cr=button('',page,()=>{view='story';storyFilter='crohn';render();window.scrollTo?.(0,0);},'calm-crohn');
  const crTop=make('span',undefined,cr,'calm-row');make('span','CROHN’S',crTop,'calm-eyebrow lav');make('span','›',crTop,'calm-chev');
@@ -164,6 +165,10 @@ function render(){const root=$('#care');if(!root)return;const c=care();root.repl
  const dc=make('div',undefined,ps,'calm-card');if(!c.doctors.length)make('p','No doctors added yet.',dc,'calm-quiet');for(const d of c.doctors){const r=button('',dc,()=>doctorForm(d),'calm-item');make('span',d.specialty,r).dir='auto';make('small',[d.name,d.phone,d.note].filter(Boolean).join(' · ')||'Details not added yet',r).dir='auto';}
  make('p','Copied from her papers. Numbers exactly as printed; the doctor decides what they mean.',page,'calm-foot');}
 let storyFilter='all';
+async function downloadFile(b){if(b.disabled)return;const small=b.querySelector('small'),was=small.textContent;b.disabled=true;small.textContent='Preparing the PDF…';
+ try{const r=await fetch('/api/care/file.pdf',{signal:AbortSignal.timeout(90000)});if(!r.ok){let m='Could not prepare the file. Try again.';try{m=(await r.json()).error||m;}catch{}throw new Error(m);}
+  const url=URL.createObjectURL(await r.blob()),a=document.createElement('a');a.href=url;a.download='Safy-health-file.pdf';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);small.textContent='Downloaded ✓';setTimeout(()=>{small.textContent=was;},4000);}
+ catch(e){small.textContent=e.message||'Could not prepare the file.';setTimeout(()=>{small.textContent=was;},6000);}finally{b.disabled=false;}}
 function renderStory(root,c){const page=make('div',undefined,root,'calm-page');const head=make('div',undefined,page,'calm-story-head');const back=button('',head,()=>{view='home';render();},'calm-back');back.setAttribute('aria-label','Back');back.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';make('h2','Her story',head);
  make('p','Newest first. Each step comes from her papers.',page,'calm-intro');
  const f=make('div',undefined,page,'calm-filters');for(const [k,label] of [['all','All'],['crohn','Crohn’s'],['blood','Blood & iron'],['visit','Visits'],['medicine','Medicines']]){const b=button('',f,()=>{storyFilter=k;render();},'calm-filter');b.setAttribute('aria-pressed',String(storyFilter===k));if(k!=='all'){const i=make('i',undefined,b);i.style.background=KIND_COLOR[k];}make('span',label,b);}

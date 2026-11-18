@@ -12,6 +12,8 @@ import {isMP3} from './audio-format.mjs';
 import {SharedTouch,saveTouchMemory} from './shared-touch.mjs';
 import {initMemories,memoryOptions,memoryData,recordListening} from './memories.mjs';
 import {renderMemoryPDF} from './memory-pdf.mjs';
+import {renderCarePDF,careFontCSS} from './care-pdf.mjs';
+import {careDocumentHTML} from './care-document.mjs';
 import {createMemoryExportJobs} from './memory-export-jobs.mjs';
 import {verifyEchoModels} from './ai-models.mjs';
 import {storedNote} from './note-document.mjs';
@@ -60,7 +62,7 @@ const security={
   'Content-Security-Policy':"default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self'; media-src 'self' blob:; img-src 'self' blob: https://i.ytimg.com; connect-src 'self' https://www.youtube.com; frame-src https://www.youtube.com 'self';  frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
   'Permissions-Policy':'camera=(), microphone=(self), geolocation=()'
 };
-export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtAI=judge,drawAI=drawingWords,testing=false,mediaFetch=fetch,pushSend,dailyAI,memoryRenderer=renderMemoryPDF}={}){
+export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtAI=judge,drawAI=drawingWords,testing=false,mediaFetch=fetch,pushSend,dailyAI,memoryRenderer=renderMemoryPDF,careRenderer=renderCarePDF}={}){
   check(typeof secret==='string'&&secret.length>=32,'SESSION_SECRET must have at least 32 characters.',503);
   check(origin&&(!origin.includes('oiwxwogdfjgrapigiqrw')),'A separate V2 APP_ORIGIN is required.',503);
   store.db.exec('CREATE TABLE IF NOT EXISTS race_results(id TEXT PRIMARY KEY,body TEXT NOT NULL,created INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS race_sessions(id TEXT PRIMARY KEY,body TEXT NOT NULL)');
@@ -279,6 +281,10 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(memoryJobRoute&&req.method==='GET'){
         if(memoryJobRoute[2])return memoryJobs.serve(memoryJobRoute[1],who,req.sessionId,Number(memoryJobRoute[2]),res);
         return send(res,200,memoryJobs.status(memoryJobRoute[1],who,req.sessionId));
+      }
+      if(path==='/api/care/file.pdf'&&req.method==='GET'){
+        limit('care-file:'+who,6,60000);const html=careDocumentHTML(careSnapshot(store.state(),who),{who,fontCSS:careFontCSS()}),controller=new AbortController();const close=()=>controller.abort();res.on('close',close);
+        try{const pdf=await careRenderer(html,{signal:controller.signal});if(!res.destroyed){res.setHeader('Content-Disposition','attachment; filename="Safy-health-file.pdf"');res.writeHead(200,{'Content-Type':'application/pdf','Content-Length':pdf.length,'Cache-Control':'no-store'});res.end(pdf);}}finally{res.off('close',close);}return;
       }
       if(path==='/api/memories.pdf'&&req.method==='GET'){
         limit('memories:'+who,4,60000);const opt=memoryOptions(url.searchParams),data=memoryData(store,who,opt),controller=new AbortController();const close=()=>controller.abort();res.on('close',close);

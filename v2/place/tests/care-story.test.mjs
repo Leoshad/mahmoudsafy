@@ -26,3 +26,14 @@ test('host seed imports once and skips duplicates on restart',()=>{const s=initi
  assert.equal(careSeedFromEnv(s,raw,now).added,2);const again=careSeedFromEnv(s,raw,now);assert.deepEqual([again.added,again.skipped,again.changed],[0,2,false]);});
 import {gzipSync} from 'node:zlib';
 test('host seed also accepts gzip',()=>{const s=initial();const raw=gzipSync(Buffer.from(JSON.stringify({milestones:[{date:'2021',kind:'crohn',title:'Biopsy'}]}))).toString('base64');assert.equal(careSeedFromEnv(s,raw,now).added,1);});
+import {careDocumentHTML} from '../care-document.mjs';
+test('doctor file lists labs, history and medicines and keeps private notes out for Mahmoud',()=>{const s=initial();
+ c(s,'Mahmoud','care.labs.import',{labs:[{test:'Hemoglobin',value:7.8,valueText:'7.80',unit:'g/dL',lo:12,hi:16,flag:'L',date:'2026-10-07',group:'Blood picture',verified:true},{test:'Hemoglobin',value:10.5,valueText:'10.50',unit:'g/dL',lo:12,hi:16,flag:'L',date:'2026-11-16',group:'Blood picture',verified:true}]},now);
+ c(s,'Mahmoud','care.milestone.save',{date:'2021',kind:'crohn',title:'Biopsy <b>',paper:'Biopsy report',historical:true},now);
+ c(s,'Mahmoud','care.med.save',{name:'Iron',dose:'1 tab',schedule:'daily',times:['09:00'],startedOn:'2026-10-14'},now);
+ c(s,'Safy','care.entry.add',{kind:'note',data:{text:'secret thing'},visibility:'private',occurredAt:now-3600000},now);
+ c(s,'Safy','care.entry.add',{kind:'belly',data:{pain:3,where:['colon'],diarrhea:false},occurredAt:now-3600000},now);
+ const h=careDocumentHTML(v(s,'Mahmoud',now),{who:'Mahmoud',now});
+ for(const x of ['10.50','7.80','Biopsy &lt;b&gt;','historical document','Iron','belly pain 3/5','Below range'.slice(0,0)])assert.ok(h.includes(x),x);
+ assert.ok(!h.includes('secret thing'));assert.ok(!h.includes('<script'));
+ assert.ok(careDocumentHTML(v(s,'Safy',now),{who:'Safy',now}).includes('secret thing'));});
