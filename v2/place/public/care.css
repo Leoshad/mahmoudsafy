@@ -220,3 +220,5 @@
 #care .calm-guide-action{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border-radius:12px;background:#ffffff0a}
 #care .calm-guide-action small{font-size:11px;letter-spacing:1.5px;color:#CDAE78}#care .calm-guide-action span{font-size:14px;line-height:1.5}
 #care .calm-guide-source{font-size:13px;color:#A89DA8!important;text-decoration:none}
+#care .calm-about{font-size:12.5px;line-height:1.4;color:#9A8E99;margin-top:-4px}
+.care-about{margin:-2px 0 4px;font-size:13px;line-height:1.4;color:#A89DA8}
