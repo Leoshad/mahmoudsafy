@@ -13,8 +13,10 @@ export const WHERE=['colon','stomach','other'];
 const SYMPTOMS=['back pain','colon pain','stomach','nausea','diarrhea','headache','dizzy','tinnitus','cold / flu','other'];
 export const KEY_LABS=['esr','hemoglobin','ferritin','vitamin d'];
 const SCHEDULES=['daily','weekly','as-needed'];
-const LIMITS={entries:20000,labs:2000,meds:100,history:20,import:200,recentDays:120,recentMax:400,page:200};
-const empty=()=>({id:randomUUID(),entries:[],labs:[],meds:[],revision:0});
+const LIMITS={milestones:500,doctors:30,entries:20000,labs:2000,meds:100,history:20,import:200,recentDays:120,recentMax:400,page:200};
+const empty=()=>({id:randomUUID(),entries:[],labs:[],meds:[],milestones:[],doctors:[],crohn:{treatment:''},revision:0});
+export const STORY_KINDS=['crohn','blood','visit','medicine','other'];
+const isStoryDate=v=>typeof v==='string'&&(/^\d{4}$/.test(v)||/^\d{4}-(0[1-9]|1[0-2])$/.test(v)||isDay(v))&&v>='1990';
 const text=(v,max,label='this field')=>{if(v===undefined||v===null)return '';check(typeof v==='string'&&v.trim().length<=max,'Please shorten '+label+'.');return v.trim();};
 const isTime=v=>typeof v==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(v);
 const isDay=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
@@ -84,6 +86,11 @@ function medData(d){
  return {name,dose:text(d.dose,60,'the dose'),schedule:d.schedule,times:[...times].sort(),weekday:d.schedule==='weekly'?d.weekday:null,notes:text(d.notes,300,'the notes'),startedOn:d.startedOn||'',source:text(d.source,120,'the source')};
 }
 
+function milestoneData(d){
+ d=d&&typeof d==='object'?d:{};check(isStoryDate(d.date),'Choose the date (a year is enough).');check(STORY_KINDS.includes(d.kind),'Choose what it is about.');
+ const title=text(d.title,80,'the title');check(title,'Write a short title.');
+ return {date:d.date,kind:d.kind,title,note:text(d.note,400,'the note'),paper:text(d.paper,80,'the paper name'),historical:d.historical===true};
+}
 export function careChange(s,who,type,d={},now=Date.now()){
  check(names.includes(who),'Not allowed.',403);const care=s.care??=empty();d=d&&typeof d==='object'?d:{};let result={ok:true};const zone=careZone(s);
  if(type==='care.entry.add'){
@@ -121,6 +128,26 @@ export function careChange(s,who,type,d={},now=Date.now()){
   if(old)care.meds[care.meds.indexOf(old)]=med;else care.meds.push(med);result={ok:true,id:med.id};
  }else if(type==='care.med.stop'){
   const m=care.meds.find(x=>x.id===d.id);check(m,'Medicine not found.',404);check(m.revision===d.revision,'This medicine changed. Reopen it first.',409);check(isDay(d.stoppedOn),'Choose the stop date.');m.stoppedOn=d.stoppedOn;m.revision++;
+ }else if(type==='care.milestone.save'){
+  care.milestones??=[];const old=d.id?care.milestones.find(m=>m.id===d.id):null;check(!d.id||old,'Story step not found.',404);if(old)check(old.revision===d.revision,'This step changed. Reopen it to edit.',409);check(old||care.milestones.length<LIMITS.milestones,'The story is full.');
+  const data=milestoneData(d);const m={id:old?.id??randomUUID(),...data,addedBy:old?.addedBy??who,revision:(old?.revision??0)+1,editedBy:old?who:null};
+  if(old)care.milestones[care.milestones.indexOf(old)]=m;else care.milestones.push(m);result={ok:true,id:m.id};
+ }else if(type==='care.milestones.import'){
+  care.milestones??=[];check(Array.isArray(d.milestones)&&d.milestones.length>0&&d.milestones.length<=LIMITS.import,'Import between 1 and '+LIMITS.import+' story steps.');check(care.milestones.length+d.milestones.length<=LIMITS.milestones,'The story is full.');
+  const seen=new Set(care.milestones.map(m=>m.date+'|'+m.title.toLowerCase()));let added=0,skipped=0;
+  for(const r of d.milestones.map(milestoneData)){const k=r.date+'|'+r.title.toLowerCase();if(seen.has(k)){skipped++;continue;}seen.add(k);care.milestones.push({id:randomUUID(),...r,addedBy:who,revision:1,editedBy:null});added++;}
+  result={ok:true,added,skipped};
+ }else if(type==='care.milestone.delete'){
+  care.milestones??=[];const old=care.milestones.find(m=>m.id===d.id);check(old,'Story step not found.',404);check(old.revision===d.revision,'This step changed. Reopen it first.',409);care.milestones=care.milestones.filter(m=>m.id!==old.id);
+ }else if(type==='care.doctor.save'){
+  care.doctors??=[];const old=d.id?care.doctors.find(m=>m.id===d.id):null;check(!d.id||old,'Doctor not found.',404);if(old)check(old.revision===d.revision,'This doctor changed. Reopen it to edit.',409);check(old||care.doctors.length<LIMITS.doctors,'Too many doctors.');
+  const specialty=text(d.specialty,60,'the specialty');check(specialty,'Write the specialty.');
+  const doc={id:old?.id??randomUUID(),specialty,name:text(d.name,80,'the name'),phone:text(d.phone,40,'the phone'),note:text(d.note,200,'the note'),revision:(old?.revision??0)+1};
+  if(old)care.doctors[care.doctors.indexOf(old)]=doc;else care.doctors.push(doc);result={ok:true,id:doc.id};
+ }else if(type==='care.doctor.delete'){
+  care.doctors??=[];const old=care.doctors.find(m=>m.id===d.id);check(old,'Doctor not found.',404);check(old.revision===d.revision,'This doctor changed. Reopen it first.',409);care.doctors=care.doctors.filter(m=>m.id!==old.id);
+ }else if(type==='care.crohn.save'){
+  care.crohn={treatment:text(d.treatment,200,'the treatment')};
  }else check(false,'Unknown care action.');
  care.revision++;s.version++;return result;
 }
@@ -179,7 +206,7 @@ export function careSnapshot(s,who,now=Date.now()){
  const attention=[...labs.filter(t=>t.latest&&outside(t)&&t.trend==='away').map(t=>({type:'lab',key:t.key,test:t.test,status:t.status,direction:t.direction})),...meds.filter(m=>m.scheduledToday&&!m.doneToday).map(m=>({type:'dose',id:m.id,name:m.name,times:m.pendingToday}))];
  const recent=mine.filter(e=>e.occurredAt>=now-LIMITS.recentDays*DAY).slice(0,LIMITS.recentMax);
  const medWeek=meds.map(m=>({id:m.id,days:days.map(d=>({day:d.day,status:week.filter(x=>x.day===d.day&&x.e.kind==='dose'&&x.e.data.med===m.id).map(x=>x.e.data.status)}))}));
- const view={zone,today,medWeek,serverNow:now,canPrivate:who==='Safy',entries:recent.map(e=>strip(e,who)),olderEntries:mine.length>recent.length,week:days,flare,todayBelly:todayBelly&&strip(todayBelly,who),todayBathroom:days[6].bathroom??0,lastCheckin:lastCheckin&&strip(lastCheckin,who),labs,keyLabs:KEY_LABS.map(k=>labs.find(t=>t.latest&&(t.key===k||t.key.startsWith(k+' ')))).filter(Boolean),attention,improving:labs.filter(t=>t.latest&&outside(t)&&t.trend==='better').map(t=>t.test),unchanged:labs.filter(t=>t.latest&&outside(t)&&t.trend==='same').map(t=>t.test),meds};
+ const view={zone,today,medWeek,serverNow:now,canPrivate:who==='Safy',entries:recent.map(e=>strip(e,who)),olderEntries:mine.length>recent.length,week:days,flare,todayBelly:todayBelly&&strip(todayBelly,who),todayBathroom:days[6].bathroom??0,lastCheckin:lastCheckin&&strip(lastCheckin,who),labs,keyLabs:KEY_LABS.map(k=>labs.find(t=>t.latest&&(t.key===k||t.key.startsWith(k+' ')))).filter(Boolean),attention,improving:labs.filter(t=>t.latest&&outside(t)&&t.trend==='better').map(t=>t.test),unchanged:labs.filter(t=>t.latest&&outside(t)&&t.trend==='same').map(t=>t.test),meds,milestones:[...(care.milestones??[])].sort((a,b)=>b.date.localeCompare(a.date)||a.title.localeCompare(b.title)).map(({id,date,kind,title,note,paper,historical,revision,addedBy})=>({id,date,kind,title,note,paper,historical,revision,addedBy})),doctors:(care.doctors??[]).map(({id,specialty,name,phone,note,revision})=>({id,specialty,name,phone,note,revision})),crohn:{treatment:care.crohn?.treatment??''}};
  memo.set(who,{key,view});return view;
 }
 // Older entries, page by page, with the same privacy filter.
@@ -191,5 +218,5 @@ export function careHistory(s,who,before=Infinity,limit=LIMITS.page,beforeId='')
 // Full record for this person's export (private entries stay out for Mahmoud).
 export function careExport(s,who){
  check(names.includes(who),'Not allowed.',403);const care=s.care??empty();
- return {format:'our-place-care-v1',zone:careZone(s),entries:care.entries.filter(e=>visible(e,who)).sort((a,b)=>a.occurredAt-b.occurredAt).map(e=>({...strip(e,who),history:e.history.filter(h=>h.visibility==='shared'||who==='Safy')})),labs:care.labs,meds:care.meds};
+ return {format:'our-place-care-v1',zone:careZone(s),entries:care.entries.filter(e=>visible(e,who)).sort((a,b)=>a.occurredAt-b.occurredAt).map(e=>({...strip(e,who),history:e.history.filter(h=>h.visibility==='shared'||who==='Safy')})),labs:care.labs,meds:care.meds,milestones:care.milestones??[],doctors:care.doctors??[],crohn:care.crohn??{treatment:''}};
 }

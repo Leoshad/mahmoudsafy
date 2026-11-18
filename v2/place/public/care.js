@@ -19,7 +19,7 @@ const zone=()=>care()?.zone||'Africa/Cairo';
 const zoneName=()=>zone()==='Africa/Cairo'?'Egypt time':zone()==='Asia/Riyadh'?'Riyadh time':zone();
 function fmtTime(ms){return new Intl.DateTimeFormat('en',{timeZone:zone(),hour:'numeric',minute:'2-digit'}).format(ms);}
 function fmtDay(day){return new Intl.DateTimeFormat('en',{timeZone:'UTC',weekday:'short',day:'numeric',month:'short'}).format(new Date(day+'T12:00:00Z'));}
-function fmtDate(day){return new Intl.DateTimeFormat('en',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(new Date(day+'T12:00:00Z'));}
+function fmtDate(day){return new Intl.DateTimeFormat('en-GB',{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(new Date(day+'T12:00:00Z'));}
 function localDay(ms){const p=new Intl.DateTimeFormat('en-CA',{timeZone:zone(),year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(ms),g=k=>p.find(x=>x.type===k).value;return `${g('year')}-${g('month')}-${g('day')}`;}
 function when(ms){const d=localDay(ms);return (d===care().today?'Today':fmtDay(d))+' '+fmtTime(ms);}
 function localInput(ms){const p=new Intl.DateTimeFormat('en-GB',{timeZone:zone(),year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(ms),g=k=>p.find(x=>x.type===k).value;return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;}
@@ -74,46 +74,124 @@ function statusChip(t,parent){const label={in:'In range',below:'Below range',abo
 function trendText(t){if(t.trend==='better')return [(t.latest.value>t.previous.value?'↑':'↓')+' Getting better','good'];if(t.trend==='away')return [(t.direction==='up'?'↑ Going up':'↓ Going down'),'warn'];if(t.trend==='same')return ['→ No change','muted'];if(t.trend==='incompatible')return ['Different unit · not compared','muted'];if(t.trend==='up')return ['↑ A little higher','muted'];if(t.trend==='down')return ['↓ A little lower','muted'];return ['First reading','muted'];}
 function range(l){return l.rangeText||(l.lo!==null&&l.hi!==null?l.lo+'–'+l.hi:l.lo!==null?'more than '+l.lo:l.hi!==null?'under '+l.hi:'not provided');}
 
-function render(){const root=$('#care');if(!root)return;const c=care();if(!c){root.replaceChildren();return;}root.replaceChildren();const page=make('div',undefined,root,'care-page');
- const head=make('div',undefined,page,'care-head');const title=make('div',undefined,head);make('span','SAFY CARE',title,'care-heading-label');make('h2','At a glance',title);const log=button('',head,openLog,'care-log');icon('plus',log);make('span','Log',log);
- if(isSafy()){const q=make('div',undefined,page,'care-quick');for(const [k,ic,col] of [['okay','smile','#CDAE78'],['tired','battery','#B4A6E6'],['pain','bolt','#E7A3BC'],['sleep','moon','#B4A6E6']]){const b=button('',q,()=>quick(k));icon(ic,b,col);make('span',MOOD[k],b);}}
- // A seven-day overview uses only records visible to this viewer.
- if(c.lastCheckin){const last=button('',page,()=>c.lastCheckin.canEdit?entryForm(c.lastCheckin.kind,c.lastCheckin):openHistory(),'care-last');make('span','●  '+describe(c.lastCheckin),last);make('small',when(c.lastCheckin.occurredAt)+' · by '+c.lastCheckin.loggedBy,last);}
- const overview=make('section',undefined,page,'care-overview');
- const overviewHead=make('div',undefined,overview,'care-row');make('span','THIS WEEK',overviewHead,'care-overview-label');make('small',fmtDay(c.week[0].day)+' – '+fmtDay(c.week.at(-1).day),overviewHead,'care-week-range');
- const chart=make('div',undefined,overview,'care-chart');chart.setAttribute('aria-label','Last seven days: sleep, energy and pain');
- const maxSleep=Math.max(8,...c.week.map(d=>d.sleepHours??0));
- for(const d of c.week){const col=make('div',undefined,chart,'care-chart-day'+(d.day===c.today?' is-today':''));make('span',d.day===c.today?'Today':new Intl.DateTimeFormat('en',{timeZone:'UTC',weekday:'short'}).format(new Date(d.day+'T12:00:00Z')),col,'care-chart-date');const track=make('div',undefined,col,'care-bar-track');if(d.sleepHours!==null){const bar=make('span',undefined,track,'care-bar');bar.style.height=Math.max(4,Math.round(d.sleepHours/maxSleep*48))+'px';}make('span',d.sleepHours===null?'—':d.sleepHours+'h',col,'care-chart-value');make('span',d.energy==null?'—':String(d.energy),col,'care-energy'+(d.energy==null?' empty':''));const dot=make('span',d.pain===null?'—':d.pain>0?'●':'○',col,'care-pain');dot.setAttribute('aria-label',d.pain===null?'Pain not recorded':'Pain '+d.pain+' out of 5');}
- make('p','■ Sleep   ● Energy 1–5   ● Pain',overview,'care-chart-legend');
- const recorded=c.week.filter(d=>d.sleepHours!==null),energies=c.week.filter(d=>d.energy!=null),painDays=c.week.filter(d=>d.pain!==null);const stats=make('div',undefined,overview,'care-chart-stats');
- for(const [value,label] of [[recorded.length?(Math.round(recorded.reduce((n,d)=>n+d.sleepHours,0)/recorded.length*10)/10)+' h':'—','avg sleep'],[energies.length?String(Math.round(energies.reduce((n,d)=>n+d.energy,0)/energies.length*10)/10):'—','avg energy'],[painDays.length?painDays.filter(d=>d.pain>0).length+' of '+painDays.length:'—','recorded days with pain']]){const stat=make('div',undefined,stats);make('strong',value,stat);make('small',label,stat);}
+// ---- Calm health file: one quiet summary, details on tap ----
+let view='home';
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const WATCH=['hemoglobin','ferritin','vitamin d','esr · first','transferrin saturation','serum iron'];
+const HOME_ORDER=['hemoglobin','esr','vitamin d','ferritin'];
+const orderOf=t=>{const i=HOME_ORDER.findIndex(k=>t.key===k||t.key.startsWith(k+' '));return i<0?9:i;};
+const pct=r=>r.valueText+(r.unit==='%'?'%':'');
+const watched=t=>WATCH.some(k=>t.key===k||t.key.startsWith(k+' '));
+const outsideT=t=>t.latest&&['below','above'].includes(t.status);
+const NICE={esr:'Inflammation','transferrin saturation':'Iron saturation'};
+function niceName(t){for(const k in NICE)if(t.key===k||t.key.startsWith(k+' '))return NICE[k];return t.test.replace(/\s*\(.*?\)\s*/g,' ').replace(/ ·.*$/,'').trim();}
+function niceUnit(t){return (t.key.startsWith('esr')?'ESR · ':'')+t.latest.unit;}
+function whenWas(day){const d=new Date(day+'T12:00:00Z'),now=new Date((care().today||day)+'T12:00:00Z');return d.getUTCFullYear()===now.getUTCFullYear()?'in '+MONTHS[d.getUTCMonth()]:'in '+d.getUTCFullYear();}
+function storyDate(v){if(/^\d{4}$/.test(v))return {year:v,label:''};if(/^\d{4}-\d{2}$/.test(v))return {year:v.slice(0,4),label:MONTHS[Number(v.slice(5))-1]};const d=new Date(v+'T12:00:00Z');return {year:v.slice(0,4),label:d.getUTCDate()+' '+MONTHS[d.getUTCMonth()].slice(0,3)};}
+function trendChip(t){const l=t.latest,p=t.previous;if(!p)return null;
+ if(t.trend==='better')return [(l.value>p.value?'↑':'↓')+' Getting better','good'];
+ if(t.trend==='away')return [(t.direction==='up'?'↑ A bit higher':'↓ A bit lower'),'soft'];
+ if(t.trend==='same')return ['→ No change','quiet'];
+ if(t.trend==='up')return ['↑ A little higher','quiet'];if(t.trend==='down')return ['↓ A little lower','quiet'];return null;}
+function rangeLower(l){const r=range(l);return /^(Less|More|Up) /.test(r)?r[0].toLowerCase()+r.slice(1):r;}
+function shortRange(l){if(l.lo!==null&&l.hi!==null)return l.lo+'–'+l.hi;if(l.hi!==null)return 'under '+l.hi;if(l.lo!==null)return 'over '+l.lo;return rangeLower(l);}
+function bound(t){const l=t.latest;return t.status==='below'?l.lo:t.status==='above'?l.hi:null;}
+function sentence(t){const l=t.latest,p=t.previous;let a='';
+ if(p&&t.trend!=='incompatible'){if(l.value===p.value)a='Same as '+whenWas(p.date)+'. ';else a=(l.value>p.value?'Up from ':'Down from ')+p.valueText+' '+whenWas(p.date)+'. ';}
+ if(t.status==='in')return a+'In the lab’s normal range.';
+ if(t.status==='none')return a+'The sheet gives no normal range.';
+ const b=bound(t),close=b&&Math.abs(l.value-b)/Math.abs(b)<=0.1;
+ if(t.status==='below')return a+(close?'Just under':'Still under')+' the lab’s range ('+shortRange(l)+').';
+ return a+(close?'Just above':'Still above')+' the lab’s range ('+shortRange(l)+').';}
+function numberLine(parent,t){const l=t.latest,p=t.previous&&t.trend!=='incompatible'?t.previous:null;
+ const pts=[l.value,p?.value,l.lo,l.hi].filter(v=>typeof v==='number');let mn=Math.min(...pts),mx=Math.max(...pts);if(l.hi===null&&l.lo!==null)mx=Math.max(mx,l.lo*1.6);const pad=(mx-mn||Math.abs(mx)||1)*0.25;mn-=pad;mx+=pad;if(pts.every(v=>v>=0))mn=Math.max(0,mn);
+ const pos=v=>((v-mn)/(mx-mn))*100;const box=make('div',undefined,parent,'calm-line');box.setAttribute('aria-hidden','true');make('span',undefined,box,'calm-track');
+ if(l.lo!==null||l.hi!==null){const z=make('span',undefined,box,'calm-zone');const a=l.lo!==null?pos(l.lo):0,b=l.hi!==null?pos(l.hi):100;z.style.left=a+'%';z.style.width=Math.max(0,b-a)+'%';}
+ for(const v of [l.lo,l.hi])if(v!==null&&v!==undefined){const k=make('span',String(v),box,'calm-tick');k.style.left=pos(v)+'%';}
+ if(p){const d=make('span',undefined,box,'calm-dot was');d.style.left=pos(p.value)+'%';}
+ const n=make('span',undefined,box,'calm-dot now');n.style.left=pos(l.value)+'%';}
+function chip(parent,pair){if(!pair)return;make('span',pair[0],parent,'calm-chip '+pair[1]);}
+function labRow(parent,t){const r=button('',parent,()=>openLabs(),'calm-lab');const top=make('span',undefined,r,'calm-lab-top');const n=make('span',undefined,top,'calm-lab-name');make('span',niceName(t),n);make('strong',t.latest.valueText,n);make('small',niceUnit(t),n);chip(top,trendChip(t));numberLine(r,t);make('span',sentence(t),r,'calm-sentence');}
+function labEvents(c){const days=[...new Set(c.labs.flatMap(t=>t.readings.filter(r=>r.verified).map(r=>r.date)))].sort().reverse();const groups=[];
+ for(const d of days){const g=groups.at(-1);if(g&&(Date.parse(g.first+'T00:00:00Z')-Date.parse(d+'T00:00:00Z'))<=3*86400000){g.first=d;g.days.push(d);}else groups.push({last:d,first:d,days:[d]});}
+ const TITLES={'Blood picture':'Blood test','Iron':'Iron tests','Inflammation':'Inflammation test','Vitamins & thyroid':'Vitamins & thyroid','Lipids':'Cholesterol test','Chemistry':'Chemistry','Kidney & liver':'Kidney & liver'};
+ return groups.map((g,gi)=>{const rows=[];for(const t of c.labs)for(const r of t.readings)if(r.verified&&g.days.includes(r.date))rows.push({t,r});
+  const groupsIn=[...new Set(rows.map(x=>x.t.group))];const parts=[];
+  for(const {t,r} of rows.filter(x=>watched(x.t))){const i=t.readings.filter(x=>x.verified&&x.unit===r.unit).sort((a,b)=>a.date.localeCompare(b.date));const k=i.findIndex(x=>x.id===r.id),prev=k>0?i[k-1]:null;
+   const name=t.key.startsWith('esr')?'Inflammation (ESR)':niceName(t);parts.push(name+' '+pct(r)+(prev&&prev.value!==r.value?', '+(r.value>prev.value?'up':'down')+' from '+pct(prev):''));}
+  const text=parts.length?parts.slice(0,4).join('. ')+'.':groupsIn.join(', ')+' · '+rows.length+' results.';
+  const a=storyDate(g.first),b=storyDate(g.last);const label=g.first===g.last?a.label:(g.first.slice(0,7)===g.last.slice(0,7)?a.label.split(' ')[0]+'–'+b.label:a.label+' – '+b.label);
+  return {date:g.last,year:g.last.slice(0,4),label,kind:groupsIn.length===1&&groupsIn[0]==='Inflammation'?'crohn':'blood',title:groupsIn.length===1?(TITLES[groupsIn[0]]||groupsIn[0]):gi===0?'New labs':'Labs',note:text,paper:rows.length+(rows.length===1?' lab result':' lab results'),open:openLabs};});}
+function storyEvents(c){const ev=labEvents(c);
+ for(const m of c.milestones){const d=storyDate(m.date);ev.push({date:m.date,year:d.year,label:d.label,kind:m.kind,title:m.title,note:m.note,paper:m.paper?(m.paper+(m.historical?' · historical':'')):'',m});}
+ for(const m of c.meds)if(m.startedOn){const d=storyDate(m.startedOn);ev.push({date:m.startedOn,year:d.year,label:d.label,kind:'medicine',title:'Started '+m.name,note:[m.dose,m.notes].filter(Boolean).join(' · ')});}
+ return ev.sort((a,b)=>(b.date.padEnd(10,'z')).localeCompare(a.date.padEnd(10,'z')));}
+const KIND_COLOR={crohn:'#C9B8F5',blood:'#CDAE78',visit:'#8FB3C9',medicine:'#E7A3BC',other:'#A89DA8'};
+function render(){const root=$('#care');if(!root)return;const c=care();root.replaceChildren();if(!c)return;if(view==='story')return renderStory(root,c);
+ const page=make('div',undefined,root,'calm-page');const head=make('div',undefined,page,'calm-head');
+ const top=make('div',undefined,head,'calm-row');make('span',isSafy()?'Your health file':'Kept up to date by you',top,'calm-meta');button('✎ Update',top,openUpdate,'calm-update');
+ make('h2','Safy’s health',head);make('p',isSafy()?'Everything about your health, in one quiet place. Nothing to fill in.':'Everything about Safy’s health, in one quiet place.',head,'calm-intro');
  // Crohn's first
- const hero=make('section',undefined,page,'care-hero');hero.setAttribute('aria-label','Crohn’s');const hh=make('div',undefined,hero,'care-row');icon('gut',make('span',undefined,hh,'care-badge'),'#E7A3BC');make('span',isSafy()?'MY BELLY':'CROHN’S',hh,'care-eyebrow');button('Details ›',hh,()=>openHistory(['belly','bathroom','flare','period']),'care-link');
- const big=make('div',undefined,hero,'care-row care-big');const bt=make('div',undefined,big);const f=c.flare;make('strong',f.active?(isSafy()?'Rough patch':'Flare'):f.logged?'No active flare':'No flare logged',bt,'care-title');make('small',f.active?'Since '+when(f.since):f.lastEnd?'Last one ended '+fmtDate(localDay(f.lastEnd)):'Tap “'+(isSafy()?'Rough patch started':'Flare started')+'” when one begins',bt);if(f.active)make('span','Active',big,'care-chip warn');
- const today=make('div',undefined,hero,'care-today');icon('bolt',today,'#E7A3BC');make('span',c.todayBelly?'Today: '+describe(c.todayBelly):'Nothing logged for her belly today',today);if(c.todayBelly)make('small',fmtTime(c.todayBelly.occurredAt),today);
- const grid=make('div',undefined,hero,'care-week');grid.setAttribute('role','table');grid.setAttribute('aria-label','Last 7 days');make('span','',grid);for(const d of c.week)make('span',d.day===c.today?'Today':new Intl.DateTimeFormat('en',{timeZone:'UTC',weekday:'narrow'}).format(new Date(d.day+'T12:00:00Z')),grid,'care-week-day'+(d.day===c.today?' is-today':''));
- make('span','Pain',grid,'care-week-label');for(const d of c.week){const cell=make('span',undefined,grid,'care-cell');if(!d.bellyLogged)cell.classList.add('none');else if(d.pain!==null){cell.dataset.level=String(d.pain);cell.title='Pain '+d.pain+' of 5';}else cell.classList.add('zero');if(d.day===c.today)cell.classList.add('is-today');}
- make('span','Diarrhea',grid,'care-week-label');for(const d of c.week){const cell=make('span',d.diarrhea===null?'··':'',grid,'care-dot-cell');if(d.diarrhea)make('span','',cell,'care-dot');}
- make('span','Bathroom',grid,'care-week-label');for(const d of c.week)make('span',d.bathroom===null?'··':String(d.bathroom),grid,'care-num'+(d.day===c.today?' is-today':''));
- make('p','Darker = stronger pain · ·· = nothing logged that day',hero,'care-legend');
- const acts=make('div',undefined,hero,'care-actions');const lb=button('',acts,()=>entryForm('belly'),'care-primary');icon('plus',lb);make('span','Log belly',lb);button(f.active?(isSafy()?'Rough patch eased':'Flare ended'):(isSafy()?'Rough patch started':'Flare started'),acts,async()=>{const r=await add('flare',{state:f.active?'end':'start'});toast(f.active?'Marked as ended':'Marked as started',{id:r.id,revision:1});},'care-outline');
- // Attention
- if(c.attention.length){const a=make('section',undefined,page,'care-attention');const ah=make('div',undefined,a,'care-row');icon('alert',ah,'#F0B27A');make('strong',isSafy()?'Worth asking the doctor':'Needs attention',ah);make('span',String(c.attention.length),ah,'care-count');
-  for(const x of c.attention){const r=button('',a,()=>x.type==='lab'?openLabs():entryForm('dose',null,{med:x.id}),'care-attn-row');if(x.type==='lab'){make('span',x.direction==='up'?'↑':'↓',r,'care-arrow');make('span',x.test+' '+(x.status==='below'?'below':'above')+' range, moving away',r);make('small','Ask doctor',r);}else{icon('pill',r,'#CDAE78');make('span',x.name+' due today',r);make('small',x.times.join(', ')||'today',r);}}
-  if(c.improving.length)make('p','Getting better, still outside range: '+c.improving.join(', '),a,'care-good');}
- // Key labs
- if(c.keyLabs.length){const s=make('section',undefined,page,'care-keylabs');const sh=make('div',undefined,s,'care-row');make('span','KEY LABS',sh,'care-eyebrow');button('All ›',sh,openLabs,'care-link');const g=make('div',undefined,s,'care-tiles');
-  for(const t of c.keyLabs){const tile=button('',g,openLabs,'care-tile');make('span',t.test.replace(/ ·.*$/,''),tile,'care-tile-name');make('strong',t.latest.valueText,tile);make('span',t.latest.unit+' · '+fmtDate(t.latest.date),tile,'care-tile-meta');make('span','Range: '+range(t.latest)+(t.latest.flag?' · '+t.latest.flag+' on sheet':''),tile,'care-tile-meta');const [tx,cls]=trendText(t);make('span',tx,tile,'care-trend '+cls);statusChip(t,tile);}
-  make('p','Compared with the reading before · range from each lab sheet',s,'care-legend');}
- else if(!c.labs.length){const e=make('section',undefined,page,'care-empty');make('strong','No lab results yet',e);make('p','Add them from a lab sheet. Numbers are copied exactly as printed.',e);button('Add lab results',e,labForm,'care-outline');}
- // Medicine history reflects only doses visible to the current viewer.
- if(c.meds.length){const section=make('section',undefined,page,'care-overview');const bar=make('div',undefined,section,'care-row');make('span','MEDS THIS WEEK',bar,'care-heading-label');button('All medicines ›',bar,openMeds,'care-link');for(const med of c.meds.filter(m=>m.active)){const row=make('button',undefined,section,'care-med-week');row.type='button';row.onclick=openMeds;make('span',med.name,row);const dots=make('span',undefined,row,'care-med-dots');const history=c.medWeek?.find(x=>x.id===med.id);for(const day of c.week){const statuses=history?.days.find(x=>x.day===day.day)?.status??[];const dot=make('span',statuses.includes('taken')?'●':statuses.includes('skipped')?'×':'○',dots);dot.title=fmtDay(day.day)+': '+(statuses.length?statuses.join(', '):'no dose logged');}}}
- // Details
- const det=make('section',undefined,page,'care-details');make('span','SEE DETAILS',det,'care-eyebrow');const dg=make('div',undefined,det,'care-detail-grid');
- for(const [label,ic,fn] of [['History','list',()=>openHistory()],['All labs','flask',openLabs],['Medicines','pill',openMeds]]){const b=button('',dg,fn);icon(ic,b,'#CDAE78');make('span',label,b);}
- button('Medical file for any doctor  ›',page,openMedicalFile,'care-medical-link');
- if(isSafy()){const p=button('',page,()=>entryForm('note',null,{private:true}),'care-private');icon('lock',p,'#B4A6E6');make('span','Write something just for me',p);make('p','You see everything Mahmoud logs for you, and can edit it.',page,'care-legend center');}
-}
+ const esr=c.labs.find(t=>t.latest&&t.key.startsWith('esr · first'))||c.labs.find(t=>t.latest&&t.key.startsWith('esr'));const cr=button('',page,()=>{view='story';storyFilter='crohn';render();window.scrollTo?.(0,0);},'calm-crohn');
+ const crTop=make('span',undefined,cr,'calm-row');make('span','CROHN’S',crTop,'calm-eyebrow lav');make('span','›',crTop,'calm-chev');
+ let headline='Nothing new about Crohn’s yet.';if(esr&&esr.previous&&esr.trend!=='incompatible'&&esr.latest.value!==esr.previous.value)headline='The inflammation test is '+(esr.latest.value<esr.previous.value?'lower':'higher')+' than '+whenWas(esr.previous.date).replace('in ','in ')+'.';else if(esr)headline='Latest inflammation test: '+esr.latest.valueText+'.';
+ make('strong',headline,cr,'calm-headline');
+ if(esr){const r=make('span',undefined,cr,'calm-row wrap');chip(r,trendChip(esr));make('small','ESR '+esr.latest.valueText+(esr.previous?' · was '+esr.previous.valueText:'')+' · range '+shortRange(esr.latest),r,'calm-meta');}
+ make('span',undefined,cr,'calm-rule');const facts=make('span',undefined,cr,'calm-facts');
+ const f1=make('span',undefined,facts);make('small','Treatment',f1);make('span',c.crohn?.treatment||'Not recorded yet',f1);
+ const papers=c.milestones.filter(m=>m.kind==='crohn').slice(0,2).map(m=>m.title+' '+m.date.slice(0,4));const f2=make('span',undefined,facts);make('small','On her papers',f2);make('span',papers.join(' · ')||'None added yet',f2);
+ // Latest labs: key tests, outside the range first, at most three.
+ const keys=c.keyLabs.filter(t=>t.latest);const show=[...keys.filter(outsideT),...keys.filter(t=>!outsideT(t))].slice(0,3).sort((a,b)=>orderOf(a)-orderOf(b));
+ if(show.length){const s=make('section',undefined,page,'calm-section');const sh=make('div',undefined,s,'calm-row');const newest=show.map(t=>t.latest.date).sort().at(-1);make('h3','LATEST LABS',sh);button('All results ›',sh,openLabs,'calm-link');
+  const card=make('div',undefined,s,'calm-card');for(const t of show)labRow(card,t);
+  const leg=make('div',undefined,s,'calm-legend');for(const [cls,txt] of [['zone','Normal range'],['was','Before'],['now','Now']]){const x=make('span',undefined,leg);make('i',undefined,x,cls);make('span',txt,x);}}
+ else if(!c.labs.length){const e=make('section',undefined,page,'calm-card calm-empty');make('strong','No lab results yet',e);make('p','Add them from a lab sheet with ✎ Update.',e);}
+ // Gentle note for the next visit.
+ const mention=c.labs.filter(t=>watched(t)&&outsideT(t)&&t.trend!=='better');
+ if(mention.length){const n=make('section',undefined,page,'calm-note');make('span','✎',n,'calm-note-icon');const tx=make('span',undefined,n);make('strong','To mention at the next visit',tx);
+  const names=mention.map(t=>niceName(t)+' ('+pct(t.latest)+')');const below=mention.every(t=>t.status==='below'),above=mention.every(t=>t.status==='above');
+  make('span',(names.length>1?names.slice(0,-1).join(', ')+' and '+names.at(-1)+' are ':names[0]+' is ')+(below?'below':above?'above':'outside')+' the lab’s range.',tx);}
+ // Medicines now
+ const meds=c.meds.filter(m=>m.active);const ms=make('section',undefined,page,'calm-section');const mh=make('div',undefined,ms,'calm-row');make('h3','MEDICINES NOW',mh);const mc=make('div',undefined,ms,'calm-card');
+ if(!meds.length)make('p','No medicines recorded yet.',mc,'calm-quiet');
+ for(const m of meds){const r=button('',mc,openMeds,'calm-item');make('span',m.name,r).dir='auto';const when=m.schedule==='as-needed'?'When needed':m.schedule==='weekly'?'Weekly':m.times.length?m.times.join(' · '):'Daily';make('small',[m.dose,when,m.startedOn?'since '+fmtDate(m.startedOn):''].filter(Boolean).join(' · '),r).dir='auto';}
+ // Her story preview
+ const ev=storyEvents(c);if(ev.length){const ss=make('section',undefined,page,'calm-section');const sh=make('div',undefined,ss,'calm-row');make('h3','HER STORY',sh);button('Full story ›',sh,()=>{view='story';storyFilter='all';render();window.scrollTo?.(0,0);},'calm-link');
+  const card=button('',ss,()=>{view='story';storyFilter='all';render();},'calm-card calm-mini');for(const e of ev.slice(0,3)){const r=make('span',undefined,card,'calm-mini-row');const dot=make('i',undefined,r);dot.style.background=KIND_COLOR[e.kind];const t=make('span',undefined,r);make('small',(e.label?e.label+' ':'')+e.year,t);make('span',e.title,t);}}
+ // Papers and doctors
+ const ps=make('section',undefined,page,'calm-section');make('h3','PAPERS & DOCTORS',make('div',undefined,ps,'calm-row'));
+ const withPaper=ev.filter(e=>e.paper).slice(0,6);if(withPaper.length){const strip=make('div',undefined,ps,'calm-papers');for(const e of withPaper){const b=button('',strip,()=>e.open?e.open():(view='story',storyFilter='all',render()),'calm-paper');make('strong',e.m?.paper||(e.open?'Lab sheets':e.title),b).dir='auto';make('small',(e.label?e.label+' ':'')+e.year,b);}}
+ const dc=make('div',undefined,ps,'calm-card');if(!c.doctors.length)make('p','No doctors added yet.',dc,'calm-quiet');for(const d of c.doctors){const r=button('',dc,()=>doctorForm(d),'calm-item');make('span',d.specialty,r).dir='auto';make('small',[d.name,d.phone,d.note].filter(Boolean).join(' · ')||'Details not added yet',r).dir='auto';}
+ make('p','Copied from her papers. Numbers exactly as printed; the doctor decides what they mean.',page,'calm-foot');}
+let storyFilter='all';
+function renderStory(root,c){const page=make('div',undefined,root,'calm-page');const head=make('div',undefined,page,'calm-story-head');const back=button('',head,()=>{view='home';render();},'calm-back');back.setAttribute('aria-label','Back');back.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';make('h2','Her story',head);
+ make('p','Newest first. Each step comes from her papers.',page,'calm-intro');
+ const f=make('div',undefined,page,'calm-filters');for(const [k,label] of [['all','All'],['crohn','Crohn’s'],['blood','Blood & iron'],['visit','Visits'],['medicine','Medicines']]){const b=button('',f,()=>{storyFilter=k;render();},'calm-filter');b.setAttribute('aria-pressed',String(storyFilter===k));if(k!=='all'){const i=make('i',undefined,b);i.style.background=KIND_COLOR[k];}make('span',label,b);}
+ const list=storyEvents(c).filter(e=>storyFilter==='all'||e.kind===storyFilter);if(!list.length)make('p','Nothing here yet.',page,'calm-quiet');
+ let year=null;const tl=make('div',undefined,page,'calm-timeline');for(const e of list){if(e.year!==year){year=e.year;make('div',year,tl,'calm-year');}
+  const row=make('div',undefined,tl,'calm-step');const rail=make('span',undefined,row,'calm-rail');const dot=make('i',undefined,rail);dot.style.background=KIND_COLOR[e.kind];
+  const body=make('span',undefined,row,'calm-step-body');if(e.label)make('small',e.label,body);make('strong',e.title,body).dir='auto';if(e.note)make('span',e.note,body).dir='auto';
+  if(e.paper){const p=button('📄 '+e.paper+' ›',body,()=>e.open?e.open():e.m?milestoneForm(e.m):null,'calm-paper-link');p.dir='auto';}else if(e.m)button('Edit',body,()=>milestoneForm(e.m),'calm-edit-link');}}
+function openUpdate(){const root=sheet('Update Safy’s file'),grid=make('div',undefined,root,'care-log-grid');
+ for(const [label,ic,fn] of [['Lab result','flask',()=>labForm()],['Import a file','list',importLabs],['Medicine','pill',()=>medForm()],['Story step','note',()=>milestoneForm()],['Doctor','plus',()=>doctorForm()],['Crohn’s treatment','gut',crohnForm]]){const b=button('',grid,fn,'care-log-option');icon(ic,b,'#CDAE78');make('span',label,b);}
+ make('p','Copy everything exactly as it is on the paper.',root,'personal-muted');}
+function milestoneForm(m){const root=sheet(m?'Edit story step':'Add a story step'),form=make('form',undefined,root);
+ const date=field(form,'When · a year (2021), a month (2021-05) or a full date','text',m?.date??'');date.required=true;date.placeholder='2026-11-12';
+ const kind=chips(form,'About',[['crohn','Crohn’s'],['blood','Blood & iron'],['visit','Visit'],['medicine','Medicine'],['other','Other']],[m?.kind??'visit'],false,true);
+ const title=field(form,'Title','text',m?.title??'');title.required=true;title.maxLength=80;title.dir='auto';
+ const note=field(form,'What the paper says · optional','textarea',m?.note??'');note.maxLength=400;note.dir='auto';
+ const paper=field(form,'Paper name · optional, e.g. Biopsy report','text',m?.paper??'');paper.maxLength=80;paper.dir='auto';
+ const l=make('label',undefined,form,'personal-check');const hist=make('input',undefined,l);hist.type='checkbox';hist.checked=!!m?.historical;make('span','Old paper · may not be true today',l);
+ const status=make('p','',form,'personal-status');const row=make('div',undefined,form,'personal-actions');const b=make('button','Save',row,'primary');b.type='submit';
+ if(m)button('Delete',row,async()=>{if(!confirm('Delete this step?'))return;try{await run(()=>ctx.command('care.milestone.delete',{id:m.id,revision:m.revision}),status);dialog?.close();}catch{}});
+ form.onsubmit=async ev=>{ev.preventDefault();b.disabled=true;try{await run(()=>ctx.command('care.milestone.save',{...(m?{id:m.id,revision:m.revision}:{}),date:date.value.trim(),kind:kind()[0],title:title.value,note:note.value,paper:paper.value,historical:hist.checked}),status);dialog?.close();}catch(e){status.textContent=e.message;b.disabled=false;}};}
+function doctorForm(d){const root=sheet(d?'Edit doctor':'Add a doctor'),form=make('form',undefined,root);const sp=field(form,'Specialty, e.g. Hematology','text',d?.specialty??'');sp.required=true;sp.dir='auto';const name=field(form,'Name · optional','text',d?.name??'');name.dir='auto';const phone=field(form,'Phone · optional','tel',d?.phone??'');const note=field(form,'Note · optional','text',d?.note??'');note.dir='auto';
+ const status=make('p','',form,'personal-status');const row=make('div',undefined,form,'personal-actions');const b=make('button','Save',row,'primary');b.type='submit';
+ if(d)button('Delete',row,async()=>{if(!confirm('Delete this doctor?'))return;try{await run(()=>ctx.command('care.doctor.delete',{id:d.id,revision:d.revision}),status);dialog?.close();}catch{}});
+ form.onsubmit=async ev=>{ev.preventDefault();b.disabled=true;try{await run(()=>ctx.command('care.doctor.save',{...(d?{id:d.id,revision:d.revision}:{}),specialty:sp.value,name:name.value,phone:phone.value,note:note.value}),status);dialog?.close();}catch(e){status.textContent=e.message;b.disabled=false;}};}
+function crohnForm(){const root=sheet('Crohn’s treatment'),form=make('form',undefined,root);const t=field(form,'Treatment, as the doctor wrote it','textarea',care().crohn?.treatment??'');t.maxLength=200;t.dir='auto';
+ const status=make('p','',form,'personal-status');const row=make('div',undefined,form,'personal-actions');const b=make('button','Save',row,'primary');b.type='submit';
+ form.onsubmit=async ev=>{ev.preventDefault();b.disabled=true;try{await run(()=>ctx.command('care.crohn.save',{treatment:t.value}),status);dialog?.close();}catch(e){status.textContent=e.message;b.disabled=false;}};}
 function openHistory(kinds){const c=care(),root=sheet(kinds?'Belly history':'History');const all=[...c.entries];const body=make('div',undefined,root);const foot=make('div',undefined,root);let more=c.olderEntries;
  const paint=()=>{body.replaceChildren();foot.replaceChildren();const list=all.filter(e=>!kinds||kinds.includes(e.kind));if(!list.length)make('p','Nothing logged yet.',body,'personal-muted');drawHistory(body,list);if(more){const b=button('Load older',foot,async()=>{b.disabled=true;try{const last=all.at(-1);const query=last?'?before='+last.occurredAt+'&beforeId='+encodeURIComponent(last.id):'';const r=await ctx.api('care/history'+query);all.push(...r.entries);more=r.more;paint();}catch(err){b.disabled=false;ctx.error(err);}});}make('p','Times are in '+zoneName()+'.',foot,'personal-muted');};paint();}
 function drawHistory(root,list){const c=care();
@@ -136,7 +214,7 @@ function labForm(t,r){const root=sheet(r?'Edit result':'Add a lab result'),form=
  const n=v=>v===''||v===null?null:Number(String(v).replace(',','.'));
  form.onsubmit=async ev=>{ev.preventDefault();b.disabled=true;try{await run(()=>ctx.command('care.lab.save',{...(r?{id:r.id,revision:r.revision}:{}),test:test.value,value:n(value.value),valueText:value.value,unit:unit.value,lo:n(lo.value),hi:n(hi.value),rangeText:rt.value,flag:flag()[0]??'',date:date.value,group:group.value,source:source.value,verified:ver.checked}),status);openLabs();}catch(e){status.textContent=e.message;b.disabled=false;}};}
 function importLabs(){const root=sheet('Import lab results');make('p','Choose a .json lab file prepared from the sheets. Results already saved for the same test and date are skipped.',root,'personal-muted');const input=make('input',undefined,root);input.type='file';input.accept='application/json,.json';const status=make('p','',root,'personal-status');status.setAttribute('role','status');
- input.onchange=async()=>{const file=input.files[0];if(!file)return;try{const data=JSON.parse(await file.text());const labs=Array.isArray(data)?data:data.labs;status.textContent='Importing…';const r=await run(()=>ctx.command('care.labs.import',{labs}),status);status.textContent='Added '+r.added+(r.skipped?' · skipped '+r.skipped+' already saved':'')+'.';}catch(e){status.textContent=e.message;}};}
+ input.onchange=async()=>{const file=input.files[0];if(!file)return;try{const data=JSON.parse(await file.text());const labs=Array.isArray(data)?data:data.labs??[],steps=Array.isArray(data)?[]:data.milestones??[];status.textContent='Importing…';const out=[];if(labs.length){const r=await run(()=>ctx.command('care.labs.import',{labs}),status);out.push(r.added+' lab results'+(r.skipped?' (skipped '+r.skipped+' already saved)':''));}if(steps.length){const r=await run(()=>ctx.command('care.milestones.import',{milestones:steps}),status);out.push(r.added+' story steps'+(r.skipped?' (skipped '+r.skipped+')':''));}status.textContent=out.length?'Added '+out.join(' · ')+'.':'Nothing to import in this file.';}catch(e){status.textContent=e.message;}};}
 function openMeds(){const c=care(),root=sheet('Medicines');button('＋ Add a medicine',make('div',undefined,root,'personal-actions'),()=>medForm(),'primary');const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
  for(const m of c.meds){const card=make('article',undefined,root,'care-lab');const top=make('div',undefined,card,'care-row');make('strong',m.name,top).dir='auto';if(m.stoppedOn&&!m.active)make('span','Stopped',top,'care-chip muted');else if(!m.active)make('span','Starts '+fmtDate(m.startedOn),top,'care-chip muted');else if(m.scheduledToday)make('span',m.doneToday?'Done today':'Due today',top,'care-chip '+(m.doneToday?'ok':'warn'));make('small',[m.dose,m.schedule==='daily'?'Daily '+m.times.join(', '):m.schedule==='weekly'?'Weekly · '+days[m.weekday]+(m.times.length?' '+m.times.join(', '):''):'As needed',m.startedOn?'since '+fmtDate(m.startedOn):'',m.lastDose?'last taken '+when(m.lastDose):''].filter(Boolean).join(' · '),card);if(m.notes)make('p',m.notes,card,'personal-muted').dir='auto';const row=make('div',undefined,card,'personal-actions');if(m.active)button('Log dose',row,()=>entryForm('dose',null,{med:m.id}));button('Edit',row,()=>medForm(m));if(!m.stoppedOn)button('Stop',row,async()=>{if(!confirm('Mark '+m.name+' as stopped today?'))return;await run(()=>ctx.command('care.med.stop',{id:m.id,revision:m.revision,stoppedOn:c.today}));openMeds();});}
  if(!c.meds.length)make('p','No medicines yet. Add each one with its dose and times from the prescription.',root,'personal-muted');}
@@ -144,5 +222,5 @@ function medForm(m){const root=sheet(m?'Edit medicine':'Add a medicine'),form=ma
  const status=make('p','',form,'personal-status');const row=make('div',undefined,form,'personal-actions');const b=make('button','Save',row,'primary');b.type='submit';
  form.onsubmit=async ev=>{ev.preventDefault();b.disabled=true;try{await run(()=>ctx.command('care.med.save',{...(m?{id:m.id,revision:m.revision}:{}),name:name.value,dose:dose.value,schedule:sched()[0],times:times.value.split(/[,\s]+/).filter(Boolean),weekday:wd().length?Number(wd()[0]):null,startedOn:started.value,notes:notes.value,source:source.value}),status);openMeds();}catch(e){status.textContent=e.message;b.disabled=false;}};}
 let lastWire='';
-window.OurCare={init(c){ctx=c;},sync(s){st=s;const wire=JSON.stringify([s?.who,s?.care]);if(wire===lastWire)return;lastWire=wire;if(!$('#care')?.hidden)render();},tab(next){if(next==='care')render();},reset(){epoch++;st=null;lastWire='';dialog?.close();$('#care')?.replaceChildren();}};
+window.OurCare={init(c){ctx=c;},sync(s){st=s;const wire=JSON.stringify([s?.who,s?.care]);if(wire===lastWire)return;lastWire=wire;if(!$('#care')?.hidden)render();},tab(next){if(next==='care')render();},reset(){epoch++;st=null;view='home';lastWire='';dialog?.close();$('#care')?.replaceChildren();}};
 })();
