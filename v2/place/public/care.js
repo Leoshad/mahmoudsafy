@@ -253,13 +253,13 @@ function render(){const root=$('#care');if(!root)return;const c=care();const bac
  make('span',undefined,cr,'calm-rule');const facts=make('span',undefined,cr,'calm-facts');
  const f1=make('span',undefined,facts);make('small','Treatment',f1);make('span',c.crohn?.treatment||'Not recorded yet',f1);
  const papers=c.milestones.filter(m=>m.kind==='crohn').slice(0,2).map(m=>m.title+' '+m.date.slice(0,4));const f2=make('span',undefined,facts);make('small','On her papers',f2);make('span',papers.join(' · ')||'None added yet',f2);
- renderBodyTiles(page,c);
  // Latest labs: key tests, outside the range first, at most three.
  const keys=c.keyLabs.filter(t=>t.latest);const show=[...keys.filter(outsideT),...keys.filter(t=>!outsideT(t))].slice(0,3).sort((a,b)=>orderOf(a)-orderOf(b));
  if(show.length){const s=make('section',undefined,page,'calm-section');const sh=make('div',undefined,s,'calm-row');const newest=show.map(t=>t.latest.date).sort().at(-1);make('h3','LATEST LABS',sh);button('All results ›',sh,openLabs,'calm-link');
   const card=make('div',undefined,s,'calm-card');for(const t of show)labRow(card,t);
   const leg=make('div',undefined,s,'calm-legend');for(const [cls,txt] of [['zone','Normal range'],['was','Before'],['now','Now']]){const x=make('span',undefined,leg);make('i',undefined,x,cls);make('span',txt,x);}}
  else if(!c.labs.length){const e=make('section',undefined,page,'calm-card calm-empty');make('strong','No lab results yet',e);make('p','Add them from a lab sheet with ✎ Update.',e);}
+ renderBodyTiles(page,c);
  // Gentle note for the next visit, then the guide notes that matter most.
  const mention=c.labs.filter(t=>watched(t)&&outsideT(t)&&t.trend!=='better');const guide=c.guide??[];
  if(mention.length||guide.length){const box=make('section',undefined,page,'calm-worth');const n=make('div',undefined,box,'calm-note');make('span','✎',n,'calm-note-icon');const tx=make('span',undefined,n);make('strong',mention.length?'To mention at the next visit':'Worth knowing',tx);
