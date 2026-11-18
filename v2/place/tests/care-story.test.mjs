@@ -43,3 +43,6 @@ test('guide notes import once, show in the snapshot and the doctor file',()=>{co
  assert.throws(()=>c(s,'Mahmoud','care.guide.import',{guide:[{kind:'ask',title:'x',body:'y',url:'javascript:alert(1)'}]},now),/https/);
  const view=v(s,'Safy',now);assert.equal(view.guide.length,2);assert.ok(careDocumentHTML(view,{who:'Safy',now}).includes('Questions for this visit'));
  c(s,'Mahmoud','care.guide.delete',{id:view.guide[0].id,revision:1},now);assert.equal(v(s,'Safy',now).guide.length,1);});
+test('notes can be to-dos that Safy ticks off',()=>{const s=initial();const {id}=c(s,'Safy','care.entry.add',{kind:'note',data:{text:'Buy vitamin D',todo:true}},now);
+ c(s,'Safy','care.entry.edit',{id,revision:1,data:{text:'Buy vitamin D',todo:true,done:true}},now);const e=v(s,'Mahmoud',now).entries.find(x=>x.id===id);assert.deepEqual([e.data.todo,e.data.done],[true,true]);
+ const {id:p}=c(s,'Mahmoud','care.entry.add',{kind:'note',data:{text:'plain'}},now);assert.equal(v(s,'Safy',now).entries.find(x=>x.id===p).data.todo,undefined);});

@@ -61,7 +61,7 @@ function entryData(kind,d,ctx){
   if(slot){const day=localDay(occurredAt,zone);check(!care.entries.some(e=>visible(e,who)&&e.kind==='dose'&&e.id!==id&&e.data.med===med.id&&e.data.slot===slot&&localDay(e.occurredAt,zone)===day),'This dose is already logged for that day.',409);}
   return {med:med.id,status:d.status,slot};
  }
- if(kind==='note'){const t=text(d.text,1000,'the note');check(t,'Write the note first.');return {text:t};}
+ if(kind==='note'){const t=text(d.text,1000,'the note');check(t,'Write the note first.');const out={text:t};if(d.todo===true){out.todo=true;out.done=d.done===true;}return out;}
  if(kind==='flare'){check(['start','end'].includes(d.state),'Choose flare start or end.');return {state:d.state};}
  check(false,'Unknown entry type.');
 }
