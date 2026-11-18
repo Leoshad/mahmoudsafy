@@ -14,8 +14,10 @@ export const WHERE=['colon','stomach','other'];
 const SYMPTOMS=['back pain','colon pain','stomach','nausea','diarrhea','headache','dizzy','tinnitus','cold / flu','other'];
 export const KEY_LABS=['esr','hemoglobin','ferritin','vitamin d'];
 const SCHEDULES=['daily','weekly','as-needed'];
-const LIMITS={guide:60,milestones:500,doctors:30,entries:20000,labs:2000,meds:100,history:20,import:200,recentDays:120,recentMax:400,page:200};
-const empty=()=>({id:randomUUID(),entries:[],labs:[],meds:[],milestones:[],doctors:[],crohn:{treatment:''},revision:0});
+const LIMITS={appointments:200,guide:60,milestones:500,doctors:30,entries:20000,labs:2000,meds:100,history:20,import:200,recentDays:120,recentMax:400,page:200};
+const empty=()=>({id:randomUUID(),entries:[],labs:[],meds:[],milestones:[],doctors:[],appointments:[],breast:{intervalMonths:null},crohn:{treatment:''},revision:0});
+export const PERIOD_SIGNS=['pad-2h','double','night','clots'];
+export const APPT_KINDS=['visit','breast','test','other'];
 export const GUIDE_KINDS=['ask','remember','good','habit','research'];
 export const STORY_KINDS=['crohn','blood','visit','medicine','other'];
 const isStoryDate=v=>typeof v==='string'&&(/^\d{4}$/.test(v)||/^\d{4}-(0[1-9]|1[0-2])$/.test(v)||isDay(v))&&v>='1990';
@@ -46,12 +48,13 @@ function entryData(kind,d,ctx){
  }
  if(kind==='bathroom'){const count=d.count??1;check(Number.isInteger(count)&&count>=1&&count<=10,'Choose 1 to 10 visits.');return {count};}
  if(kind==='sleep'){
+  const quality=d.quality===undefined||d.quality===null||d.quality===''?null:d.quality;check(quality===null||['good','ok','bad'].includes(quality),'Choose how she slept.');
   const start=validTime(d.start,now,'sleep start'),end=d.end===null||d.end===undefined?null:validTime(d.end,now,'wake time');
   check(end===null||(end>start&&end-start<=24*3600000),'Wake time must be after sleep start, within 24 hours.');
   for(const o of care.entries)if(o.kind==='sleep'&&o.id!==id&&visible(o,who)){const os=o.data.start,oe=o.data.end??Infinity,e2=end??Infinity;check(!(start<oe&&os<e2),'This overlaps another sleep already logged.',409);}
-  return {start,end};
+  return quality?{start,end,quality}:{start,end};
  }
- if(kind==='period'){check(['start','end'].includes(d.state),'Choose period start or end.');check(d.flow===undefined||d.flow===null||['light','medium','heavy'].includes(d.flow),'Choose a valid flow.');return {state:d.state,flow:d.flow??null};}
+ if(kind==='period'){check(['start','end','day'].includes(d.state),'Choose period start, end or a day note.');check(d.flow===undefined||d.flow===null||['light','medium','heavy'].includes(d.flow),'Choose a valid flow.');const signs=subset(d.signs??[],PERIOD_SIGNS,'signs');const note=text(d.note,300,'the note');return {state:d.state,flow:d.flow??null,...(signs.length?{signs}:{}),...(note?{note}:{})};}
  if(kind==='dose'){
   const med=care.meds.find(m=>m.id===d.med);check(med,'Medicine not found.',404);check(['taken','skipped'].includes(d.status),'Choose taken or skipped.');
   let slot=d.slot===undefined||d.slot===null||d.slot===''?null:d.slot;
@@ -90,6 +93,8 @@ function medData(d){
 
 function guideData(d){d=d&&typeof d==='object'?d:{};check(GUIDE_KINDS.includes(d.kind),'Choose the kind of note.');const title=text(d.title,120,'the title');check(title,'Write a title.');const body=text(d.body,1200,'the text');check(body,'Write the text.');
  const url=text(d.url,300,'the link');check(!url||/^https:\/\/[^\s]+$/.test(url),'Use a full https link.');return {kind:d.kind,title,body,action:text(d.action,300,'the next step'),source:text(d.source,160,'the source'),url,date:isDay(d.date)?d.date:''};}
+function apptData(d){d=d&&typeof d==='object'?d:{};check(isDay(d.date)&&d.date>='2000-01-01','Choose the date.');check(d.time===undefined||d.time===null||d.time===''||isTime(d.time),'Choose a valid time.');check(APPT_KINDS.includes(d.kind),'Choose what the visit is for.');
+ const title=text(d.title,80,'the title');check(title,'Write what the visit is.');return {date:d.date,time:d.time||'',kind:d.kind,title,doctor:text(d.doctor,80,'the doctor'),place:text(d.place,80,'the place'),note:text(d.note,300,'the note'),remind:d.remind!==false};}
 function milestoneData(d){
  d=d&&typeof d==='object'?d:{};check(isStoryDate(d.date),'Choose the date (a year is enough).');check(STORY_KINDS.includes(d.kind),'Choose what it is about.');
  const title=text(d.title,80,'the title');check(title,'Write a short title.');
@@ -132,6 +137,13 @@ export function careChange(s,who,type,d={},now=Date.now()){
   if(old)care.meds[care.meds.indexOf(old)]=med;else care.meds.push(med);result={ok:true,id:med.id};
  }else if(type==='care.med.stop'){
   const m=care.meds.find(x=>x.id===d.id);check(m,'Medicine not found.',404);check(m.revision===d.revision,'This medicine changed. Reopen it first.',409);check(isDay(d.stoppedOn),'Choose the stop date.');m.stoppedOn=d.stoppedOn;m.revision++;
+ }else if(type==='care.appt.save'){
+  care.appointments??=[];const old=d.id?care.appointments.find(a=>a.id===d.id):null;check(!d.id||old,'Appointment not found.',404);if(old)check(old.revision===d.revision,'This appointment changed. Reopen it to edit.',409);check(old||care.appointments.length<LIMITS.appointments,'Too many appointments.');
+  const a={id:old?.id??randomUUID(),...apptData(d),addedBy:old?.addedBy??who,revision:(old?.revision??0)+1};if(old)care.appointments[care.appointments.indexOf(old)]=a;else care.appointments.push(a);result={ok:true,id:a.id};
+ }else if(type==='care.appt.delete'){
+  care.appointments??=[];const old=care.appointments.find(a=>a.id===d.id);check(old,'Appointment not found.',404);check(old.revision===d.revision,'This appointment changed. Reopen it first.',409);care.appointments=care.appointments.filter(a=>a.id!==old.id);
+ }else if(type==='care.breast.save'){
+  const m=d.intervalMonths===null||d.intervalMonths===''||d.intervalMonths===undefined?null:d.intervalMonths;check(m===null||(Number.isInteger(m)&&m>=1&&m<=60),'Choose 1 to 60 months.');care.breast={intervalMonths:m,lastOn:isDay(d.lastOn)?d.lastOn:(care.breast?.lastOn??'')};
  }else if(type==='care.guide.import'){
   care.guide??=[];check(Array.isArray(d.guide)&&d.guide.length>0&&d.guide.length<=LIMITS.guide,'Import between 1 and '+LIMITS.guide+' notes.');
   const seen=new Set(care.guide.map(g=>g.title.toLowerCase()));let added=0,skipped=0;
@@ -217,7 +229,7 @@ export function careSnapshot(s,who,now=Date.now()){
  const attention=[...labs.filter(t=>t.latest&&outside(t)&&t.trend==='away').map(t=>({type:'lab',key:t.key,test:t.test,status:t.status,direction:t.direction})),...meds.filter(m=>m.scheduledToday&&!m.doneToday).map(m=>({type:'dose',id:m.id,name:m.name,times:m.pendingToday}))];
  const recent=mine.filter(e=>e.occurredAt>=now-LIMITS.recentDays*DAY).slice(0,LIMITS.recentMax);
  const medWeek=meds.map(m=>({id:m.id,days:days.map(d=>({day:d.day,status:week.filter(x=>x.day===d.day&&x.e.kind==='dose'&&x.e.data.med===m.id).map(x=>x.e.data.status)}))}));
- const view={zone,today,medWeek,serverNow:now,canPrivate:who==='Safy',entries:recent.map(e=>strip(e,who)),olderEntries:mine.length>recent.length,week:days,flare,todayBelly:todayBelly&&strip(todayBelly,who),todayBathroom:days[6].bathroom??0,lastCheckin:lastCheckin&&strip(lastCheckin,who),labs,keyLabs:KEY_LABS.map(k=>labs.find(t=>t.latest&&(t.key===k||t.key.startsWith(k+' ')))).filter(Boolean),attention,improving:labs.filter(t=>t.latest&&outside(t)&&t.trend==='better').map(t=>t.test),unchanged:labs.filter(t=>t.latest&&outside(t)&&t.trend==='same').map(t=>t.test),meds,milestones:[...(care.milestones??[])].sort((a,b)=>b.date.localeCompare(a.date)||a.title.localeCompare(b.title)).map(({id,date,kind,title,note,paper,historical,revision,addedBy})=>({id,date,kind,title,note,paper,historical,revision,addedBy})),doctors:(care.doctors??[]).map(({id,specialty,name,phone,note,revision})=>({id,specialty,name,phone,note,revision})),crohn:{treatment:care.crohn?.treatment??''},guide:(care.guide??[]).map(({id,kind,title,body,action,source,url,date,revision})=>({id,kind,title,body,action,source,url,date,revision}))};
+ const view={zone,today,medWeek,serverNow:now,canPrivate:who==='Safy',entries:recent.map(e=>strip(e,who)),olderEntries:mine.length>recent.length,week:days,flare,todayBelly:todayBelly&&strip(todayBelly,who),todayBathroom:days[6].bathroom??0,lastCheckin:lastCheckin&&strip(lastCheckin,who),labs,keyLabs:KEY_LABS.map(k=>labs.find(t=>t.latest&&(t.key===k||t.key.startsWith(k+' ')))).filter(Boolean),attention,improving:labs.filter(t=>t.latest&&outside(t)&&t.trend==='better').map(t=>t.test),unchanged:labs.filter(t=>t.latest&&outside(t)&&t.trend==='same').map(t=>t.test),meds,milestones:[...(care.milestones??[])].sort((a,b)=>b.date.localeCompare(a.date)||a.title.localeCompare(b.title)).map(({id,date,kind,title,note,paper,historical,revision,addedBy})=>({id,date,kind,title,note,paper,historical,revision,addedBy})),doctors:(care.doctors??[]).map(({id,specialty,name,phone,note,revision})=>({id,specialty,name,phone,note,revision})),crohn:{treatment:care.crohn?.treatment??''},appointments:[...(care.appointments??[])].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(({id,date,time,kind,title,doctor,place,note,remind,revision})=>({id,date,time,kind,title,doctor,place,note,remind,revision})),breast:{intervalMonths:care.breast?.intervalMonths??null,lastOn:care.breast?.lastOn??''},guide:(care.guide??[]).map(({id,kind,title,body,action,source,url,date,revision})=>({id,kind,title,body,action,source,url,date,revision}))};
  memo.set(who,{key,view});return view;
 }
 // Older entries, page by page, with the same privacy filter.
@@ -229,7 +241,7 @@ export function careHistory(s,who,before=Infinity,limit=LIMITS.page,beforeId='')
 // Full record for this person's export (private entries stay out for Mahmoud).
 export function careExport(s,who){
  check(names.includes(who),'Not allowed.',403);const care=s.care??empty();
- return {format:'our-place-care-v1',zone:careZone(s),entries:care.entries.filter(e=>visible(e,who)).sort((a,b)=>a.occurredAt-b.occurredAt).map(e=>({...strip(e,who),history:e.history.filter(h=>h.visibility==='shared'||who==='Safy')})),labs:care.labs,meds:care.meds,milestones:care.milestones??[],doctors:care.doctors??[],crohn:care.crohn??{treatment:''},guide:care.guide??[]};
+ return {format:'our-place-care-v1',zone:careZone(s),entries:care.entries.filter(e=>visible(e,who)).sort((a,b)=>a.occurredAt-b.occurredAt).map(e=>({...strip(e,who),history:e.history.filter(h=>h.visibility==='shared'||who==='Safy')})),labs:care.labs,meds:care.meds,milestones:care.milestones??[],doctors:care.doctors??[],crohn:care.crohn??{treatment:''},guide:care.guide??[],appointments:care.appointments??[],breast:care.breast??{intervalMonths:null}};
 }
 
 // Import a private seed (labs and story steps) supplied by the host. Same rules as the in-app import.
@@ -240,4 +252,14 @@ export function careSeedFromEnv(s,raw,now=Date.now()){
  for(let i=0;i<(data.milestones??[]).length;i+=LIMITS.import){const r=careChange(s,'Mahmoud','care.milestones.import',{milestones:data.milestones.slice(i,i+LIMITS.import)},now);added+=r.added;skipped+=r.skipped;}
  if((data.guide??[]).length){const r=careChange(s,'Mahmoud','care.guide.import',{guide:data.guide},now);added+=r.added;skipped+=r.skipped;}
  return {added,skipped,changed:before!==JSON.stringify([s.care?.labs?.length??0,s.care?.milestones?.length??0,s.care?.guide?.length??0])};
+}
+
+// Reminders the evening before each appointment (19:00 in Safy's time zone, or right away if added later that evening).
+export function careReminders(s,now=Date.now()){
+ const care=s.care;if(!care?.appointments?.length)return [];const zone=careZone(s),today=localDay(now,zone),tomorrow=addDays(today,1),out=[];
+ const evening=instant(today,'19:00',zone);if(now<evening)return out;
+ for(const a of care.appointments){if(a.remind===false||a.date!==tomorrow)continue;const when=a.time?' at '+a.time:'';const what=a.title+(a.doctor?' with '+a.doctor:'');
+  out.push({key:'care:appt:'+a.id+':'+a.date+(a.time||'')+':Safy',to:'Safy',body:'Tomorrow'+when+': '+what+'.'});
+  out.push({key:'care:appt:'+a.id+':'+a.date+(a.time||'')+':Mahmoud',to:'Mahmoud',body:'Safy has '+what+' tomorrow'+when+'.'});}
+ return out;
 }

@@ -46,3 +46,21 @@ test('guide notes import once, show in the snapshot and the doctor file',()=>{co
 test('notes can be to-dos that Safy ticks off',()=>{const s=initial();const {id}=c(s,'Safy','care.entry.add',{kind:'note',data:{text:'Buy vitamin D',todo:true}},now);
  c(s,'Safy','care.entry.edit',{id,revision:1,data:{text:'Buy vitamin D',todo:true,done:true}},now);const e=v(s,'Mahmoud',now).entries.find(x=>x.id===id);assert.deepEqual([e.data.todo,e.data.done],[true,true]);
  const {id:p}=c(s,'Mahmoud','care.entry.add',{kind:'note',data:{text:'plain'}},now);assert.equal(v(s,'Safy',now).entries.find(x=>x.id===p).data.todo,undefined);});
+import {careReminders} from '../care.mjs';
+test('appointments save, sort and remind both of them the evening before',()=>{const s=initial();
+ const {id}=c(s,'Mahmoud','care.appt.save',{date:'2026-11-20',time:'10:00',kind:'visit',title:'Hematology visit',doctor:'Dr. A'},now);
+ c(s,'Safy','care.appt.save',{date:'2026-11-19',kind:'breast',title:'Breast check'},now);
+ assert.deepEqual(v(s,'Safy',now).appointments.map(a=>a.date),['2026-11-19','2026-11-20']);
+ assert.throws(()=>c(s,'Safy','care.appt.save',{date:'2026-11-19',kind:'nope',title:'x'},now),/visit is for/);
+ const zoneEvening=Date.parse('2026-11-19T17:30:00Z');// 19:30 Cairo
+ const r=careReminders(s,zoneEvening);assert.deepEqual(r.map(x=>x.to),['Safy','Mahmoud']);assert.match(r[0].body,/Tomorrow at 10:00: Hematology visit with Dr. A/);
+ assert.equal(careReminders(s,Date.parse('2026-11-19T10:00:00Z')).length,0);
+ c(s,'Mahmoud','care.appt.save',{id,revision:1,date:'2026-11-20',time:'10:00',kind:'visit',title:'Hematology visit',remind:false},now);assert.equal(careReminders(s,zoneEvening).length,0);});
+test('sleep quality and period day notes with heavy-bleeding signs',()=>{const s=initial();
+ c(s,'Safy','care.entry.add',{kind:'sleep',data:{start:now-8*3600000,end:now-3600000,quality:'good'}},now);
+ assert.throws(()=>c(s,'Safy','care.entry.add',{kind:'sleep',data:{start:now-30*3600000,end:now-24*3600000,quality:'great'}},now),/slept/);
+ c(s,'Safy','care.entry.add',{kind:'period',data:{state:'day',flow:'heavy',signs:['pad-2h','clots'],note:'tired'},visibility:'private'},now);
+ const e=v(s,'Safy',now).entries.find(x=>x.kind==='period');assert.deepEqual([e.data.signs,e.data.note],[['pad-2h','clots'],'tired']);
+ assert.equal(v(s,'Mahmoud',now).entries.some(x=>x.kind==='period'),false);
+ assert.throws(()=>c(s,'Safy','care.entry.add',{kind:'period',data:{state:'day',signs:['x']}},now),/signs/);
+ c(s,'Safy','care.breast.save',{intervalMonths:12,lastOn:'2026-03-01'},now);assert.deepEqual(v(s,'Mahmoud',now).breast,{intervalMonths:12,lastOn:'2026-03-01'});});
