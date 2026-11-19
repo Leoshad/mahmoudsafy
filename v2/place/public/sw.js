@@ -1,10 +1,10 @@
 'use strict';
-const WORKER_VERSION='push-worker-2026-10-30.3';
+const WORKER_VERSION='push-worker-2026-11-19.1';
 // Deliberately no fetch handler or private-content cache.
 self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
 self.addEventListener('activate',event=>event.waitUntil(self.clients.claim()));
 function destination(target){
- if(!target||!['chat','space','together'].includes(target.tab))return '/';
+ if(!target||!['chat','space','together','care'].includes(target.tab))return '/';
  const clean={tab:target.tab};for(const key of ['message','activity','post','comment','caseId','session','invitation'])if(typeof target[key]==='string'&&/^[\w-]{1,80}$/.test(target[key]))clean[key]=target[key];
  if(['ocho','domino','draw','media','court','race'].includes(target.game))clean.game=target.game;
  return '/?notice='+encodeURIComponent(JSON.stringify(clean));
