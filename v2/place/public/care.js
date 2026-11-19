@@ -75,7 +75,7 @@ function openLog(){const root=sheet(isSafy()?'Add for me':'Log for Safy'),grid=m
  make('p','Every entry keeps when it happened, when it was logged, and by whom.',root,'personal-muted');}
 async function quick(mood){try{const r=await add('checkin',{moods:[mood]});toast('Saved · '+MOOD[mood]+' · '+fmtTime(Date.now()),{id:r.id,revision:1});}catch{}}
 
-function statusChip(t,parent){const label={in:'In range',below:'Below range',above:'Above range',none:'No range on sheet'}[t.status];return make('span',label,parent,'care-chip '+(t.status==='in'?'ok':t.status==='none'?'muted':'warn'));}
+function statusChip(t,parent){if(t.caution)return make('span','In lab range · ask',parent,'care-chip warn');const label={in:'In range',below:'Below range',above:'Above range',none:'No range on sheet'}[t.status];return make('span',label,parent,'care-chip '+(t.status==='in'?'ok':t.status==='none'?'muted':'warn'));}
 function trendText(t){if(t.trend==='better')return [(t.latest.value>t.previous.value?'↑':'↓')+' Getting better','good'];if(t.trend==='away')return [(t.direction==='up'?'↑ Going up':'↓ Going down'),'warn'];if(t.trend==='same')return ['→ No change','muted'];if(t.trend==='incompatible')return ['Different unit · not compared','muted'];if(t.trend==='up')return ['↑ A little higher','muted'];if(t.trend==='down')return ['↓ A little lower','muted'];return ['First reading','muted'];}
 function range(l){return l.rangeText||(l.lo!==null&&l.hi!==null?l.lo+'–'+l.hi:l.lo!==null?'more than '+l.lo:l.hi!==null?'under '+l.hi:'not provided');}
 
@@ -234,7 +234,7 @@ function nextStep(c,base){const opts=[];const nights=sleepNights(c);const y=c.to
  const due=c.meds.filter(m=>m.active&&m.scheduledToday&&!m.doneToday);for(const m of due){const slot=m.pendingToday?.[0]??null;opts.push(['Take '+m.name+(slot?' · '+slot:''),{doses:[{data:{med:m.id,slot},occurredAt:Date.now()}]},()=>openMeds()]);}
  if(!c.entries.some(e=>localDay(e.occurredAt)===c.today&&e.kind!=='dose'))opts.push(['Write how today feels',{days:[c.today]},()=>entryForm('checkin')]);
  let best=null;for(const [label,extra,go] of opts){const gain=careScore(c,extra).score-base;if(gain>0&&(!best||gain>best.gain))best={label,gain,go};}return best;}
-function bodySummary(c){const t=c.labs.filter(x=>watched(x)&&x.latest).sort((a,b)=>orderOf(a)-orderOf(b));const inR=t.filter(x=>x.status==='in'),better=t.filter(x=>outsideT(x)&&x.trend==='better'),watch=t.filter(x=>!inR.includes(x)&&!better.includes(x));const last=t.map(x=>x.latest.date).sort().at(-1);return {all:t,inR,better,watch,last};}
+function bodySummary(c){const t=c.labs.filter(x=>watched(x)&&x.latest).sort((a,b)=>orderOf(a)-orderOf(b));const inR=t.filter(x=>x.status==='in'&&!x.caution),better=t.filter(x=>outsideT(x)&&x.trend==='better'),watch=t.filter(x=>!inR.includes(x)&&!better.includes(x));const last=t.map(x=>x.latest.date).sort().at(-1);return {all:t,inR,better,watch,last};}
 const band=s=>s>=80?['good','#A7D3B3']:s>=50?['mid','#E8C78A']:['low','#E0A070'];
 function ring(parent,score,color,size=96){const r=size/2-8,C=2*Math.PI*r;const w=make('span',undefined,parent,'calm-ring');w.style.width=w.style.height=size+'px';w.innerHTML='<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" aria-hidden="true"><circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="#2C2530" stroke-width="9"/><circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="9" stroke-linecap="round" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+(C*(1-score/100)).toFixed(1)+'" transform="rotate(-90 '+size/2+' '+size/2+')"/></svg>';const b=make('b',String(score),w);make('small','OF 100',b);b.querySelector('small').style.color=color;return w;}
 function partBar(parent,p){const x=make('span',undefined,parent,'calm-part');const top=make('span',undefined,x);make('span',p.icon+' '+p.name,top);make('em',p.short,top);const bar=make('i',undefined,x,'calm-part-bar');const f=make('i',undefined,bar);const frac=p.pts===null?0:p.pts/p.max;f.style.width=Math.round(frac*100)+'%';f.style.background=band(frac*100)[1];return x;}
@@ -254,7 +254,7 @@ function renderScore(root,c){const page=make('div',undefined,root,'calm-page');c
  if(b.all.length){const s=make('section',undefined,page,'calm-section');make('h3','HER BODY · KEY RESULTS',s);make('p','From her latest labs'+(b.last?' ('+shortDate(b.last)+')':'')+'. Green is the normal range printed on the lab sheet. Tap a test to see every reading.',s,'calm-intro small');bodyBar(s,b,false);
   const list=make('div',undefined,s,'calm-card');for(const t of b.all)labRow(list,t);
   const lg=make('div',undefined,s,'calm-legend');for(const [cls,txt] of [['zone','Normal range'],['was','Before'],['now','Now']]){const x=make('span',undefined,lg);make('i',undefined,x,cls);make('span',txt,x);}
-  if(b.watch.length)make('p','Next labs update this by themselves. '+b.watch.map(niceName).join(' and ')+(b.watch.length>1?' are':' is')+' on the list for the next visit.',s,'calm-tip');}
+  if(b.watch.length)make('p','Next labs update this by themselves. '+(n=>n.length>1?n.slice(0,-1).join(', ')+' and '+n.at(-1):n[0])(b.watch.map(niceName))+(b.watch.length>1?' are':' is')+' on the list for the next visit.',s,'calm-tip');}
  make('p',st.cur?'🔥 '+st.cur+(st.cur===1?' day':' days')+' in a row · best so far: '+st.best:'🔥 Log something today to start a streak',page,'calm-foot streak');}
 
 // ---- Calm health file: one quiet summary, details on tap ----
@@ -286,6 +286,7 @@ function shortRange(l){if(l.lo!==null&&l.hi!==null)return l.lo+'–'+l.hi;if(l.h
 function bound(t){const l=t.latest;return t.status==='below'?l.lo:t.status==='above'?l.hi:null;}
 function sentence(t){const l=t.latest,p=t.previous;let a='';
  if(p&&t.trend!=='incompatible'){if(l.value===p.value)a='Same as '+whenWas(p.date)+'. ';else a=(l.value>p.value?'Up from ':'Down from ')+p.valueText+' '+whenWas(p.date)+'. ';}
+ if(t.status==='in'&&t.caution)return a+'In the lab’s range, but with iron saturation at '+t.caution.satValue+'%, Crohn’s guidelines often still count this as low iron stores. Worth asking the doctor.';
  if(t.status==='in')return a+'In the lab’s normal range.';
  if(t.status==='none')return a+'The sheet gives no normal range.';
  const b=bound(t),close=b&&Math.abs(l.value-b)/Math.abs(b)<=0.1;

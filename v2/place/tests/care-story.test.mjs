@@ -64,3 +64,16 @@ test('sleep quality and period day notes with heavy-bleeding signs',()=>{const s
  assert.equal(v(s,'Mahmoud',now).entries.some(x=>x.kind==='period'),false);
  assert.throws(()=>c(s,'Safy','care.entry.add',{kind:'period',data:{state:'day',signs:['x']}},now),/signs/);
  c(s,'Safy','care.breast.save',{intervalMonths:12,lastOn:'2026-03-01'},now);assert.deepEqual(v(s,'Mahmoud',now).breast,{intervalMonths:12,lastOn:'2026-03-01'});});
+
+test('seed lab updates fix a range once, and ferritin with low saturation gets a caution', async () => {
+ const {careChange:c,careSeedFromEnv:seed,careSnapshot:snap}=await import('../care.mjs');
+ const s={care:undefined},now=Date.parse('2026-11-19T09:00:00Z');
+ c(s,'Mahmoud','care.labs.import',{labs:[
+  {test:'Vitamin D (25-OH)',value:14,valueText:'14',unit:'ng/mL',lo:20,hi:null,rangeText:'30-100',date:'2026-11-10',group:'Vitamins',verified:true},
+  {test:'Ferritin',value:28,valueText:'28',unit:'ng/mL',lo:10,hi:170,date:'2026-11-11',group:'Iron',verified:true},
+  {test:'Transferrin saturation',value:12,valueText:'12',unit:'%',lo:16,hi:null,date:'2026-11-11',group:'Iron',verified:true}]},now);
+ const raw=Buffer.from(JSON.stringify({updates:{labs:[{matchTest:'vitamin d (25-oh)',matchDate:'2026-11-10',lo:30,hi:100}]}})).toString('base64');
+ assert.equal(seed(s,raw,now).added,1);assert.equal(seed(s,raw,now).added,0);
+ const v=s.care.labs.find(l=>l.test.startsWith('Vitamin'));assert.equal(v.lo,30);assert.equal(v.hi,100);assert.equal(v.history.length,1);assert.equal(v.history[0].lo,20);
+ const fer=snap(s,'Safy',now).labs.find(t=>t.key==='ferritin');assert.equal(fer.status,'in');assert.deepEqual(fer.caution,{satValue:'12',satDate:'2026-11-11'});
+});

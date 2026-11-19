@@ -202,6 +202,10 @@ function labsView(care){
   const all=[...list].sort((a,b)=>b.date.localeCompare(a.date)),verified=all.filter(l=>l.verified),latest=verified[0]??null,previous=verified[1]??null;
   tests.push({key,test:(latest??all[0]).test,group:(latest??all[0]).group,latest,previous,unverified:all.filter(l=>!l.verified).length,readings:all.map(({id,value,valueText,unit,lo,hi,rangeText,flag,date,source,verified,revision,enteredBy,history})=>({id,value,valueText,unit,lo,hi,rangeText,flag,date,source,verified,revision,enteredBy,edits:(history??[]).length})),...(latest?labTrend(latest,previous):{status:null,trend:null})});
  }
+ // Ferritin inside the lab's range can still mean low iron when transferrin saturation is under 20% (ferritin under 100 with low saturation).
+ const fer=tests.find(t=>t.key==='ferritin'),sat=tests.find(t=>t.key==='transferrin saturation');
+ if(fer?.latest&&sat?.latest&&fer.status==='in'&&fer.latest.value<100&&sat.latest.value<20&&Math.abs(Date.parse(fer.latest.date)-Date.parse(sat.latest.date))<=31*86400000)
+  fer.caution={satValue:sat.latest.valueText,satDate:sat.latest.date};
  return tests.sort((a,b)=>a.group.localeCompare(b.group)||a.test.localeCompare(b.test));
 }
 function sleepHours(entries,day,zone,now){const a=dayStart(day,zone),b=dayStart(addDays(day,1),zone);let ms=0,logged=false;for(const e of entries)if(e.kind==='sleep'){const s=e.data.start,t=e.data.end??Math.min(now,b);const overlap=Math.min(t,b)-Math.max(s,a);if(overlap>0){ms+=overlap;logged=true;}}return logged?Math.round(ms/360000)/10:null;}
@@ -262,6 +266,8 @@ export function careSeedFromEnv(s,raw,now=Date.now()){
  for(let i=0;i<(data.milestones??[]).length;i+=LIMITS.import){const r=careChange(s,'Mahmoud','care.milestones.import',{milestones:data.milestones.slice(i,i+LIMITS.import)},now);added+=r.added;skipped+=r.skipped;}
  for(const u of data.updates?.guide??[]){const g=s.care?.guide?.find(x=>x.title===u.match);if(!g){skipped++;continue;}const next={...g,...guideData({...g,...u}),revision:g.revision+1};if(JSON.stringify(next)!==JSON.stringify({...g,revision:g.revision+1})){Object.assign(g,next);added++;}else skipped++;}
  for(const u of data.updates?.milestones??[]){const m=s.care?.milestones?.find(x=>x.date===u.matchDate&&x.title===u.matchTitle);if(!m){skipped++;continue;}const {matchDate,matchTitle,...rest}=u;const next=milestoneData({...m,...rest});if(Object.keys(next).every(k=>JSON.stringify(next[k])===JSON.stringify(m[k]))){skipped++;continue;}Object.assign(m,next,{revision:m.revision+1});added++;}
+ for(const u of data.updates?.labs??[]){const l=s.care?.labs?.find(x=>labKey(x.test)===labKey(u.matchTest)&&x.date===u.matchDate);if(!l){skipped++;continue;}const {matchTest,matchDate,...rest}=u;const next=labData({...l,...rest});if(Object.keys(next).every(k=>JSON.stringify(next[k])===JSON.stringify(l[k]))){skipped++;continue;}
+  l.history=[...(l.history??[]),{value:l.value,valueText:l.valueText,unit:l.unit,lo:l.lo,hi:l.hi,rangeText:l.rangeText,flag:l.flag,date:l.date,source:l.source,verified:l.verified,editedBy:'Mahmoud',editedAt:now}].slice(-LIMITS.history);Object.assign(l,next,{revision:l.revision+1,editedBy:'Mahmoud'});added++;}
  if((data.guide??[]).length){const r=careChange(s,'Mahmoud','care.guide.import',{guide:data.guide},now);added+=r.added;skipped+=r.skipped;}
  return {added,skipped,changed:added>0};
 }
