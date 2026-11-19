@@ -14,12 +14,14 @@ export const WHERE=['colon','stomach','other'];
 const SYMPTOMS=['back pain','colon pain','stomach','nausea','diarrhea','headache','dizzy','tinnitus','cold / flu','other'];
 export const KEY_LABS=['esr','hemoglobin','ferritin','vitamin d'];
 const SCHEDULES=['daily','weekly','as-needed'];
-const LIMITS={appointments:200,guide:60,milestones:500,doctors:30,entries:20000,labs:2000,meds:100,history:20,import:200,recentDays:120,recentMax:400,page:200};
+const LIMITS={papers:400,appointments:200,guide:60,milestones:500,doctors:30,entries:20000,labs:2000,meds:100,history:20,import:200,recentDays:120,recentMax:400,page:200};
 const empty=()=>({id:randomUUID(),entries:[],labs:[],meds:[],milestones:[],doctors:[],appointments:[],breast:{intervalMonths:null},crohn:{treatment:''},revision:0});
 export const PERIOD_SIGNS=['pad-2h','double','night','clots'];
 export const APPT_KINDS=['visit','breast','test','other'];
 export const GUIDE_KINDS=['ask','remember','good','habit','research'];
-export const STORY_KINDS=['crohn','blood','visit','medicine','other'];
+export const STORY_KINDS=['crohn','blood','visit','medicine','women','other'];
+export const PAPER_KINDS=['lab','report','rx','scan','other'];
+export const PAPER_TYPES=['image/jpeg','image/png','image/webp','application/pdf'];
 const isStoryDate=v=>typeof v==='string'&&(/^\d{4}$/.test(v)||/^\d{4}-(0[1-9]|1[0-2])$/.test(v)||isDay(v))&&v>='1990';
 const text=(v,max,label='this field')=>{if(v===undefined||v===null)return '';check(typeof v==='string'&&v.trim().length<=max,'Please shorten '+label+'.');return v.trim();};
 const isTime=v=>typeof v==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(v);
@@ -95,6 +97,7 @@ function guideData(d){d=d&&typeof d==='object'?d:{};check(GUIDE_KINDS.includes(d
  const url=text(d.url,300,'the link');check(!url||/^https:\/\/[^\s]+$/.test(url),'Use a full https link.');return {kind:d.kind,title,body,action:text(d.action,300,'the next step'),source:text(d.source,160,'the source'),url,date:isDay(d.date)?d.date:''};}
 function apptData(d){d=d&&typeof d==='object'?d:{};check(isDay(d.date)&&d.date>='2000-01-01','Choose the date.');check(d.time===undefined||d.time===null||d.time===''||isTime(d.time),'Choose a valid time.');check(APPT_KINDS.includes(d.kind),'Choose what the visit is for.');
  const title=text(d.title,80,'the title');check(title,'Write what the visit is.');return {date:d.date,time:d.time||'',kind:d.kind,title,doctor:text(d.doctor,80,'the doctor'),place:text(d.place,80,'the place'),note:text(d.note,300,'the note'),remind:d.remind!==false};}
+function paperData(d){d=d&&typeof d==='object'?d:{};check(isStoryDate(d.date),'Choose the paper’s date (a year is enough).');check(PAPER_KINDS.includes(d.kind),'Choose what the paper is.');const title=text(d.title,80,'the title');check(title,'Write a short title.');return {date:d.date,kind:d.kind,title,note:text(d.note,300,'the note')};}
 function milestoneData(d){
  d=d&&typeof d==='object'?d:{};check(isStoryDate(d.date),'Choose the date (a year is enough).');check(STORY_KINDS.includes(d.kind),'Choose what it is about.');
  const title=text(d.title,80,'the title');check(title,'Write a short title.');
@@ -137,6 +140,13 @@ export function careChange(s,who,type,d={},now=Date.now()){
   if(old)care.meds[care.meds.indexOf(old)]=med;else care.meds.push(med);result={ok:true,id:med.id};
  }else if(type==='care.med.stop'){
   const m=care.meds.find(x=>x.id===d.id);check(m,'Medicine not found.',404);check(m.revision===d.revision,'This medicine changed. Reopen it first.',409);check(isDay(d.stoppedOn),'Choose the stop date.');m.stoppedOn=d.stoppedOn;m.revision++;
+ }else if(type==='care.paper.add'){
+  care.papers??=[];check(typeof d.id==='string'&&/^[\w-]{8,64}$/.test(d.id)&&!care.papers.some(x=>x.id===d.id),'Invalid paper.');check(PAPER_TYPES.includes(d.mime),'Use a photo or a PDF.');check(Number.isInteger(d.size)&&d.size>0,'Invalid paper.');check(care.papers.length<LIMITS.papers,'Too many papers.');
+  care.papers.push({id:d.id,...paperData(d),mime:d.mime,size:d.size,addedBy:who,addedAt:now,revision:1});result={ok:true,id:d.id};
+ }else if(type==='care.paper.save'){
+  care.papers??=[];const old=care.papers.find(x=>x.id===d.id);check(old,'Paper not found.',404);check(old.revision===d.revision,'This paper changed. Reopen it to edit.',409);care.papers[care.papers.indexOf(old)]={...old,...paperData(d),revision:old.revision+1};
+ }else if(type==='care.paper.delete'){
+  care.papers??=[];const old=care.papers.find(x=>x.id===d.id);check(old,'Paper not found.',404);check(old.revision===d.revision,'This paper changed. Reopen it first.',409);care.papers=care.papers.filter(x=>x.id!==old.id);result={ok:true,deleted:old.id};
  }else if(type==='care.appt.save'){
   care.appointments??=[];const old=d.id?care.appointments.find(a=>a.id===d.id):null;check(!d.id||old,'Appointment not found.',404);if(old)check(old.revision===d.revision,'This appointment changed. Reopen it to edit.',409);check(old||care.appointments.length<LIMITS.appointments,'Too many appointments.');
   const a={id:old?.id??randomUUID(),...apptData(d),addedBy:old?.addedBy??who,revision:(old?.revision??0)+1};if(old)care.appointments[care.appointments.indexOf(old)]=a;else care.appointments.push(a);result={ok:true,id:a.id};
@@ -229,7 +239,7 @@ export function careSnapshot(s,who,now=Date.now()){
  const attention=[...labs.filter(t=>t.latest&&outside(t)&&t.trend==='away').map(t=>({type:'lab',key:t.key,test:t.test,status:t.status,direction:t.direction})),...meds.filter(m=>m.scheduledToday&&!m.doneToday).map(m=>({type:'dose',id:m.id,name:m.name,times:m.pendingToday}))];
  const recent=mine.filter(e=>e.occurredAt>=now-LIMITS.recentDays*DAY).slice(0,LIMITS.recentMax);
  const medWeek=meds.map(m=>({id:m.id,days:days.map(d=>({day:d.day,status:week.filter(x=>x.day===d.day&&x.e.kind==='dose'&&x.e.data.med===m.id).map(x=>x.e.data.status)}))}));
- const view={zone,today,medWeek,serverNow:now,canPrivate:who==='Safy',entries:recent.map(e=>strip(e,who)),olderEntries:mine.length>recent.length,week:days,flare,todayBelly:todayBelly&&strip(todayBelly,who),todayBathroom:days[6].bathroom??0,lastCheckin:lastCheckin&&strip(lastCheckin,who),labs,keyLabs:KEY_LABS.map(k=>labs.find(t=>t.latest&&(t.key===k||t.key.startsWith(k+' ')))).filter(Boolean),attention,improving:labs.filter(t=>t.latest&&outside(t)&&t.trend==='better').map(t=>t.test),unchanged:labs.filter(t=>t.latest&&outside(t)&&t.trend==='same').map(t=>t.test),meds,milestones:[...(care.milestones??[])].sort((a,b)=>b.date.localeCompare(a.date)||a.title.localeCompare(b.title)).map(({id,date,kind,title,note,paper,historical,revision,addedBy})=>({id,date,kind,title,note,paper,historical,revision,addedBy})),doctors:(care.doctors??[]).map(({id,specialty,name,phone,note,revision})=>({id,specialty,name,phone,note,revision})),crohn:{treatment:care.crohn?.treatment??''},appointments:[...(care.appointments??[])].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(({id,date,time,kind,title,doctor,place,note,remind,revision})=>({id,date,time,kind,title,doctor,place,note,remind,revision})),breast:{intervalMonths:care.breast?.intervalMonths??null,lastOn:care.breast?.lastOn??''},guide:(care.guide??[]).map(({id,kind,title,body,action,source,url,date,revision})=>({id,kind,title,body,action,source,url,date,revision}))};
+ const view={zone,today,medWeek,serverNow:now,canPrivate:who==='Safy',entries:recent.map(e=>strip(e,who)),olderEntries:mine.length>recent.length,week:days,flare,todayBelly:todayBelly&&strip(todayBelly,who),todayBathroom:days[6].bathroom??0,lastCheckin:lastCheckin&&strip(lastCheckin,who),labs,keyLabs:KEY_LABS.map(k=>labs.find(t=>t.latest&&(t.key===k||t.key.startsWith(k+' ')))).filter(Boolean),attention,improving:labs.filter(t=>t.latest&&outside(t)&&t.trend==='better').map(t=>t.test),unchanged:labs.filter(t=>t.latest&&outside(t)&&t.trend==='same').map(t=>t.test),meds,milestones:[...(care.milestones??[])].sort((a,b)=>b.date.localeCompare(a.date)||a.title.localeCompare(b.title)).map(({id,date,kind,title,note,paper,historical,revision,addedBy})=>({id,date,kind,title,note,paper,historical,revision,addedBy})),doctors:(care.doctors??[]).map(({id,specialty,name,phone,note,revision})=>({id,specialty,name,phone,note,revision})),crohn:{treatment:care.crohn?.treatment??''},papers:[...(care.papers??[])].sort((a,b)=>b.date.padEnd(10,'z').localeCompare(a.date.padEnd(10,'z'))||a.title.localeCompare(b.title)).map(({id,date,kind,title,note,mime,size,revision,addedBy})=>({id,date,kind,title,note,mime,size,revision,addedBy})),appointments:[...(care.appointments??[])].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(({id,date,time,kind,title,doctor,place,note,remind,revision})=>({id,date,time,kind,title,doctor,place,note,remind,revision})),breast:{intervalMonths:care.breast?.intervalMonths??null,lastOn:care.breast?.lastOn??''},guide:(care.guide??[]).map(({id,kind,title,body,action,source,url,date,revision})=>({id,kind,title,body,action,source,url,date,revision}))};
  memo.set(who,{key,view});return view;
 }
 // Older entries, page by page, with the same privacy filter.
@@ -241,7 +251,7 @@ export function careHistory(s,who,before=Infinity,limit=LIMITS.page,beforeId='')
 // Full record for this person's export (private entries stay out for Mahmoud).
 export function careExport(s,who){
  check(names.includes(who),'Not allowed.',403);const care=s.care??empty();
- return {format:'our-place-care-v1',zone:careZone(s),entries:care.entries.filter(e=>visible(e,who)).sort((a,b)=>a.occurredAt-b.occurredAt).map(e=>({...strip(e,who),history:e.history.filter(h=>h.visibility==='shared'||who==='Safy')})),labs:care.labs,meds:care.meds,milestones:care.milestones??[],doctors:care.doctors??[],crohn:care.crohn??{treatment:''},guide:care.guide??[],appointments:care.appointments??[],breast:care.breast??{intervalMonths:null}};
+ return {format:'our-place-care-v1',zone:careZone(s),entries:care.entries.filter(e=>visible(e,who)).sort((a,b)=>a.occurredAt-b.occurredAt).map(e=>({...strip(e,who),history:e.history.filter(h=>h.visibility==='shared'||who==='Safy')})),labs:care.labs,meds:care.meds,milestones:care.milestones??[],doctors:care.doctors??[],crohn:care.crohn??{treatment:''},guide:care.guide??[],papers:(care.papers??[]).map(({id,date,kind,title,note,mime,size})=>({id,date,kind,title,note,mime,size})),appointments:care.appointments??[],breast:care.breast??{intervalMonths:null}};
 }
 
 // Import a private seed (labs and story steps) supplied by the host. Same rules as the in-app import.
@@ -250,8 +260,10 @@ export function careSeedFromEnv(s,raw,now=Date.now()){
  const before=JSON.stringify([s.care?.labs?.length??0,s.care?.milestones?.length??0,s.care?.guide?.length??0]);
  for(let i=0;i<(data.labs??[]).length;i+=LIMITS.import){const r=careChange(s,'Mahmoud','care.labs.import',{labs:data.labs.slice(i,i+LIMITS.import)},now);added+=r.added;skipped+=r.skipped;}
  for(let i=0;i<(data.milestones??[]).length;i+=LIMITS.import){const r=careChange(s,'Mahmoud','care.milestones.import',{milestones:data.milestones.slice(i,i+LIMITS.import)},now);added+=r.added;skipped+=r.skipped;}
+ for(const u of data.updates?.guide??[]){const g=s.care?.guide?.find(x=>x.title===u.match);if(!g){skipped++;continue;}const next={...g,...guideData({...g,...u}),revision:g.revision+1};if(JSON.stringify(next)!==JSON.stringify({...g,revision:g.revision+1})){Object.assign(g,next);added++;}else skipped++;}
+ for(const u of data.updates?.milestones??[]){const m=s.care?.milestones?.find(x=>x.date===u.matchDate&&x.title===u.matchTitle);if(!m){skipped++;continue;}const {matchDate,matchTitle,...rest}=u;const next=milestoneData({...m,...rest});if(Object.keys(next).every(k=>JSON.stringify(next[k])===JSON.stringify(m[k]))){skipped++;continue;}Object.assign(m,next,{revision:m.revision+1});added++;}
  if((data.guide??[]).length){const r=careChange(s,'Mahmoud','care.guide.import',{guide:data.guide},now);added+=r.added;skipped+=r.skipped;}
- return {added,skipped,changed:before!==JSON.stringify([s.care?.labs?.length??0,s.care?.milestones?.length??0,s.care?.guide?.length??0])};
+ return {added,skipped,changed:added>0};
 }
 
 // Reminders the evening before each appointment (19:00 in Safy's time zone, or right away if added later that evening).

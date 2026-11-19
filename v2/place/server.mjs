@@ -39,7 +39,14 @@ import {courtDocument,COURT_PRINT_SCRIPT} from './court-document.mjs';
 import {personalSnapshot,personalChange} from './personal.mjs';
 import {careSnapshot,careChange,careHistory,careExport,careSeedFromEnv,careReminders} from './care.mjs';
 // One-time private import: CARE_SEED (base64 JSON with labs/milestones) is set on the host only, never in the repo. Duplicates are skipped, so restarts change nothing.
-function seedCare(store){const raw=process.env.CARE_SEED;if(!raw)return;try{store.tx(()=>{const s=store.state();const r=careSeedFromEnv(s,raw);if(r.added)store.save(s);console.info(JSON.stringify({event:'care_seed',...r}));});}catch(e){console.error(JSON.stringify({event:'care_seed_failed',error:e.message}));}}
+export function carePaperTable(store){store.db.exec('CREATE TABLE IF NOT EXISTS care_papers(id TEXT PRIMARY KEY,mime TEXT NOT NULL,bytes BLOB NOT NULL,created INTEGER NOT NULL)');}
+// Optional one-time import of original papers. Files in care-seed/ are AES-256-GCM encrypted; CARE_SEED_KEY lives only on the host.
+export function seedCarePapers(store){const key=process.env.CARE_SEED_KEY,dirp=join(here,'care-seed');if(!key||!existsSync(dirp))return;try{
+ const k=Buffer.from(key,'base64');if(k.length!==32)throw new Error('bad key');const open=b=>{const d=createDecipheriv('aes-256-gcm',k,b.subarray(0,12));d.setAuthTag(b.subarray(12,28));return Buffer.concat([d.update(b.subarray(28)),d.final()]);};
+ const manifest=JSON.parse(open(readFileSync(join(dirp,'manifest.enc'))).toString('utf8'));let added=0,skipped=0;
+ store.tx(()=>{const s=store.state();s.care??={};s.care.papers??=[];for(const m of manifest){if(s.care.papers.some(p=>p.title===m.title&&p.date===m.date)){skipped++;continue;}const bytes=open(readFileSync(join(dirp,m.file)));const id=randomUUID();store.db.prepare('INSERT INTO care_papers VALUES(?,?,?,?)').run(id,m.mime,bytes,Date.now());careChange(s,'Mahmoud','care.paper.add',{id,date:m.date,kind:m.kind,title:m.title,note:m.note??'',mime:m.mime,size:bytes.length});added++;}if(added)store.save(s);});
+ console.info(JSON.stringify({event:'care_paper_seed',added,skipped}));}catch(e){console.error(JSON.stringify({event:'care_paper_seed_failed',error:e.message}));}}
+export function seedCare(store){const raw=process.env.CARE_SEED;if(!raw)return;try{store.tx(()=>{const s=store.state();const r=careSeedFromEnv(s,raw);if(r.added)store.save(s);console.info(JSON.stringify({event:'care_seed',...r}));});}catch(e){console.error(JSON.stringify({event:'care_seed_failed',error:e.message}));}}
 import {crownSnapshot} from './crown.mjs';
 import {journeyView,journeySave} from './journey.mjs';
 import http from 'node:http';
@@ -294,6 +301,15 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
         limit('note-export:'+who,20);const note=storedNote(store,path.split('/').pop());if(url.searchParams.get('format')!=='docx')return send(res,200,note);
         const data=noteDocx(note,id=>store.db.prepare('SELECT mime,bytes FROM photos WHERE id=?').get(id));res.setHeader('Content-Disposition',`attachment; filename*=UTF-8''${encodeURIComponent(note.name+'.docx')}`);res.writeHead(200,{'Content-Type':'application/vnd.openxmlformats-officedocument.wordprocessingml.document','Content-Length':data.length});return res.end(data);
       }
+      if(path==='/api/care/papers'&&req.method==='POST'){
+        limit('care-paper:'+who,30);const p=await body(req,9*1024*1024);const bytes=Buffer.from(typeof p.data==='string'?p.data:'','base64');check(bytes.length>0&&bytes.length<=6*1024*1024,'Use a photo or PDF up to 6 MB.');
+        const mime=bytes[0]===255&&bytes[1]===216&&bytes[2]===255?'image/jpeg':bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?'image/png':bytes.toString('ascii',0,4)==='RIFF'&&bytes.toString('ascii',8,12)==='WEBP'?'image/webp':bytes.toString('ascii',0,5)==='%PDF-'?'application/pdf':'';check(mime,'Use a photo (JPG, PNG) or a PDF.');
+        carePaperTable(store);const id=randomUUID();const result=store.tx(()=>{const s=store.state();store.db.prepare('INSERT INTO care_papers VALUES(?,?,?,?)').run(id,mime,bytes,Date.now());const r=careChange(s,who,'care.paper.add',{id,date:p.date,kind:p.kind,title:p.title,note:p.note,mime,size:bytes.length});store.save(s);return r;});send(res,200,result);refresh(who);return;
+      }
+      if(path.startsWith('/api/care/papers/')&&req.method==='GET'){
+        const id=path.slice('/api/care/papers/'.length);const meta=(store.state().care?.papers??[]).find(x=>x.id===id);check(meta,'Paper not found.',404);const row=store.db.prepare('SELECT mime,bytes FROM care_papers WHERE id=?').get(id);check(row,'Paper not found.',404);const data=Buffer.from(row.bytes);
+        res.writeHead(200,{'Content-Type':row.mime,'Content-Length':data.length,'Cache-Control':'private, max-age=3600','X-Content-Type-Options':'nosniff','Content-Disposition':'inline; filename="'+(meta.title.replace(/[^\w .-]+/g,'').trim()||'paper')+(row.mime==='application/pdf'?'.pdf':'.jpg')+'"'});return res.end(data);
+      }
       if(path==='/api/care/history'&&req.method==='GET'){limit('care-history:'+who,60);const before=Number(url.searchParams.get('before'));return send(res,200,careHistory(store.state(),who,Number.isFinite(before)&&before>0?before:Infinity,200,(url.searchParams.get('beforeId')||'').slice(0,36)));}
       if(path==='/api/files'&&req.method==='GET')return send(res,200,listFiles(store));
       if(path.startsWith('/api/files/content/')&&req.method==='GET'){
@@ -397,7 +413,7 @@ publishPresence(true);});return;
             const pending=s.court?.cases.find(c=>c.id===data.id)?.pending;const result=courtChange(s,who,p.type,data);store.save(s);if(pending&&!courtCase(s,data.id).pending){store.status(pending,'cancelled');running.get(pending)?.controller.abort();}return result;
           }
           if(p.type?.startsWith('personal.')){if(p.type==='personal.profile'&&data.photo)check(store.db.prepare('SELECT 1 FROM photo_owners WHERE id=? AND owner=?').get(data.photo,who),'Choose a photo you uploaded.',403);const result=personalChange(s,who,p.type,data);store.save(s);return result;}
-          if(p.type?.startsWith('care.')){const result=careChange(s,who,p.type,data);store.save(s);return result;}
+          if(p.type?.startsWith('care.')){check(p.type!=='care.paper.add','Upload papers with the papers form.');const result=careChange(s,who,p.type,data);if(p.type==='care.paper.delete'){carePaperTable(store);store.db.prepare('DELETE FROM care_papers WHERE id=?').run(result.deleted);}store.save(s);return result;}
           if(p.type==='journey.save'){const result=journeySave(s,who,data);store.save(s);return result;}
           if(p.type?.startsWith('playlist.')||p.type?.startsWith('listen.')){const result=playlistChange(store,s,who,p.type,data);store.save(s);return result;}
           if(p.type?.startsWith('ocho.')){ochoChange(s,who,p.type,data);store.save(s);return {ok:true};}
@@ -479,7 +495,7 @@ publishPresence(true);});return;
 if(process.argv[1]===fileURLToPath(import.meta.url)){
   const dir=process.env.DATA_DIR??join(here,'data');if(process.env.NODE_ENV==='production')check(dir==='/var/data','Production requires the persistent disk at /var/data.',503);mkdirSync(dir,{recursive:true,mode:0o700});
   check(process.env.SUPABASE_PUBLISHABLE_KEY&&process.env.MAHMOUD_EMAIL&&process.env.SAFY_EMAIL,'Configure the V2 publishable key and both invited email addresses.',503);check(process.env.MAHMOUD_EMAIL.toLowerCase()!==process.env.SAFY_EMAIL.toLowerCase(),'Use two different invited accounts.',503);
-  const store=new Store(join(dir,'our-place.sqlite'),{enforceLifetimeBudget:false});console.info(JSON.stringify(store.budgetReport()));seedCare(store);const server=createApp({store,origin:resolveOrigin(),secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>{console.log('Our Place server ready.');import('./compose-diagnostic.mjs').then(m=>m.diagnoseCompose(store)).catch(()=>console.error('Compose diagnostic unavailable.'));});
+  const store=new Store(join(dir,'our-place.sqlite'),{enforceLifetimeBudget:false});console.info(JSON.stringify(store.budgetReport()));carePaperTable(store);seedCare(store);seedCarePapers(store);const server=createApp({store,origin:resolveOrigin(),secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>{console.log('Our Place server ready.');import('./compose-diagnostic.mjs').then(m=>m.diagnoseCompose(store)).catch(()=>console.error('Compose diagnostic unavailable.'));});
   if(process.env.YOUTUBE_API_KEY)youtubeService().resolve('M7lc1UVf-VE').then(()=>console.log('YouTube connection verified')).catch(()=>console.error('YouTube connection check failed; verify the configured key and API restrictions.'));
   void verifyEchoModels();
   const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET,{upload:path=>server.driveBackup.upload(path)});

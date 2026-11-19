@@ -179,6 +179,33 @@ function breastSheet(){const c=care(),bi=breastInfo(c),root=sheet('Breast check'
  const g=make('article',undefined,root,'care-lab');make('strong','Good to know',g);make('p','Doctors usually offer a breast exam every 1–3 years between 25 and 39, and every year from 40. Your own doctor’s plan comes first.',g);make('p','Between visits, get to know how your breasts normally look and feel. See the doctor soon for a new lump, swelling, skin dimpling or redness, nipple changes, or any discharge.',g);
  const s1=make('a','ACOG & ACS guidance ↗',g,'care-link');s1.href='https://www.uhhospitals.org/health-information/health-and-wellness-library/article/adult-diseases-and-conditions-v0/breast-health-three-step-plan-for-preventive-care';s1.target='_blank';s1.rel='noopener';}
 
+// ---- Original papers ----
+const PAPER_KIND={lab:'Lab results',report:'Report',rx:'Prescription',scan:'Scan',other:'Paper'};
+const paperUrl=p=>'/api/care/papers/'+encodeURIComponent(p.id);
+function papersFor(c,days){const set=new Set(days);return (c.papers??[]).filter(p=>set.has(p.date));}
+function paperDateText(d){return /^\d{4}$/.test(d)?d:/^\d{4}-\d{2}$/.test(d)?MONTHS[Number(d.slice(5))-1]+' '+d.slice(0,4):shortDate(d)+' '+d.slice(0,4);}
+function openPaper(p,list){const root=sheet(p.title);const meta=make('p',PAPER_KIND[p.kind]+' · '+paperDateText(p.date)+(p.note?' · '+p.note:''),root,'personal-muted');meta.dir='auto';
+ if(p.mime==='application/pdf'){const a=make('a','Open the PDF ↗',root,'calm-primary calm-open-pdf');a.href=paperUrl(p);a.target='_blank';a.rel='noopener';}
+ else{const a=make('a',undefined,root,'calm-paper-view');a.href=paperUrl(p);a.target='_blank';a.rel='noopener';a.setAttribute('aria-label','Open full size');const img=make('img',undefined,a);img.src=paperUrl(p);img.alt=p.title;img.loading='lazy';make('small','Tap the paper to open it full size and zoom.',root,'personal-muted');}
+ if(list&&list.length>1){const nav=make('div',undefined,root,'personal-actions');const i=list.indexOf(p);if(i>0)button('‹ Previous',nav,()=>openPaper(list[i-1],list));if(i<list.length-1)button('Next ›',nav,()=>openPaper(list[i+1],list));}
+ const row=make('div',undefined,root,'personal-actions');button('Edit details',row,()=>paperForm(p));
+ const status=make('p','',root,'personal-status');button('Delete',row,async()=>{if(!confirm('Delete this paper? The photo will be removed for both of you.'))return;try{await run(()=>ctx.command('care.paper.delete',{id:p.id,revision:p.revision}),status);dialog?.close();}catch{}});}
+async function shrinkImage(file){if(file.type==='application/pdf'||!file.type.startsWith('image/'))return file;try{const bmp=await createImageBitmap(file);const scale=Math.min(1,2200/Math.max(bmp.width,bmp.height));const cv=document.createElement('canvas');cv.width=Math.round(bmp.width*scale);cv.height=Math.round(bmp.height*scale);cv.getContext('2d').drawImage(bmp,0,0,cv.width,cv.height);return await new Promise(r=>cv.toBlob(b=>r(b||file),'image/jpeg',0.86));}catch{return file;}}
+const toBase64=blob=>new Promise((ok,fail)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]||'');r.onerror=()=>fail(new Error('Could not read the file.'));r.readAsDataURL(blob);});
+function paperForm(p){const root=sheet(p?'Edit paper':'Add a paper'),form=make('form',undefined,root);let file=null;
+ if(!p){const pick=make('label',undefined,form,'calm-file');const input=make('input',undefined,pick);input.type='file';input.accept='image/*,application/pdf';const t=make('span','📷 Take a photo or choose a file',pick);input.onchange=()=>{file=input.files?.[0]??null;t.textContent=file?'✓ '+file.name:'📷 Take a photo or choose a file';};}
+ const date=field(form,'Date on the paper · a year (2021), a month (2021-05) or a full date','text',p?.date??'');date.required=true;date.placeholder=care().today;
+ const kind=chips(form,'What is it',Object.entries(PAPER_KIND),[p?.kind??'lab'],false,true);const title=field(form,'Title','text',p?.title??'');title.required=true;title.maxLength=80;title.dir='auto';title.placeholder='e.g. Blood count (CBC)';
+ const note=field(form,'Note · optional','text',p?.note??'');note.maxLength=300;note.dir='auto';
+ const status=make('p','',form,'personal-status');const row=make('div',undefined,form,'personal-actions');const b=make('button',p?'Save':'Upload',row,'primary');b.type='submit';
+ form.onsubmit=async ev=>{ev.preventDefault();b.disabled=true;status.textContent='';try{
+  if(p){await run(()=>ctx.command('care.paper.save',{id:p.id,revision:p.revision,date:date.value.trim(),kind:kind()[0],title:title.value,note:note.value}),status);dialog?.close();return;}
+  if(!file)throw new Error('Choose a photo or a PDF first.');status.textContent='Uploading…';const small=await shrinkImage(file);if(small.size>6*1024*1024)throw new Error('This file is over 6 MB. Try a smaller photo or PDF.');
+  const r=await fetch('/api/care/papers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:await toBase64(small),date:date.value.trim(),kind:kind()[0],title:title.value,note:note.value})});let out={};try{out=await r.json();}catch{}if(!r.ok)throw new Error(out.error||'Could not upload. Try again.');
+  await ctx.sync?.();dialog?.close();toast('Paper saved ✓');}catch(e){status.textContent=e.message;b.disabled=false;}};}
+function papersSheet(){const c=care(),root=sheet('Her papers');button('＋ Add a paper',make('div',undefined,root,'personal-actions'),()=>paperForm(),'primary');const list=c.papers??[];if(!list.length)make('p','No papers yet.',root,'personal-muted');
+ for(const p of list){const b=button('',root,()=>openPaper(p,list),'care-lab care-appt-row');make('strong',p.title,b).dir='auto';make('span',PAPER_KIND[p.kind]+' · '+paperDateText(p.date),b);}}
+
 // ---- Calm health file: one quiet summary, details on tap ----
 let view='home',restored=false,sheetFromHistory=false,homeScroll=0,lastView='home';
 const scroller=()=>document.querySelector('.shell')||document.scrollingElement;
@@ -231,7 +258,7 @@ function labEvents(c){const days=[...new Set(c.labs.flatMap(t=>t.readings.filter
    const name=t.key.startsWith('esr')?'Inflammation (ESR)':niceName(t);parts.push(name+' '+pct(r)+(prev&&prev.value!==r.value?', '+(r.value>prev.value?'up':'down')+' from '+pct(prev):''));}
   const text=parts.length?parts.slice(0,4).join('. ')+'.':groupsIn.join(', ')+' · '+rows.length+' results.';
   const a=storyDate(g.first),b=storyDate(g.last);const label=g.first===g.last?a.label:(g.first.slice(0,7)===g.last.slice(0,7)?a.label.split(' ')[0]+'–'+b.label:a.label+' – '+b.label);
-  return {date:g.last,year:g.last.slice(0,4),label,kind:groupsIn.length===1&&groupsIn[0]==='Inflammation'?'crohn':'blood',title:groupsIn.length===1?(TITLES[groupsIn[0]]||groupsIn[0]):gi===0?'New labs':'Labs',note:text,paper:rows.length+(rows.length===1?' lab result':' lab results'),open:openLabs};});}
+  return {date:g.last,year:g.last.slice(0,4),label,days:g.days,kind:groupsIn.length===1&&groupsIn[0]==='Inflammation'?'crohn':'blood',title:groupsIn.length===1?(TITLES[groupsIn[0]]||groupsIn[0]):gi===0?'New labs':'Labs',note:text,paper:rows.length+(rows.length===1?' lab result':' lab results'),open:openLabs};});}
 function storyEvents(c){const ev=labEvents(c);
  for(const m of c.milestones){const d=storyDate(m.date);ev.push({date:m.date,year:d.year,label:d.label,kind:m.kind,title:m.title,note:m.note,paper:m.paper?(m.paper+(m.historical?' · historical':'')):'',m});}
  for(const a of c.appointments??[])if(a.date<c.today){const d=storyDate(a.date);ev.push({date:a.date,year:d.year,label:d.label,kind:a.kind==='breast'?'women':'visit',title:a.title,note:[a.doctor,a.note].filter(Boolean).join(' · ')});}
@@ -277,7 +304,9 @@ function render(){const root=$('#care');if(!root)return;const c=care();const bac
   const card=button('',ss,()=>{storyFilter='all';showView('story');},'calm-card calm-mini');for(const e of ev.slice(0,3)){const r=make('span',undefined,card,'calm-mini-row');const dot=make('i',undefined,r);dot.style.background=KIND_COLOR[e.kind];const t=make('span',undefined,r);make('small',(e.label?e.label+' ':'')+e.year,t);make('span',e.title,t);}}
  // Papers and doctors
  const ps=make('section',undefined,page,'calm-section');make('h3','PAPERS & DOCTORS',make('div',undefined,ps,'calm-row'));
- const withPaper=ev.filter(e=>e.paper).slice(0,6);if(withPaper.length){const strip=make('div',undefined,ps,'calm-papers');for(const e of withPaper){const b=button('',strip,()=>e.open?e.open():(storyFilter='all',showView('story')),'calm-paper');make('strong',e.m?.paper||(e.open?'Lab sheets':e.title),b).dir='auto';make('small',(e.label?e.label+' ':'')+e.year,b);}}
+ const allPapers=c.papers??[];if(allPapers.length){const strip=make('div',undefined,ps,'calm-papers');for(const p of allPapers.slice(0,8)){const b=button('',strip,()=>openPaper(p,allPapers),'calm-paper'+(p.mime==='application/pdf'?'':' img'));if(p.mime!=='application/pdf'){const im=make('img',undefined,b);im.src=paperUrl(p);im.alt='';im.loading='lazy';}make('strong',p.title,b).dir='auto';make('small',paperDateText(p.date),b);}
+  button(allPapers.length>8?'All '+allPapers.length+' papers ›':'＋ Add a paper',ps,()=>allPapers.length>8?papersSheet():paperForm(),'calm-link');}
+ else{const withPaper=ev.filter(e=>e.paper).slice(0,6);if(withPaper.length){const strip=make('div',undefined,ps,'calm-papers');for(const e of withPaper){const b=button('',strip,()=>e.open?e.open():(storyFilter='all',showView('story')),'calm-paper');make('strong',e.m?.paper||(e.open?'Lab sheets':e.title),b).dir='auto';make('small',(e.label?e.label+' ':'')+e.year,b);}}button('＋ Add a paper',ps,()=>paperForm(),'calm-link');}
  const dc=make('div',undefined,ps,'calm-card');if(!c.doctors.length)make('p','No doctors added yet.',dc,'calm-quiet');for(const d of c.doctors){const r=button('',dc,()=>doctorForm(d),'calm-item');make('span',d.specialty,r).dir='auto';make('small',[d.name,d.phone,d.note].filter(Boolean).join(' · ')||'Details not added yet',r).dir='auto';}
  // Notes and to-dos: quick to write, nothing required.
  {const sec=make('section',undefined,page,'calm-section');const h=make('div',undefined,sec,'calm-row');make('h3',isSafy()?'MY NOTES':'NOTES',h);
@@ -308,18 +337,20 @@ async function downloadFile(b){if(b.disabled)return;const small=b.querySelector(
  catch(e){small.textContent=e.message||'Could not prepare the file.';setTimeout(()=>{small.textContent=was;},6000);}finally{b.disabled=false;}}
 function renderStory(root,c){const page=make('div',undefined,root,'calm-page');const head=make('div',undefined,page,'calm-story-head');const back=button('',head,leaveView,'calm-back');back.setAttribute('aria-label','Back');back.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';make('h2','Her story',head);
  make('p','Newest first. Each step comes from her papers.',page,'calm-intro');
- const f=make('div',undefined,page,'calm-filters');for(const [k,label] of [['all','All'],['crohn','Crohn’s'],['blood','Blood & iron'],['visit','Visits'],['medicine','Medicines']]){const b=button('',f,()=>{storyFilter=k;render();},'calm-filter');b.setAttribute('aria-pressed',String(storyFilter===k));if(k!=='all'){const i=make('i',undefined,b);i.style.background=KIND_COLOR[k];}make('span',label,b);}
+ const f=make('div',undefined,page,'calm-filters');for(const [k,label] of [['all','All'],['crohn','Crohn’s'],['blood','Blood & iron'],['visit','Visits'],['medicine','Medicines'],...(storyEvents(c).some(e=>e.kind==='women')?[['women','Women’s health']]:[])]){const b=button('',f,()=>{storyFilter=k;render();},'calm-filter');b.setAttribute('aria-pressed',String(storyFilter===k));if(k!=='all'){const i=make('i',undefined,b);i.style.background=KIND_COLOR[k];}make('span',label,b);}
  const list=storyEvents(c).filter(e=>storyFilter==='all'||e.kind===storyFilter);if(!list.length)make('p','Nothing here yet.',page,'calm-quiet');
  let year=null;const tl=make('div',undefined,page,'calm-timeline');for(const e of list){if(e.year!==year){year=e.year;make('div',year,tl,'calm-year');}
   const row=make('div',undefined,tl,'calm-step');const rail=make('span',undefined,row,'calm-rail');const dot=make('i',undefined,rail);dot.style.background=KIND_COLOR[e.kind];
   const body=make('span',undefined,row,'calm-step-body');if(e.label)make('small',e.label,body);make('strong',e.title,body).dir='auto';if(e.note)make('span',e.note,body).dir='auto';
-  if(e.paper){const p=button('📄 '+e.paper+' ›',body,()=>e.open?e.open():e.m?milestoneForm(e.m):null,'calm-paper-link');p.dir='auto';}else if(e.m)button('Edit',body,()=>milestoneForm(e.m),'calm-edit-link');}}
+  const originals=papersFor(c,e.days??[e.date]);if(originals.length){const row=make('span',undefined,body,'calm-originals');if(originals.length>2)button('📄 '+originals.length+' original papers ›',row,()=>openPaper(originals[0],originals),'calm-paper-link');else for(const p of originals){const x=button('📄 '+p.title+' ›',row,()=>openPaper(p,originals),'calm-paper-link');x.dir='auto';}if(e.open)button('See the numbers ›',row,e.open,'calm-edit-link');}
+  else if(e.paper){const p=button('📄 '+e.paper+' ›',body,()=>e.open?e.open():e.m?milestoneForm(e.m):null,'calm-paper-link');p.dir='auto';}
+  if(e.m)button('Edit',body,()=>milestoneForm(e.m),'calm-edit-link');}}
 function openUpdate(){const root=sheet('Update Safy’s file'),grid=make('div',undefined,root,'care-log-grid');
- for(const [label,ic,fn] of [['Lab result','flask',()=>labForm()],['Import a file','list',importLabs],['Medicine','pill',()=>medForm()],['Story step','note',()=>milestoneForm()],['Doctor','plus',()=>doctorForm()],['Crohn’s treatment','gut',crohnForm],['Appointment','list',()=>apptForm()],['Sleep','moon',()=>entryForm('sleep')],['Period','drop',()=>entryForm('period')],['Breast check','note',breastSheet]]){const b=button('',grid,fn,'care-log-option');icon(ic,b,'#CDAE78');make('span',label,b);}
+ for(const [label,ic,fn] of [['Lab result','flask',()=>labForm()],['Import a file','list',importLabs],['Medicine','pill',()=>medForm()],['Story step','note',()=>milestoneForm()],['Doctor','plus',()=>doctorForm()],['Crohn’s treatment','gut',crohnForm],['Paper (photo or PDF)','plus',()=>paperForm()],['Appointment','list',()=>apptForm()],['Sleep','moon',()=>entryForm('sleep')],['Period','drop',()=>entryForm('period')],['Breast check','note',breastSheet]]){const b=button('',grid,fn,'care-log-option');icon(ic,b,'#CDAE78');make('span',label,b);}
  make('p','Copy everything exactly as it is on the paper.',root,'personal-muted');}
 function milestoneForm(m){const root=sheet(m?'Edit story step':'Add a story step'),form=make('form',undefined,root);
  const date=field(form,'When · a year (2021), a month (2021-05) or a full date','text',m?.date??'');date.required=true;date.placeholder='2026-11-12';
- const kind=chips(form,'About',[['crohn','Crohn’s'],['blood','Blood & iron'],['visit','Visit'],['medicine','Medicine'],['other','Other']],[m?.kind??'visit'],false,true);
+ const kind=chips(form,'About',[['crohn','Crohn’s'],['blood','Blood & iron'],['visit','Visit'],['medicine','Medicine'],['women','Women’s health'],['other','Other']],[m?.kind??'visit'],false,true);
  const title=field(form,'Title','text',m?.title??'');title.required=true;title.maxLength=80;title.dir='auto';
  const note=field(form,'What the paper says · optional','textarea',m?.note??'');note.maxLength=400;note.dir='auto';
  const paper=field(form,'Paper name · optional, e.g. Biopsy report','text',m?.paper??'');paper.maxLength=80;paper.dir='auto';
