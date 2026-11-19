@@ -4,7 +4,7 @@ const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov',
 export function careDate(v){if(!v)return '';if(/^\d{4}$/.test(v))return v;const [y,m,d]=v.split('-');return (d?Number(d)+' ':'')+MONTHS[Number(m)-1]+' '+y;}
 const range=l=>l.rangeText||(l.lo!=null&&l.hi!=null?l.lo+'–'+l.hi:l.hi!=null?'< '+l.hi:l.lo!=null?'> '+l.lo:'—');
 const STATUS={in:'In range',below:'Below range',above:'Above range',none:'No range given'};
-function trend(t){if(!t.previous||t.trend==='incompatible')return '';const up=t.latest.value>t.previous.value;if(t.latest.value===t.previous.value)return '→ same';return (up?'↑ ':'↓ ')+(t.trend==='better'?'toward range':t.trend==='away'?'away from range':'within range');}
+function trend(t){if(!t.previous||t.trend==='incompatible')return '';const up=t.latest.value>t.previous.value;if(t.latest.value===t.previous.value)return '→ same';return (up?'↑ ':'↓ ')+(t.trend==='better'?'toward range':t.trend==='away'?'away from range':t.status==='none'?'':'within range');}
 const KIND={crohn:'Crohn’s',blood:'Blood & iron',visit:'Visit',medicine:'Medicine',other:'Other'};
 const MOOD={okay:'okay',tired:'tired',pain:'in pain',sleep:'sleeping'};
 function describe(e,meds){const d=e.data;
