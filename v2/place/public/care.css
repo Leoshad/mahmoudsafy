@@ -347,3 +347,34 @@
 #care .calm-labs-line>span:first-child{display:flex;flex-direction:column;gap:3px}
 #care .calm-labs-title{font-size:16px}
 #care .calm-labs-line small{font-size:13px;color:#A89DA8}
+
+#care .calm-score-item{border-top:1px solid #2A2330}
+#care .calm-score-item:first-child{border-top:0}
+#care summary.calm-score-row{border:0;border-radius:0;min-height:0;font-size:inherit;color:inherit;list-style:none;cursor:pointer}
+#care summary.calm-score-row::-webkit-details-marker{display:none}
+#care .calm-score-item[open] .calm-score-row{padding-bottom:6px}
+#care .why{margin:0 0 16px 46px;padding:14px;border-radius:14px;background:#1A1520;display:flex;flex-direction:column;gap:10px}
+#care .why-note{margin:0;font-size:13.5px;color:#B5AAB5;line-height:1.5}
+#care .why-item{display:grid;grid-template-columns:1fr auto;row-gap:2px;font-size:15px}
+#care .why-item b{font-weight:500}
+#care .why-item small{grid-column:1/-1;color:#A89DA8;font-size:12.5px;line-height:1.45}
+#care .why-sum{display:flex;justify-content:space-between;border-top:1px solid #2A2330;padding-top:10px;font-size:14.5px;color:#F2E9E4}
+#care .why-days{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+#care .why-day{display:flex;flex-direction:column;align-items:center;gap:4px}
+#care .why-day i{width:26px;height:26px;border-radius:50%;border:1.5px solid #4D4450;display:grid;place-items:center;font-style:normal;font-size:13px;color:#14111A}
+#care .why-day.on i{background:#A7D3B3;border-color:#A7D3B3}
+#care .why-day small{font-size:10.5px;color:#8E8390}
+#care .why-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+#care .why-bar{display:flex;flex-direction:column;align-items:center;gap:3px}
+#care .why-track{height:90px;width:100%;display:flex;align-items:flex-end;justify-content:center;background:linear-gradient(to top,transparent calc(77.8% - 1px),#ffffff30 calc(77.8% - 1px),#ffffff30 77.8%,transparent 77.8%)}
+#care .why-track i{width:70%;border-radius:6px 6px 2px 2px;min-height:2px}
+#care .why-bar small{font-size:10.5px;color:#B5AAB5}
+#care .why-bar em{font-style:normal;font-size:10px;color:#8E8390}
+#care .why-med{margin:4px 0 0;font-size:14px}
+#care .calm-body-item>summary{list-style:none;cursor:pointer;border:0;padding:0;min-height:0;border-radius:0}
+#care .calm-body-item>summary::-webkit-details-marker{display:none}
+#care .calm-groups{display:flex;flex-direction:column;gap:10px;margin:12px 0 4px;padding:14px;border-radius:14px;background:#1A1520}
+#care .calm-group{display:grid;grid-template-columns:12px 1fr;column-gap:10px;align-items:center}
+#care .calm-group b{width:10px;height:10px;border-radius:50%}
+#care .calm-group span{font-size:15px}
+#care .calm-group small{grid-column:2;color:#A89DA8;font-size:13px}
