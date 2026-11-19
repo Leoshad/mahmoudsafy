@@ -342,3 +342,8 @@
 #care .calm-foot.streak{color:#E8C78A;font-size:14px}
 .care-dialog .calm-sentence{margin:4px 0;font-size:14px;line-height:1.45;color:#CFC6CD}.care-dialog .calm-line{margin:6px 2px 2px}.care-chiprow{margin:2px 0}
 #care .calm-body.bare{border-top:none;padding-top:0}
+
+#care button.calm-card.calm-labs-line{flex-direction:row !important;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;padding:16px 18px}
+#care .calm-labs-line>span:first-child{display:flex;flex-direction:column;gap:3px}
+#care .calm-labs-title{font-size:16px}
+#care .calm-labs-line small{font-size:13px;color:#A89DA8}

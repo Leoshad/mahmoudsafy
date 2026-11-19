@@ -75,7 +75,10 @@ function openLog(){const root=sheet(isSafy()?'Add for me':'Log for Safy'),grid=m
  make('p','Every entry keeps when it happened, when it was logged, and by whom.',root,'personal-muted');}
 async function quick(mood){try{const r=await add('checkin',{moods:[mood]});toast('Saved · '+MOOD[mood]+' · '+fmtTime(Date.now()),{id:r.id,revision:1});}catch{}}
 
-function statusChip(t,parent){if(t.caution)return make('span','In lab range · ask',parent,'care-chip warn');const label={in:'In range',below:'Below range',above:'Above range',none:'No range on sheet'}[t.status];return make('span',label,parent,'care-chip '+(t.status==='in'?'ok':t.status==='none'?'muted':'warn'));}
+// Where a sheet gives risk levels instead of a normal range, the line uses the medical guideline and says so.
+const GUIDE={'ldl cholesterol':{hi:100,unit:'mg/dl',sheet:'The sheet itself lists under 130 as low risk.'}};
+function withGuide(t){const g=GUIDE[t.key],l=t.latest;if(!g||!l||t.status!=='none'||l.lo!==null||l.hi!==null||String(l.unit).toLowerCase()!==g.unit)return t;return {...t,guide:g,latest:{...l,lo:0,hi:g.hi}};}
+function statusChip(t,parent){if(t.guide){const ok=t.latest.value<t.guide.hi;return make('span',ok?'Optimal · guideline':'Above guideline',parent,'care-chip '+(ok?'ok':'warn'));}if(t.caution)return make('span','In lab range · ask',parent,'care-chip warn');const label={in:'In range',below:'Below range',above:'Above range',none:'No range on sheet'}[t.status];return make('span',label,parent,'care-chip '+(t.status==='in'?'ok':t.status==='none'?'muted':'warn'));}
 function trendText(t){if(t.trend==='better')return [(t.latest.value>t.previous.value?'↑':'↓')+' Getting better','good'];if(t.trend==='away')return [(t.direction==='up'?'↑ Going up':'↓ Going down'),'warn'];if(t.trend==='same')return ['→ No change','muted'];if(t.trend==='incompatible')return ['Different unit · not compared','muted'];if(t.trend==='up')return ['↑ A little higher','muted'];if(t.trend==='down')return ['↓ A little lower','muted'];return ['First reading','muted'];}
 function range(l){return l.rangeText||(l.lo!==null&&l.hi!==null?l.lo+'–'+l.hi:l.lo!==null?'more than '+l.lo:l.hi!==null?'under '+l.hi:'not provided');}
 
@@ -286,8 +289,10 @@ function shortRange(l){if(l.lo!==null&&l.hi!==null)return l.lo+'–'+l.hi;if(l.h
 function bound(t){const l=t.latest;return t.status==='below'?l.lo:t.status==='above'?l.hi:null;}
 function sentence(t){const l=t.latest,p=t.previous;let a='';
  if(p&&t.trend!=='incompatible'){if(l.value===p.value)a='Same as '+whenWas(p.date)+'. ';else a=(l.value>p.value?'Up from ':'Down from ')+p.valueText+' '+whenWas(p.date)+'. ';}
+ if(t.guide){const g=t.guide,v=l.value,close=Math.abs(v-g.hi)/g.hi<=0.1;return a+(v<g.hi?(close?'Just under':'Under')+' '+g.hi+', the optimal level in heart guidelines. ':(close?'Just over':'Over')+' '+g.hi+', the optimal level in heart guidelines. ')+g.sheet;}
  if(t.status==='in'&&t.caution)return a+'In the lab’s range, but with iron saturation at '+t.caution.satValue+'%, Crohn’s guidelines often still count this as low iron stores. Worth asking the doctor.';
  if(t.status==='in')return a+'In the lab’s normal range.';
+ if(t.status==='none'&&t.key==='esr · second hour')return a+'No standard range: the normal range is for the first hour.';
  if(t.status==='none')return a+'The sheet gives no normal range.';
  const b=bound(t),close=b&&Math.abs(l.value-b)/Math.abs(b)<=0.1;
  if(t.status==='below')return a+(close?'Just under':'Still under')+' the lab’s range ('+shortRange(l)+').';
@@ -335,9 +340,7 @@ function render(){const root=$('#care');if(!root)return;const c=care();const bac
  const papers=c.milestones.filter(m=>m.kind==='crohn').slice(0,2).map(m=>m.title+' '+m.date.slice(0,4));const f2=make('span',undefined,facts);make('small','On her papers',f2);make('span',papers.join(' · ')||'None added yet',f2);
  // Latest labs: key tests, outside the range first, at most three.
  const keys=c.keyLabs.filter(t=>t.latest);const show=[...keys.filter(outsideT),...keys.filter(t=>!outsideT(t))].slice(0,3).sort((a,b)=>orderOf(a)-orderOf(b));
- if(show.length){const s=make('section',undefined,page,'calm-section');const sh=make('div',undefined,s,'calm-row');const newest=show.map(t=>t.latest.date).sort().at(-1);make('h3','LATEST LABS',sh);button('All results ›',sh,openLabs,'calm-link');
-  const card=make('div',undefined,s,'calm-card');for(const t of show)labRow(card,t);
-  const leg=make('div',undefined,s,'calm-legend');for(const [cls,txt] of [['zone','Normal range'],['was','Before'],['now','Now']]){const x=make('span',undefined,leg);make('i',undefined,x,cls);make('span',txt,x);}}
+ if(c.labs.some(t=>t.latest)){const newest=c.labs.filter(t=>t.latest).map(t=>t.latest.date).sort().at(-1),n=c.labs.filter(t=>t.latest).length;const r=button('',page,openLabs,'calm-card calm-labs-line');const l=make('span',undefined,r);make('span','🧪 Latest labs',l,'calm-labs-title');make('small',shortDate(newest)+' · '+n+' tests',l);make('span','All results ›',r,'calm-link');}
  else if(!c.labs.length){const e=make('section',undefined,page,'calm-card calm-empty');make('strong','No lab results yet',e);make('p','Add them from a lab sheet with ✎ Update.',e);}
  renderBodyTiles(page,c);
  // Gentle note for the next visit, then the guide notes that matter most.
@@ -430,7 +433,7 @@ function openMedicalFile(){const c=care(),root=sheet('Medical file');make('p','A
 function openLabs(){const c=care(),root=sheet('Labs');const bar=make('div',undefined,root,'personal-actions');button('＋ Add a result',bar,()=>labForm(),'primary');button('Import a lab file',bar,importLabs);
  make('p','Values, H/L and ranges exactly as printed on each sheet. Green band = the sheet’s normal range · white dot = now · ring = before. The doctor decides what it means.',root,'personal-muted');
  const chartTest=c.labs.find(t=>t.key==='hemoglobin'&&t.latest)||c.labs.find(t=>t.latest&&t.readings.filter(r=>r.verified&&r.unit===t.latest.unit).length>1);if(chartTest)labChart(root,chartTest);
- let group=null;for(const t of c.labs){if(t.group!==group){group=t.group;make('h3',group,root);}const card=make('article',undefined,root,'care-lab');const top=make('div',undefined,card,'care-row');make('strong',t.test,top).dir='auto';if(t.latest)statusChip(t,top);const ab=aboutTest(t.key);if(ab)make('p',ab,card,'care-about');
+ let group=null;for(const t0 of c.labs){const t=withGuide(t0);if(t.group!==group){group=t.group;make('h3',group,root);}const card=make('article',undefined,root,'care-lab');const top=make('div',undefined,card,'care-row');make('strong',t.test,top).dir='auto';if(t.latest)statusChip(t,top);const ab=aboutTest(t.key);if(ab)make('p',ab,card,'care-about');
   if(t.latest){const l=t.latest;const v=make('div',undefined,card,'care-lab-value');make('span',l.valueText,v,'care-lab-num');make('span',' '+l.unit+(l.flag?' · '+l.flag+' on sheet':''),v);const tc=trendChip(t);if(tc)chip(make('div',undefined,card,'care-chiprow'),tc);if(l.lo!==null||l.hi!==null)numberLine(card,t);make('p',sentence(t),card,'calm-sentence');make('small',fmtDate(l.date)+' · range on the sheet: '+range(l)+(t.previous?' · was '+t.previous.valueText+' on '+fmtDate(t.previous.date):''),card);}
   if(t.unverified){const u=make('p',t.unverified+' unverified · check against the sheet',card,'care-unverified');for(const r of t.readings.filter(r=>!r.verified))button('Verify '+r.valueText+' · '+fmtDate(r.date),u,()=>labForm(t,r));}
   const more=make('details',undefined,card);make('summary','All readings · '+t.readings.length,more);for(const r of t.readings){const b=button(fmtDate(r.date)+' · '+r.valueText+' '+r.unit+(r.flag?' '+r.flag:'')+(r.verified?'':' · unverified'),more,()=>labForm(t,r),'care-reading');b.dir='auto';}}
