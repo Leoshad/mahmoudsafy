@@ -1,7 +1,7 @@
 import {statSync,createReadStream} from 'node:fs';
 
 export function serveVideo(req,res,file){
- const size=statSync(file).size,headers={'Content-Type':'video/mp4','Accept-Ranges':'bytes'};
+ const size=statSync(file).size,headers={'Content-Type':'video/mp4','Accept-Ranges':'bytes','Cache-Control':'public, max-age=86400'};
  let start=0,end=size-1,status=200;
  if(req.headers.range){
   const m=/^bytes=(\d*)-(\d*)$/.exec(req.headers.range);
