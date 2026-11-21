@@ -89,3 +89,4 @@ test('a case comes in through the seed, updates in place, keeps its photos, and 
  assert.equal(s.care.cases[0].title,'Renamed');assert.equal(s.care.cases[0].photos.length,1);
  for(const who of ['Safy','Mahmoud'])assert.equal(snap(s,who,now).cases[0].title,'Renamed');
 });
+
