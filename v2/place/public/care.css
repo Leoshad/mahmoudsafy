@@ -365,9 +365,15 @@
 #care .why-day.on i{background:#A7D3B3;border-color:#A7D3B3}
 #care .why-day small{font-size:10.5px;color:#8E8390}
 #care .why-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-#care .why-bar{display:flex;flex-direction:column;align-items:center;gap:3px}
+#care .why-bar{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:0;padding:4px 0;border-radius:10px;color:inherit;font:inherit;cursor:pointer;min-height:0}
+#care .why-bar.on{background:#ffffff10}
 #care .why-track{height:90px;width:100%;display:flex;align-items:flex-end;justify-content:center;background:linear-gradient(to top,transparent calc(77.8% - 1px),#ffffff30 calc(77.8% - 1px),#ffffff30 77.8%,transparent 77.8%)}
-#care .why-track i{width:70%;border-radius:6px 6px 2px 2px;min-height:2px}
+#care .why-stack{width:70%;height:100%;display:flex;flex-direction:column;justify-content:flex-end;gap:3px}
+#care .why-stack i{display:block;width:100%;border-radius:5px}
+#care .why-split{font-size:9.5px!important;color:#8E8390!important}
+#care .why-night{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:12px;background:#ffffff08;font-size:14px}
+#care .why-night b{font-weight:500}
+#care .why-night small{color:#A89DA8;font-size:12.5px}
 #care .why-bar small{font-size:10.5px;color:#B5AAB5}
 #care .why-bar em{font-style:normal;font-size:10px;color:#8E8390}
 #care .why-med{margin:4px 0 0;font-size:14px}
@@ -438,3 +444,7 @@
 #care .case-upload{padding:16px 18px;display:flex;flex-direction:column;gap:4px;border-style:dashed}
 #care .case-slot{padding:8px 0;border-top:1px solid #2A2330;align-items:center;gap:8px;font-size:14.5px}
 #care .case-slot small{margin-left:auto;color:#A89DA8;font-size:12.5px}
+#care .calm-bar-stack{width:100%;max-width:22px;display:flex;flex-direction:column;gap:3px}
+#care .calm-bar-stack .calm-bar{max-width:none;border-radius:4px;min-height:3px}
+#care .calm-night-head{border-bottom:0;padding-bottom:2px}
+#care .calm-night-part{padding-left:28px}
