@@ -256,7 +256,7 @@ function whyDays(parent,c,isOn,label){const w=make('div',undefined,parent,'why-d
 function whySum(parent,txt,res){const r=make('div',undefined,parent,'why-sum');make('span',txt,r);make('b',res,r);}
 let sleepPick=null;const openWhy=new Set();
 // Remember open rows the moment they are tapped (not on the later toggle event), so a refresh in between keeps them as they are.
-function keepOpen(det,key){det.open=openWhy.has(key);det.addEventListener('click',e=>{if(e.target.closest('summary')?.parentElement!==det)return;if(det.open)openWhy.delete(key);else openWhy.add(key);});det.addEventListener('toggle',()=>det.open?openWhy.add(key):openWhy.delete(key));}
+function keepOpen(det,key){det.dataset.persistent='true';det.open=openWhy.has(key);det.addEventListener('click',e=>{if(e.target.closest('summary')?.parentElement!==det)return;if(det.open)openWhy.delete(key);else openWhy.add(key);});det.addEventListener('toggle',()=>det.open?openWhy.add(key):openWhy.delete(key));}
 function scoreWhy(det,p,c){const box=make('div',undefined,det,'why');
  if(p.key==='checks'){make('p','Two things, 10 points each.',box,'why-note');const bi=breastInfo(c);const late=bi.due&&bi.due<c.today&&!bi.upcoming;
   const blood=c.labs.filter(t=>t.latest&&/^(hemoglobin|ferritin)/.test(t.key)).map(t=>t.latest.date).sort().at(-1);const age=blood?dayNum(c.today)-dayNum(blood):null;const old=blood&&age>183;
