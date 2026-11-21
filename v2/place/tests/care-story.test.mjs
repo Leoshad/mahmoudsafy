@@ -77,3 +77,15 @@ test('seed lab updates fix a range once, and ferritin with low saturation gets a
  const v=s.care.labs.find(l=>l.test.startsWith('Vitamin'));assert.equal(v.lo,30);assert.equal(v.hi,100);assert.equal(v.history.length,1);assert.equal(v.history[0].lo,20);
  const fer=snap(s,'Safy',now).labs.find(t=>t.key==='ferritin');assert.equal(fer.status,'in');assert.deepEqual(fer.caution,{satValue:'12',satDate:'2026-11-11'});
 });
+
+test('a case comes in through the seed, updates in place, keeps its photos, and reaches both views', async () => {
+ const {careSeedFromEnv:seed,careSnapshot:snap,careChange:c}=await import('../care.mjs');
+ const s={care:undefined},now=Date.parse('2026-11-21T09:00:00Z');c(s,'Mahmoud','care.labs.import',{labs:[{test:'Ferritin',value:30,valueText:'30',unit:'ng/mL',lo:10,hi:170,date:'2026-11-15',group:'Iron',verified:true}]},now);
+ const k={id:'case-1',title:'A case',photoSlots:[{key:'rx',label:'Prescription'}]};
+ const raw=o=>Buffer.from(JSON.stringify(o)).toString('base64');
+ assert.equal(seed(s,raw({cases:[k]}),now).added,1);assert.equal(seed(s,raw({cases:[k]}),now).added,0);
+ s.care.cases[0].photos=[{key:'rx',id:'p1',label:'Prescription'}];
+ assert.equal(seed(s,raw({cases:[{...k,title:'Renamed'}]}),now).added,1);
+ assert.equal(s.care.cases[0].title,'Renamed');assert.equal(s.care.cases[0].photos.length,1);
+ for(const who of ['Safy','Mahmoud'])assert.equal(snap(s,who,now).cases[0].title,'Renamed');
+});
