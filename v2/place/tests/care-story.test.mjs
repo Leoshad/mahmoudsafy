@@ -90,3 +90,11 @@ test('a case comes in through the seed, updates in place, keeps its photos, and 
  for(const who of ['Safy','Mahmoud'])assert.equal(snap(s,who,now).cases[0].title,'Renamed');
 });
 
+
+test('finished sleeps can be seeded once, logged by Mahmoud and shared', async () => {
+ const {careSeedFromEnv:seed,careChange:c}=await import('../care.mjs');
+ const s={care:undefined},now=Date.parse('2026-11-21T12:00:00Z');c(s,'Mahmoud','care.labs.import',{labs:[{test:'Ferritin',value:30,valueText:'30',unit:'ng/mL',lo:10,hi:170,date:'2026-11-15',group:'Iron',verified:true}]},now);
+ const raw=Buffer.from(JSON.stringify({entries:[{kind:'sleep',data:{start:Date.parse('2026-11-21T00:00:00Z'),end:Date.parse('2026-11-21T04:00:00Z')}},{kind:'sleep',data:{start:Date.parse('2026-11-21T09:00:00Z'),end:Date.parse('2026-11-21T11:00:00Z')}}]})).toString('base64');
+ assert.equal(seed(s,raw,now).added,2);assert.equal(seed(s,raw,now).added,0);
+ const sl=s.care.entries.filter(e=>e.kind==='sleep');assert.equal(sl.length,2);assert.ok(sl.every(e=>e.loggedBy==='Mahmoud'&&e.visibility==='shared'));
+});
