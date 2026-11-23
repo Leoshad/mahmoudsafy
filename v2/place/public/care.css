@@ -466,3 +466,4 @@
 #care .case-f-verdict{border-radius:16px;padding:12px 14px;background:var(--case-chip);display:flex;flex-direction:column;gap:4px}
 #care .case-f-verdict p{margin:0;font-size:15px;line-height:1.5;color:var(--case-ink)}
 #care .case-f-verdict small{color:var(--case-chip-ink);font-size:12.5px}
+#care .case-f-item.key+.case-f-item.key{margin-top:8px}
