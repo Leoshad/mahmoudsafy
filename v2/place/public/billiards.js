@@ -46,7 +46,10 @@ async function command(type,payload={},g=game()){
  finally{busy=false;refresh();}
  return ok;
 }
-function minimize(chat=false){opened=false;show();if(chat)host.goto('chat');}
+// Back button: an open game is its own history step, so Back closes it and you stay on Do Together.
+function stepIn(){if(history.state?.panel!=='billiards')history.pushState({placeTab:'together',panel:'billiards'},'');}
+function minimize(chat=false){const own=history.state?.panel==='billiards';opened=false;show();if(own&&!chat)history.back();else if(own)history.replaceState({placeTab:'together'},'');if(chat)host.goto('chat');}
+window.addEventListener('popstate',e=>{if(opened&&e.state?.panel!=='billiards'){opened=false;show();}});
 
 // ---------- canvas ----------
 function canvas(){if(view.canvas)return view.canvas;const c=document.createElement('canvas');c.setAttribute('aria-label','Billiards table');view.canvas=c;bindTable(c);return c;}
@@ -69,13 +72,36 @@ function felt(){
  POCKETS.forEach(([px,py],i)=>{const r=i===2||i===3?27:30;x.fillStyle='#0b0d0c';x.beginPath();x.arc(px,py,r,0,7);x.fill();x.strokeStyle='#8a6a43';x.lineWidth=3;x.stroke();});
  return view.felt=c;
 }
-function drawBall(x,b,alpha=1){
- x.save();x.globalAlpha=alpha;x.translate(b.x,b.y);
- x.fillStyle='#00000040';x.beginPath();x.ellipse(2.5,3.5,R,R*.9,0,0,7);x.fill();
- x.beginPath();x.arc(0,0,R,0,7);x.save();x.clip();
- if(b.id>8){x.fillStyle='#f6f1e4';x.fillRect(-R,-R,2*R,2*R);x.fillStyle=COLORS[b.id];x.fillRect(-R,-R*.52,2*R,R*1.04);}else{x.fillStyle=COLORS[b.id];x.fillRect(-R,-R,2*R,2*R);}
- const sh=x.createRadialGradient(-R*.35,-R*.4,R*.15,0,0,R*1.05);sh.addColorStop(0,'#ffffff55');sh.addColorStop(.5,'#ffffff00');sh.addColorStop(1,'#00000055');x.fillStyle=sh;x.fillRect(-R,-R,2*R,2*R);x.restore();
- if(b.id){x.fillStyle='#fbf8ef';x.beginPath();x.arc(0,0,R*.48,0,7);x.fill();x.fillStyle='#1b1b1b';x.font=`700 ${b.id>9?10:11}px system-ui,sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText(String(b.id),0,.6);}
+// Balls are drawn as real spheres: the number and the stripe turn as the ball rolls, lit from the top left.
+const RGB=COLORS.map(h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]);
+const LIGHT=(()=>{const v=[-.42,-.52,.74],m=Math.hypot(...v);return v.map(a=>a/m);})(),HALF=(()=>{const v=[LIGHT[0],LIGHT[1],LIGHT[2]+1],m=Math.hypot(...v);return v.map(a=>a/m);})();
+const orient=new Map();
+function turn(v,k,a){const c=Math.cos(a),s=Math.sin(a),d=k[0]*v[0]+k[1]*v[1]+k[2]*v[2];return [v[0]*c+(k[1]*v[2]-k[2]*v[1])*s+k[0]*d*(1-c),v[1]*c+(k[2]*v[0]-k[0]*v[2])*s+k[1]*d*(1-c),v[2]*c+(k[0]*v[1]-k[1]*v[0])*s+k[2]*d*(1-c)];}
+function roll(b){
+ let o=orient.get(b.id);if(!o){o={spot:[0,0,1],pole:[0,1,0],x:b.x,y:b.y,sprite:null,key:''};orient.set(b.id,o);}
+ const dx=b.x-o.x,dy=b.y-o.y,d=Math.sqrt(dx*dx+dy*dy);o.x=b.x;o.y=b.y;
+ if(d>.02&&d<4*R){const k=[-dy/d,dx/d,0],a=d/R;o.spot=turn(o.spot,k,a);o.pole=turn(o.pole,k,a);}// a jump (placement, re-rack) is not a roll
+ return o;
+}
+function sprite(b,o){
+ const rp=R*view.scale*view.dpr,size=Math.ceil(rp*2)+2,key=size+':'+o.spot.map(v=>v.toFixed(3)).join()+':'+o.pole.map(v=>v.toFixed(3)).join();
+ if(o.key===key&&o.sprite)return o.sprite;o.key=key;
+ const c=o.sprite&&o.sprite.width===size?o.sprite:Object.assign(document.createElement('canvas'),{width:size,height:size});o.sprite=c;
+ const x=c.getContext('2d'),img=x.createImageData(size,size),px=img.data,base=RGB[b.id],white=[246,241,228],mid=size/2,stripe=b.id>8,spotCos=b.id?.89:.985;
+ for(let j=0;j<size;j++)for(let i=0;i<size;i++){
+  const nx=(i+.5-mid)/rp,ny=(j+.5-mid)/rp,r2=nx*nx+ny*ny;if(r2>1)continue;const nz=Math.sqrt(1-r2),q=(j*size+i)*4;
+  let col=stripe&&Math.abs(nx*o.pole[0]+ny*o.pole[1]+nz*o.pole[2])>.5?white:base;
+  if(nx*o.spot[0]+ny*o.spot[1]+nz*o.spot[2]>spotCos)col=b.id?[251,248,239]:[205,45,40];
+  const diff=Math.max(0,nx*LIGHT[0]+ny*LIGHT[1]+nz*LIGHT[2]),spec=Math.max(0,nx*HALF[0]+ny*HALF[1]+nz*HALF[2])**42,shade=.38+.72*diff;
+  px[q]=Math.min(255,col[0]*shade+spec*230);px[q+1]=Math.min(255,col[1]*shade+spec*230);px[q+2]=Math.min(255,col[2]*shade+spec*230);px[q+3]=r2>.94?Math.round(255*(1-(r2-.94)/.06)):255;
+ }
+ x.putImageData(img,0,0);return c;
+}
+function drawBall(x,b,alpha=1,scale=1){
+ const o=roll(b);x.save();x.globalAlpha=alpha;x.translate(b.x,b.y);if(scale!==1)x.scale(scale,scale);
+ x.fillStyle='#00000045';x.beginPath();x.ellipse(2.5,3.5,R,R*.9,0,0,7);x.fill();
+ const s=sprite(b,o),w=s.width/(view.scale*view.dpr);x.drawImage(s,-w/2,-w/2,w,w);
+ if(b.id&&o.spot[2]>.25){const z=o.spot[2];x.fillStyle='#1b1b1b';x.globalAlpha=alpha*Math.min(1,(z-.25)*3);x.font=`700 ${(b.id>9?9.5:10.5)*(.55+.45*z)}px system-ui,sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText(String(b.id),o.spot[0]*R,o.spot[1]*R+.5);}
  x.restore();
 }
 function drawStick(x,cue,angle,back){
@@ -105,6 +131,7 @@ function draw(){
  }
  const bad=interactive&&place&&g.ballInHand&&!placeable(g.balls,place.x,place.y,g.ballInHand==='kitchen');
  for(const b of list)if(!b.in)drawBall(x,b,b.id===0&&bad?.55:1);
+ for(const s of job?.sinking??[]){const k=Math.min(1,(performance.now()-s.t)/320);if(k>=1)continue;const [px,py]=POCKETS.reduce((a,p)=>(p[0]-s.x)**2+(p[1]-s.y)**2<(a[0]-s.x)**2+(a[1]-s.y)**2?p:a);drawBall(x,{id:s.id,x:s.x+(px-s.x)*k,y:s.y+(py-s.y)*k},1-k*.7,1-k*.55);}
  if(interactive&&g.ballInHand&&cue){x.strokeStyle=dragging==='cue'?'#ffd98a':'#ffd98aaa';x.lineWidth=2;x.setLineDash([4,4]);x.beginPath();x.arc(cue.x,cue.y,R+7,0,7);x.stroke();x.setLineDash([]);}
  if(job?.stick&&cue)drawStick(x,cue,job.stick.angle,job.stick.back);
  else if(interactive&&cue&&dragging!=='cue')drawStick(x,cue,aim,power*95);
@@ -136,7 +163,7 @@ function step(t){
   j.stick=null;j.sim??=new Shot(s.start,{vx:s.vx,vy:s.vy,follow:s.follow,side:s.side});j.balls=j.sim.balls;
   // A slow frame slows the roll slightly instead of jumping ahead.
   j.clock+=j.last===null?0:Math.min(34,t-j.last);j.last=t;const target=Math.min(s.steps??Infinity,Math.floor(j.clock/1000*240));
-  while(j.sim.steps<target&&j.sim.step());for(;j.fired<j.sim.events.length;j.fired++){const e=j.sim.events[j.fired];click(e.type,e.power);}
+  while(j.sim.steps<target&&j.sim.step());for(;j.fired<j.sim.events.length;j.fired++){const e=j.sim.events[j.fired];click(e.type,e.power);if(e.type==='pocket'){const b=j.sim.balls.find(x=>x.id===e.id);(j.sinking??=[]).push({id:e.id,x:b.x,y:b.y,t:performance.now()});}}
   if(!(j.sim.done||j.sim.steps>=(s.steps??Infinity)))return;
   if(s.local)pending={id:s.id,n:s.n,balls:j.sim.balls.map(b=>({...b}))};
  }
@@ -154,12 +181,14 @@ function bindTable(c){
  const onLine=(p,cue)=>{const ux=Math.cos(aim),uy=Math.sin(aim),dx=p.x-cue.x,dy=p.y-cue.y,along=dx*ux+dy*uy,across=Math.abs(dx*uy-dy*ux);return across<34&&along>-420&&along<640;};
  c.addEventListener('pointerdown',e=>{const g=shown();if(!myTurn(g)||busy)return;unlock();capture(c,e);const p=point(e),cue=tableBalls().find(b=>b.id===0);if(!cue)return;
   if(g.ballInHand&&(p.x-cue.x)**2+(p.y-cue.y)**2<(R*2.6)**2){dragging='cue';place={x:cue.x,y:cue.y};}
-  else{dragging='aim';grab={a0:Math.atan2(p.y-cue.y,p.x-cue.x),aim0:aim,x:e.clientX,y:e.clientY,moved:false,line:onLine(p,cue),p};}animate();});
+  else{dragging='aim';grab={a:Math.atan2(p.y-cue.y,p.x-cue.x),x:e.clientX,y:e.clientY,lx:e.clientX,ly:e.clientY,lt:performance.now(),moved:false,line:onLine(p,cue),p};}animate();});
  c.addEventListener('pointermove',e=>{if(!dragging)return;const p=point(e),g=shown();
   if(dragging==='cue'){place={x:Math.max(R,Math.min(W-R,p.x)),y:Math.max(g.ballInHand==='kitchen'?TABLE.headString:R,Math.min(H-R,p.y))};return;}
   if(!grab.moved&&Math.abs(e.clientX-grab.x)+Math.abs(e.clientY-grab.y)<6)return;grab.moved=true;
   const cue=tableBalls().find(b=>b.id===0);if(!cue)return;const dx=p.x-cue.x,dy=p.y-cue.y;if(dx*dx+dy*dy<(R*1.5)**2)return;
-  let d=Math.atan2(dy,dx)-grab.a0;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;aim=grab.aim0+d;});
+  // Speed-sensitive turning: a slow finger turns the stick finely, a quick swipe turns it fast.
+  const a=Math.atan2(dy,dx),now=performance.now(),dist=Math.hypot(e.clientX-grab.lx,e.clientY-grab.ly),v=dist/Math.max(8,now-grab.lt);let d=a-grab.a;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;
+  const gain=Math.min(1.9,Math.max(.28,.28+v*1.1));aim+=d*gain;grab.a=a;grab.lx=e.clientX;grab.ly=e.clientY;grab.lt=now;});
  const end=()=>{if(!dragging)return;if(dragging==='aim'&&grab&&!grab.moved&&!grab.line){const cue=tableBalls().find(b=>b.id===0);if(cue)aim=Math.atan2(grab.p.y-cue.y,grab.p.x-cue.x);}dragging=null;grab=null;draw();updateHint();};
  c.addEventListener('pointerup',end);c.addEventListener('pointercancel',()=>{dragging=null;grab=null;draw();});
 }
@@ -285,7 +314,7 @@ function records(){
 function invitation(){
  const g=data.shared,root=$('#billiards-invitation'),show=g?.status==='waiting'&&g.owner!==who,sig=show?g.id:'';if(root.dataset.sig===sig)return;root.dataset.sig=sig;root.replaceChildren();root.hidden=!show;if(!show)return;
  make('span',g.owner+' invited you to Billiards'+(g.shotSeconds?' · '+g.shotSeconds+'s per shot':'')+'.',root);
- btn('Join',root,async()=>{mode='shared';opened=true;host.goto('together');await command('accept',{},g);host.revealPanel?.('#billiards-panel');},'primary');
+ btn('Join',root,async()=>{mode='shared';opened=true;host.goto('together');stepIn();await command('accept',{},g);host.revealPanel?.('#billiards-panel');},'primary');
  btn('Not now',root,()=>command('decline',{},g));
 }
 function refresh(force=false){
@@ -300,7 +329,7 @@ function refresh(force=false){
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(fit,120);});
 function init(h){
  host=h;soundButton();window.OurGameUI?.registerChat?.($('.billiards-head'),()=>minimize(true));
- $('#billiards-open').onclick=()=>{unlock();opened=true;refresh(true);host.revealPanel?.('#billiards-panel');requestAnimationFrame(fit);};
+ $('#billiards-open').onclick=()=>{unlock();opened=true;stepIn();refresh(true);host.revealPanel?.('#billiards-panel');requestAnimationFrame(fit);};
  $('#billiards-collapse').onclick=()=>minimize();$('#billiards-chat').onclick=()=>minimize(true);
  $('#billiards-sound').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('our-place:billiards:sound',soundOn?'on':'off');}catch{}soundButton();if(soundOn){unlock();click('ball',.6);}};
  for(const m of ['solo','shared'])$('#billiards-'+m).onclick=()=>{if(mode===m)return;mode=m;place=null;spinOpen=false;queue=[];job=null;frozen=null;refresh(true);};
@@ -308,7 +337,7 @@ function init(h){
 }
 window.OurBilliards={init,sync(s){
  if(!s?.billiards)return;if(Number.isFinite(s.version)&&who===s.who&&s.version<version)return;
- if(who!==s.who){who=s.who;opened=false;mode='solo';seen={};try{const saved=JSON.parse(localStorage.getItem('our-place:billiards:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;}}catch{}}
+ if(who!==s.who){who=s.who;opened=false;mode='solo';seen={};try{const saved=JSON.parse(localStorage.getItem('our-place:billiards:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;}}catch{}if(opened)stepIn();}
  if(Number.isFinite(s.serverNow))clockOffset=s.serverNow-Date.now();version=s.version;
  const first=!Object.keys(seen).length,before=data;data=s.billiards;
  for(const m of ['solo','shared']){const g=data[m],key=g?.lastShot?g.id+':'+g.lastShot.n:null;if(!key){seen[m]=null;continue;}

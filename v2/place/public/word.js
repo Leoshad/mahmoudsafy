@@ -262,12 +262,16 @@ function render(force=false){
   btn('Give up',foot,async()=>{if(await window.OurGameUI.confirm({title:'Give up this word?',message:'It counts as not solved. If '+other()+' solves it, '+other()+' wins.',confirmLabel:'Give up'}))await command('giveup',{match:tab,id:m.id});},'word-leave');}
  if(field){const again=root.querySelector('[data-field="'+field+'"]');if(again){again.focus();try{again.setSelectionRange(...caret);}catch{}}}
 }
-function focusAttention(){const c=data?.challenge;if(c&&(c.status==='waiting'&&c.owner!==who||c.status==='active'&&!c.me.finished))tab='challenge';else if(data?.daily?.current?.status==='active'||!data?.daily?.current)tab='daily';opened=true;render(true);}
+// Back button: an open game is its own history step, so Back closes it and you stay on Do Together.
+function stepIn(){if(history.state?.panel!=='word')history.pushState({placeTab:'together',panel:'word'},'');}
+function closePanel(){const own=history.state?.panel==='word';opened=false;show();if(own)history.back();}
+function focusAttention(){const c=data?.challenge;if(c&&(c.status==='waiting'&&c.owner!==who||c.status==='active'&&!c.me.finished))tab='challenge';else if(data?.daily?.current?.status==='active'||!data?.daily?.current)tab='daily';opened=true;stepIn();render(true);}
 function init(h){
  host=h;soundButton();window.OurGameUI?.registerChat?.($('.word-head'),()=>{opened=false;show();host.goto('chat');});
- $('#word-open').onclick=()=>{unlockSound();opened=true;fullView=playing();render(true);host.revealPanel?.('#word-panel');};
+ $('#word-open').onclick=()=>{unlockSound();opened=true;stepIn();fullView=playing();render(true);host.revealPanel?.('#word-panel');};
  $('#word-size').onclick=()=>{fullView=!fullView;show();render(true);};
- $('#word-collapse').onclick=()=>{opened=false;show();};
+ $('#word-collapse').onclick=()=>closePanel();
+ window.addEventListener('popstate',e=>{if(opened&&e.state?.panel!=='word'){opened=false;show();}});
  $('#word-chat').onclick=()=>{opened=false;show();host.goto('chat');};
  $('#word-sound').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('our-place:word:sound',soundOn?'on':'off');}catch{}soundButton();if(soundOn){unlockSound();tap();}};
  for(const t of ['daily','challenge'])$('#word-'+t+'-tab').onclick=()=>{tab=t;typed=[];$('#word-error').textContent='';render(true);};
