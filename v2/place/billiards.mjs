@@ -3,7 +3,7 @@
 import {randomUUID} from 'node:crypto';
 import {check,names} from './domain.mjs';
 import {recordCompetitiveResult} from './crown.mjs';
-import {TABLE,GROUP,rack,spotEight,placeable,simulate,speedFor} from './public/billiards-physics.mjs';
+import {TABLE,GROUP,rack,spotEight,placeable,simulate,speedFor,SPEED} from './public/billiards-physics.mjs';
 
 const R=TABLE.radius,W=TABLE.width,H=TABLE.height;
 const opponent=(g,who)=>g.players.find(n=>n!==who);
@@ -60,13 +60,16 @@ function judge(s,g,who,before,out,now){
 function takeShot(s,g,who,p,now){
  check(g.status==='active'&&g.turn===who&&!g.choice,'Wait for your turn.',409);
  check(!g.deadline||g.deadline>now,'Your time ran out.',409);
- check([p.angle,p.power,p.follow??0,p.side??0].every(Number.isFinite),'Invalid shot.');
- const power=Math.min(1,Math.max(.02,p.power)),follow=Math.max(-1,Math.min(1,p.follow??0)),side=Math.max(-1,Math.min(1,p.side??0));
+ const direct=p.vx!==undefined||p.vy!==undefined;
+ check((direct?[p.vx,p.vy]:[p.angle,p.power]).concat([p.follow??0,p.side??0]).every(Number.isFinite),'Invalid shot.');
+ const power=direct?0:Math.min(1,Math.max(.02,p.power)),follow=Math.max(-1,Math.min(1,p.follow??0)),side=Math.max(-1,Math.min(1,p.side??0));
  check(follow*follow+side*side<=1.0001,'Spin must stay on the ball.');
  const cue=g.balls.find(b=>b.id===0);
  if(g.ballInHand){check(placeable(g.balls,p.x,p.y,g.ballInHand==='kitchen'),g.ballInHand==='kitchen'?'Place the cue ball below the line, clear of other balls.':'Place the cue ball on the table, clear of other balls.');Object.assign(cue,{x:p.x,y:p.y,in:false});}
  check(!cue.in,'Place the cue ball first.',409);
- const speed=speedFor(power),shot={vx:Math.cos(p.angle)*speed,vy:Math.sin(p.angle)*speed,follow,side};
+ // Phones send the exact velocity they are already animating, so both replays match the server bit for bit.
+ let shot;if(direct){const sp=Math.sqrt(p.vx*p.vx+p.vy*p.vy);check(sp>=SPEED.min*.999&&sp<=SPEED.max*1.001,'Invalid shot power.');shot={vx:p.vx,vy:p.vy,follow,side};}
+ else{const speed=speedFor(power);shot={vx:Math.cos(p.angle)*speed,vy:Math.sin(p.angle)*speed,follow,side};}
  const before=g.balls.map(b=>({...b})),out=simulate(before,shot);
  g.balls=out.balls;g.shotNumber=(g.shotNumber??0)+1;g.ballInHand=null;
  const text=judge(s,g,who,before,out,now);if(g.status==='active')g.last=text;

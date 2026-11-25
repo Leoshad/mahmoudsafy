@@ -14,6 +14,7 @@ const JAWS=[];for(const r of RAILS){JAWS.push([r.ax,r.ay],[r.bx,r.by]);}
 export const POCKETS=Object.freeze([[-6,-6],[W+6,-6],[-14,H/2],[W+14,H/2],[-6,H+6],[W+6,H+6]]);
 export const GROUP=id=>id>=1&&id<=7?'solids':id>=9&&id<=15?'stripes':null;
 // Gentle curve: fine control for soft shots, full power still breaks hard.
+export const SPEED=Object.freeze({min:MIN_SPEED,max:MAX_SPEED});
 export const speedFor=power=>MIN_SPEED+(MAX_SPEED-MIN_SPEED)*Math.min(1,Math.max(0,power))**1.6;
 
 // WPA rack: apex on the foot spot, 8 in the middle, one solid and one stripe in the back corners.

@@ -1,14 +1,15 @@
 // Billiards (8-ball) for Our Place. The server decides every shot; this file draws the table,
 // lets you aim, set power and spin, and replays each shot with the same physics the server used.
-import {TABLE,POCKETS,GROUP,Shot,aimGuide,placeable} from './billiards-physics.mjs';
+import {TABLE,POCKETS,GROUP,Shot,aimGuide,placeable,speedFor} from './billiards-physics.mjs';
 const $=s=>document.querySelector(s);
 const make=(tag,text,root,cls)=>{const e=document.createElement(tag);if(text!==undefined&&text!==null)e.textContent=text;if(cls)e.className=cls;root?.append(e);return e;};
 const {width:W,height:H,radius:R}=TABLE,FRAME=32,COLORS=['#f6f1e4','#e8b923','#2563b5','#d23c33','#6b3fa0','#e0762a','#2f8a4f','#8e2a2a','#151515','#e8b923','#2563b5','#d23c33','#6b3fa0','#e0762a','#2f8a4f','#8e2a2a'];
 let host,who=null,data={},mode='solo',opened=false,busy=false,version=-1,clockOffset=0,signature='';
-let aim=-Math.PI/2,power=0,follow=0,side=0,place=null,dragging=null,anim=null,seen={},soundOn=true,audio=null,spinOpen=false;
+const noise={};let pending=null,aim=-Math.PI/2,power=0,follow=0,side=0,place=null,dragging=null,anim=null,seen={},soundOn=true,audio=null,spinOpen=false;
 const view={};
 try{soundOn=localStorage.getItem('our-place:billiards:sound')!=='off';}catch{}
 const game=()=>data[mode];
+const capture=(el,e)=>{try{el.setPointerCapture(e.pointerId);}catch{}};
 const live=g=>!!g&&['active','complete'].includes(g.status);
 const other=()=>who==='Mahmoud'?'Safy':'Mahmoud';
 const myTurn=g=>g?.status==='active'&&g.turn===who&&!g.choice&&!anim;
@@ -19,8 +20,7 @@ function unlock(){if(!soundOn)return;try{const A=window.AudioContext||window.web
 function click(kind,strength=.5){
  if(!soundOn||document.hidden||!opened||audio?.state!=='running')return;
  try{const now=audio.currentTime,v=Math.min(1,.15+strength)*(kind==='ball'?.5:kind==='cue'?.35:.4);
-  const len=kind==='pocket'?.22:kind==='rail'?.09:.05,buf=audio.createBuffer(1,Math.ceil(audio.sampleRate*len),audio.sampleRate),d=buf.getChannelData(0);
-  for(let i=0;i<d.length;i++){const t=i/audio.sampleRate,decay=Math.exp(-t*(kind==='pocket'?18:kind==='rail'?45:90));d[i]=(Math.random()*2-1)*decay;}
+  noise[kind]??=(()=>{const len=kind==='pocket'?.22:kind==='rail'?.09:.05,buf=audio.createBuffer(1,Math.ceil(audio.sampleRate*len),audio.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++){const t=i/audio.sampleRate,decay=Math.exp(-t*(kind==='pocket'?18:kind==='rail'?45:90));d[i]=(Math.random()*2-1)*decay;}return buf;})();const buf=noise[kind];
   const src=audio.createBufferSource(),f=audio.createBiquadFilter(),g=audio.createGain();src.buffer=buf;f.type=kind==='ball'||kind==='cue'?'bandpass':'lowpass';f.frequency.value=kind==='ball'?2600:kind==='cue'?1400:kind==='rail'?420:260;f.Q.value=kind==='ball'?3:1;g.gain.value=v;
   src.connect(f);f.connect(g);g.connect(audio.destination);src.start(now);src.onended=()=>{src.disconnect();f.disconnect();g.disconnect();};
  }catch{}
@@ -33,10 +33,10 @@ function show(){const p=$('#billiards-panel');p.hidden=!opened;p.classList.toggl
 function error(e){$('#billiards-error').textContent=e?.message||'Could not connect. Your game is saved.';}
 function btn(label,root,fn,cls){const b=make('button',label,root,cls);b.type='button';b.disabled=busy;b.onclick=()=>{unlock();return Promise.resolve(fn()).catch(error);};return b;}
 async function command(type,payload={},g=game()){
- if(busy)return false;busy=true;$('#billiards-error').textContent='';let ok=false;render(true);
+ if(busy)return false;busy=true;$('#billiards-error').textContent='';let ok=false;if(!anim)render(true);
  try{await host.command('billiards.'+type,{...(g?{game:g.id,revision:g.revision}:{}),...payload});await host.sync();ok=true;}
  catch(e){await host.sync().catch(()=>{});error(e);}
- finally{busy=false;render(true);}
+ finally{busy=false;if(!anim)render(true);else updateLive();}
  return ok;
 }
 async function leave(chat=false){opened=false;show();if(chat)host.goto('chat');}
@@ -45,7 +45,7 @@ async function leave(chat=false){opened=false;show();if(chat)host.goto('chat');}
 function setupCanvas(){
  const box=view.tableBox,c=view.canvas;if(!box||!c)return;
  const availW=box.clientWidth,availH=focused()?box.clientHeight:Math.min(window.innerHeight*.7,availW*2.2),scale=Math.max(.2,Math.min(availW/(W+FRAME*2),availH/(H+FRAME*2)));
- const cssW=Math.floor((W+FRAME*2)*scale),cssH=Math.floor((H+FRAME*2)*scale),dpr=Math.min(3,window.devicePixelRatio||1);
+ const cssW=Math.floor((W+FRAME*2)*scale),cssH=Math.floor((H+FRAME*2)*scale),dpr=Math.min(2,window.devicePixelRatio||1);
  if(c._w!==cssW||c._h!==cssH||c._dpr!==dpr){c.style.width=cssW+'px';c.style.height=cssH+'px';c.width=Math.round(cssW*dpr);c.height=Math.round(cssH*dpr);c._w=cssW;c._h=cssH;c._dpr=dpr;view.felt=null;}
  view.scale=scale;view.dpr=dpr;draw();
 }
@@ -70,7 +70,7 @@ function ball(x,b,alpha=1){
  if(b.id){x.fillStyle='#fbf8ef';x.beginPath();x.arc(0,0,R*.48,0,7);x.fill();x.fillStyle='#1b1b1b';x.font=`700 ${b.id>9?9:10}px system-ui,sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText(String(b.id),0,.6);}
  x.restore();
 }
-function balls(){const g=game();if(anim)return anim.shot.balls;if(!g)return [];if(place&&g.ballInHand){return g.balls.map(b=>b.id===0?{...b,x:place.x,y:place.y,in:false}:b);}return g.balls;}
+function balls(){const g=game();if(anim)return anim.shot.balls;if(!g)return [];if(pending&&pending.id===g.id&&(g.shotNumber??0)<pending.n)return pending.balls;if(place&&g.ballInHand){return g.balls.map(b=>b.id===0?{...b,x:place.x,y:place.y,in:false}:b);}return g.balls;}
 function draw(){
  const c=view.canvas;if(!c||!c.isConnected||!view.scale)return;const x=c.getContext('2d'),s=view.scale*view.dpr,g=game();
  x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,c.width,c.height);x.drawImage(feltLayer(),0,0);x.setTransform(s,0,0,s,FRAME*s,FRAME*s);
@@ -97,21 +97,21 @@ function draw(){
 function legalTarget(g,id){const mine=g.groups?.[who];if(g.breakShot)return true;if(g.open||!mine)return id!==8;const left=g.balls.filter(b=>!b.in&&GROUP(b.id)===mine).length;return left?GROUP(id)===mine:id===8;}
 
 // ---------- shot replay ----------
-function replay(g,key){
- const shot=g.lastShot;if(anim)cancelAnimationFrame(anim.frame);
- const sim=new Shot(shot.start,{vx:shot.vx,vy:shot.vy,follow:shot.follow,side:shot.side});let fired=0,t0=null;
+function replay(shot,key){
+ if(anim)cancelAnimationFrame(anim.frame);
+ const sim=new Shot(shot.start,{vx:shot.vx,vy:shot.vy,follow:shot.follow,side:shot.side});let fired=0;
  anim={key,shot:sim,frame:0};click('cue',Math.min(1,Math.sqrt(shot.vx*shot.vx+shot.vy*shot.vy)/3200));
- const tick=t=>{if(!anim||anim.shot!==sim)return;t0??=t;const target=Math.min(shot.steps,Math.floor((t-t0)/1000*240));
+ // A slow frame slows the replay a touch instead of jumping ahead, so motion never skips.
+ let clock=0,last=null;const end=shot.steps??Infinity,tick=t=>{if(!anim||anim.shot!==sim)return;clock+=last===null?0:Math.min(34,t-last);last=t;const target=Math.min(end,Math.floor(clock/1000*240));
   while(sim.steps<target&&sim.step());for(;fired<sim.events.length;fired++){const e=sim.events[fired];click(e.type,e.power);}
-  draw();if(sim.steps>=shot.steps||sim.done){anim=null;signature='';render(true);return;}anim.frame=requestAnimationFrame(tick);};
- anim.frame=requestAnimationFrame(tick);render(true);
+  draw();if(sim.steps>=end||sim.done){if(shot.local)pending={id:shot.id,n:shot.n,balls:sim.balls.map(b=>({...b}))};anim=null;signature='';render(true);return;}anim.frame=requestAnimationFrame(tick);};
+ anim.frame=requestAnimationFrame(tick);updateLive();
 }
 
 // ---------- input ----------
 function point(e){const r=view.canvas.getBoundingClientRect();return {x:(e.clientX-r.left)/view.scale-FRAME,y:(e.clientY-r.top)/view.scale-FRAME};}
-function bindTable(){
- const c=view.canvas;
- c.addEventListener('pointerdown',e=>{const g=game();if(!myTurn(g)||busy)return;unlock();c.setPointerCapture?.(e.pointerId);const p=point(e),cue=balls().find(b=>b.id===0);
+function bindTable(c){
+ c.addEventListener('pointerdown',e=>{const g=game();if(!myTurn(g)||busy)return;unlock();capture(c,e);const p=point(e),cue=balls().find(b=>b.id===0);
   if(g.ballInHand&&cue&&(p.x-cue.x)**2+(p.y-cue.y)**2<(R*2.6)**2){dragging='cue';place={x:cue.x,y:cue.y};}else{dragging='aim';if(cue)aim=Math.atan2(p.y-cue.y,p.x-cue.x);}draw();});
  c.addEventListener('pointermove',e=>{if(!dragging)return;const p=point(e),g=game();if(dragging==='cue'){place={x:Math.max(R,Math.min(W-R,p.x)),y:Math.max(g.ballInHand==='kitchen'?TABLE.headString:R,Math.min(H-R,p.y))};}else{const cue=balls().find(b=>b.id===0);if(cue)aim=Math.atan2(p.y-cue.y,p.x-cue.x);}draw();});
  const end=()=>{if(dragging){dragging=null;draw();renderHint();}};c.addEventListener('pointerup',end);c.addEventListener('pointercancel',end);
@@ -119,20 +119,24 @@ function bindTable(){
 function bindPower(bar){
  let start=null;const fill=bar.querySelector('.billiards-power-fill'),label=bar.querySelector('.billiards-power-value');
  const paint=()=>{fill.style.height=Math.round(power*100)+'%';label.textContent=Math.round(power*100)+'%';};paint();
- bar.addEventListener('pointerdown',e=>{if(!myTurn(game())||busy)return;unlock();bar.setPointerCapture?.(e.pointerId);start=e.clientY;power=0;paint();draw();});
+ bar.addEventListener('pointerdown',e=>{if(!myTurn(game())||busy)return;unlock();capture(bar,e);start=e.clientY;power=0;paint();draw();});
  bar.addEventListener('pointermove',e=>{if(start===null)return;power=Math.max(0,Math.min(1,(e.clientY-start)/(bar.clientHeight*.9)));paint();draw();});
  const release=()=>{if(start===null)return;start=null;const p=power;if(p>=.03)shoot(p);else{power=0;paint();draw();}};
  bar.addEventListener('pointerup',release);bar.addEventListener('pointercancel',()=>{start=null;power=0;paint();draw();});
 }
 function bindWheel(wheel){
- let last=null;wheel.addEventListener('pointerdown',e=>{if(!myTurn(game()))return;wheel.setPointerCapture?.(e.pointerId);last=e.clientY;});
+ let last=null;wheel.addEventListener('pointerdown',e=>{if(!myTurn(game()))return;capture(wheel,e);last=e.clientY;});
  wheel.addEventListener('pointermove',e=>{if(last===null)return;aim+=(e.clientY-last)*.0016;last=e.clientY;wheel.style.backgroundPositionY=(e.clientY%40)+'px';draw();});
  const stop=()=>{last=null;};wheel.addEventListener('pointerup',stop);wheel.addEventListener('pointercancel',stop);
 }
 async function shoot(p){
  const g=game();if(!myTurn(g))return;const payload={angle:aim,power:p,follow,side};
  if(g.ballInHand){const cue=balls().find(b=>b.id===0);if(!placeable(g.balls,cue.x,cue.y,g.ballInHand==='kitchen')){error(new Error(g.ballInHand==='kitchen'?'Place the cue ball below the line, clear of other balls.':'Move the cue ball clear of other balls.'));power=0;draw();render(true);return;}payload.x=cue.x;payload.y=cue.y;}
- const ok=await command('shoot',payload,g);power=0;if(ok){place=null;follow=0;side=0;}draw();
+ const speed=speedFor(p),vx=Math.cos(aim)*speed,vy=Math.sin(aim)*speed,n=(g.shotNumber??0)+1,key=g.id+':'+n;delete payload.angle;delete payload.power;Object.assign(payload,{vx,vy});
+ const start=balls().map(b=>({id:b.id,x:b.x,y:b.y,in:!!b.in}));seen[mode]=key;power=0;
+ replay({local:true,id:g.id,n,start,vx,vy,follow,side},key);
+ const ok=await command('shoot',payload,g);
+ if(ok){place=null;follow=0;side=0;}else{if(anim?.key===key){cancelAnimationFrame(anim.frame);anim=null;}pending=null;seen[mode]=g.lastShot?g.id+':'+g.lastShot.n:null;signature='';render(true);}draw();
 }
 
 // ---------- spin ----------
@@ -143,7 +147,7 @@ function spinPad(root){
  const pop=make('div',undefined,root,'billiards-spin-pop');make('strong','Spin',pop);make('small','Tap where the cue hits the white ball.',pop);
  const pad=make('div',undefined,pop,'billiards-spin-pad'),mark=make('i',undefined,pad);const paint=()=>{mark.style.left=50+side*44+'%';mark.style.top=50-follow*44+'%';dot.style.left=50+side*38+'%';dot.style.top=50-follow*38+'%';pop.querySelector('.billiards-spin-label').textContent=spinLabel();};
  const set=e=>{const r=pad.getBoundingClientRect();let sx=((e.clientX-r.left)/r.width-.5)/.44,sy=-((e.clientY-r.top)/r.height-.5)/.44;const m=Math.sqrt(sx*sx+sy*sy);if(m>1){sx/=m;sy/=m;}side=Math.round(sx*100)/100;follow=Math.round(sy*100)/100;paint();};
- pad.addEventListener('pointerdown',e=>{pad.setPointerCapture?.(e.pointerId);set(e);});pad.addEventListener('pointermove',e=>{if(e.buttons)set(e);});
+ pad.addEventListener('pointerdown',e=>{capture(pad,e);set(e);});pad.addEventListener('pointermove',e=>{if(e.buttons)set(e);});
  make('span','',pop,'billiards-spin-label');const row=make('div',undefined,pop,'billiards-spin-actions');
  btn('Centre',row,()=>{side=0;follow=0;paint();});btn('Done',row,()=>{spinOpen=false;render(true);},'primary');paint();
 }
@@ -175,6 +179,7 @@ function statusText(g){
  if(g.turn===who)return g.breakShot?'Your break':g.ballInHand?'Your turn · ball in hand':'Your turn';
  return g.turn==='Computer'?'Computer is thinking…':g.turn+'’s turn';
 }
+function updateLive(){const g=game();if(view.turn&&g)view.turn.textContent=statusText(g);updateClock();renderHint();for(const el of document.querySelectorAll('#billiards-game .billiards-power,#billiards-game .billiards-wheel'))el.classList.toggle('off',!myTurn(g));}
 function renderHint(){const h=view.hint;if(!h)return;const g=game();if(!g||g.status!=='active'){h.textContent='';return;}
  h.textContent=myTurn(g)?(g.ballInHand&&!place?'Drag the white ball to place it'+(g.ballInHand==='kitchen'?' below the line':'')+', then aim':'Touch the table to aim · fine-tune on the right · pull the power bar down and let go'):g.last||'';}
 function choice(root,g){
@@ -219,21 +224,22 @@ function render(force=false){
  if(!who)return;show();invitation();records();
  $('#billiards-solo').classList.toggle('selected',mode==='solo');$('#billiards-shared').classList.toggle('selected',mode==='shared');
  $('#billiards-open-note').textContent=data.shared?.status==='active'?(data.shared.turn===who?'Your shot. The table is waiting.':'Your game with '+other()+' is saved.'):data.solo?.status==='active'?'Your solo game is saved.':'Eight balls. One little rivalry.';
- const g=game(),sig=JSON.stringify([mode,g,busy,spinOpen,!!anim,opened]);if(!force&&sig===signature)return;signature=sig;
- const root=$('#billiards-game');root.replaceChildren();view.canvas=null;view.clock=null;view.hint=null;
+ const g=game();if(anim&&view.canvas?.isConnected){updateLive();return;}const sig=JSON.stringify([mode,g,busy,spinOpen,opened]);if(!force&&sig===signature)return;signature=sig;
+ const root=$('#billiards-game');root.replaceChildren();view.canvas=null;view.clock=null;view.hint=null;view.turn=null;
  if(!g||['ended','declined','expired'].includes(g.status)){setup(root,g);return;}
  if(g.status==='waiting'){waiting(root,g);return;}
- scoreboard(root,g);make('p',statusText(g),root,'billiards-turn').setAttribute('role','status');
+ scoreboard(root,g);view.turn=make('p',statusText(g),root,'billiards-turn');view.turn.setAttribute('role','status');
  const stage=make('div',undefined,root,'billiards-stage');
  const bar=make('div',undefined,stage,'billiards-power');bar.setAttribute('aria-label','Power: pull down and let go to shoot');make('span','POWER',bar,'billiards-power-title');const track=make('div',undefined,bar,'billiards-power-track');make('div',undefined,track,'billiards-power-fill');make('span','0%',bar,'billiards-power-value');bar.classList.toggle('off',!myTurn(g));
- const box=make('div',undefined,stage,'billiards-table');view.tableBox=box;view.canvas=make('canvas',undefined,box);view.canvas.setAttribute('aria-label','Billiards table');
+ // One canvas for the whole session: moving it between layouts keeps the picture, so nothing blinks.
+ const box=make('div',undefined,stage,'billiards-table');view.tableBox=box;if(!view.canvasEl){view.canvasEl=document.createElement('canvas');view.canvasEl.setAttribute('aria-label','Billiards table');bindTable(view.canvasEl);}box.append(view.canvasEl);view.canvas=view.canvasEl;
  const side=make('div',undefined,stage,'billiards-side');if(myTurn(g))spinPad(side);else make('span',undefined,side,'billiards-spin-space');
  const wheel=make('div',undefined,side,'billiards-wheel');wheel.setAttribute('aria-label','Fine aim: drag up or down');wheel.classList.toggle('off',!myTurn(g));
  const foot=make('div',undefined,root,'billiards-footer');view.hint=make('p','',foot,'billiards-hint');renderHint();
  if(g.choice&&g.choice.who===who&&!anim)choice(root,g);
  if(g.status==='complete'&&!anim)result(root,g);
  if(g.status==='active')btn('Leave game',foot,async()=>{if(await window.OurGameUI.confirm({title:'Leave this game?',message:'The game ends without a win. Minimize instead to keep it saved.',confirmLabel:'Leave game'}))await command('leave',{},g);},'billiards-leave');
- bindTable();bindPower(bar);bindWheel(wheel);
+ bindPower(bar);bindWheel(wheel);
  requestAnimationFrame(setupCanvas);
 }
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(view.canvas?.isConnected)setupCanvas();},120);});
@@ -251,7 +257,8 @@ window.OurBilliards={init,sync(s){
  if(Number.isFinite(s.serverNow))clockOffset=s.serverNow-Date.now();version=s.version;
  const first=!Object.keys(seen).length;data=s.billiards;
  for(const m of ['solo','shared']){const g=data[m],key=g?.lastShot?g.id+':'+g.lastShot.n:null;if(!key){seen[m]=null;continue;}
-  if(seen[m]!==key){const fresh=!first&&seen[m]!==undefined;seen[m]=key;if(fresh&&m===mode&&opened&&!document.hidden)replay(g,key);}}
+  if(seen[m]!==key){const fresh=!first&&seen[m]!==undefined;seen[m]=key;if(fresh&&m===mode&&opened&&!document.hidden)replay(g.lastShot,key);}}
+ if(pending&&!(data.shared?.id===pending.id&&(data.shared.shotNumber??0)<pending.n)&&!(data.solo?.id===pending.id&&(data.solo.shotNumber??0)<pending.n))pending=null;
  const g=game();if(g?.ballInHand&&g.turn===who){if(!place){const c=g.balls.find(b=>b.id===0);place=c&&!c.in&&placeable(g.balls,c.x,c.y,g.ballInHand==='kitchen')?{x:c.x,y:c.y}:{x:W/2,y:g.ballInHand==='kitchen'?TABLE.headString+60:H*.75};if(!placeable(g.balls,place.x,place.y,g.ballInHand==='kitchen'))for(let y=H-40;y>R;y-=20){if(placeable(g.balls,W/2,y,g.ballInHand==='kitchen')){place={x:W/2,y};break;}}}}else place=null;
  render();
 },reset(){if(anim)cancelAnimationFrame(anim.frame);anim=null;who=null;data={};version=-1;seen={};signature='';opened=false;place=null;$('#billiards-game')?.replaceChildren();const inv=$('#billiards-invitation');if(inv)inv.hidden=true;document.body.classList.remove('billiards-locked');$('#billiards-panel').hidden=true;$('#billiards-open').hidden=false;}};
