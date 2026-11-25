@@ -473,3 +473,6 @@
 #care .calm-chart-hint{display:block;margin-top:8px;color:#7E7380;font-size:12px}
 #care .calm-legend i.qdot{width:8px;height:8px;border-radius:50%}
 #care .calm-legend i.qdot.good{background:#A7D3B3}#care .calm-legend i.qdot.ok{background:#E8C78A}#care .calm-legend i.qdot.bad{background:#E79A9A}
+#care .calm-bars.big:has(.calm-bar-col.on) .calm-bar-col:not(.on) .calm-bar{opacity:.35}
+#care .calm-bars.big .calm-bar{transition:opacity .15s}
+#care button.calm-bar-col.on .calm-bar{box-shadow:0 0 0 2px #F3EDE9}
