@@ -4,7 +4,8 @@
 // The rack sits at the top (foot), the breaker plays from the bottom (head).
 export const TABLE=Object.freeze({width:500,height:1000,radius:16,cornerMouth:46,sideMouth:37,headString:750,footSpot:250,dt:1/240});
 const {width:W,height:H,radius:R,cornerMouth:CM,sideMouth:SM,dt:DT}=TABLE;
-const ROLL=600,STOP=5,BALL_E=.94,RAIL_E=.76,RAIL_GRIP=.97,MIN_SPEED=320,MAX_SPEED=3200,MAX_STEPS=240*14;
+// Cloth drag: a constant part plus a speed part, so fast balls slow quickly and slow balls glide to a soft stop.
+const ROLL_A=95,ROLL_K=.75,NATURAL=.46,STOP=4,BALL_E=.94,RAIL_E=.76,RAIL_GRIP=.97,MIN_SPEED=320,MAX_SPEED=3200,MAX_STEPS=240*14;
 // Cushions: straight rails between pocket mouths, each with rounded jaw tips.
 const RAILS=[
  {ax:CM,ay:0,bx:W-CM,by:0,nx:0,ny:1},{ax:CM,ay:H,bx:W-CM,by:H,nx:0,ny:-1},
@@ -45,7 +46,7 @@ export function placeable(balls,x,y,kitchen=false){
 export class Shot{
  constructor(balls,{vx,vy,follow=0,side=0}){
   this.balls=balls.map(b=>({id:b.id,x:b.x,y:b.y,in:!!b.in,vx:0,vy:0}));this.cue=this.balls.find(b=>b.id===0);
-  this.cue.vx=vx;this.cue.vy=vy;this.follow=follow;this.side=side;this.steps=0;this.done=false;
+  this.cue.vx=vx;this.cue.vy=vy;this.follow=follow;this.side=side;this.steps=0;this.done=false;this.travel=0;this.speed0=Math.sqrt(vx*vx+vy*vy);
   this.firstHit=null;this.railAfterContact=false;this.railBalls=new Set();this.sunk=[];this.events=[];
  }
  event(type,power,id){this.events.push({step:this.steps,type,power:Math.min(1,power/MAX_SPEED),id});}
@@ -55,8 +56,8 @@ export class Shot{
   for(let i=0;i<live.length;i++)for(let j=i+1;j<live.length;j++)this.collide(live[i],live[j]);
   for(const b of live)if(!b.in)this.cushion(b);
   let moving=false;
-  for(const b of live){if(b.in)continue;const s=Math.sqrt(b.vx*b.vx+b.vy*b.vy);if(s<=STOP){b.vx=b.vy=0;continue;}const k=Math.max(0,s-ROLL*DT)/s;b.vx*=k;b.vy*=k;moving=true;}
-  this.follow*=1-.3*DT;this.side*=1-.25*DT;this.steps++;
+  for(const b of live){if(b.in)continue;const s=Math.sqrt(b.vx*b.vx+b.vy*b.vy);if(s<=STOP){b.vx=b.vy=0;continue;}if(b===this.cue&&this.firstHit===null)this.travel+=s*DT;const k=Math.max(0,s-(ROLL_A+ROLL_K*s)*DT)/s;b.vx*=k;b.vy*=k;moving=true;}
+  this.side*=1-.25*DT;this.steps++;
   if(!moving||this.steps>=MAX_STEPS){for(const b of this.balls){b.vx=b.vy=0;}this.done=true;}
   return !this.done;
  }
@@ -73,7 +74,9 @@ export class Shot{
   if(cue&&this.firstHit===null){this.firstHit=cue===a?b.id:a.id;const s=Math.sqrt(cue.vx*cue.vx+cue.vy*cue.vy);before={s,ux:cue.vx/(s||1),uy:cue.vy/(s||1)};}
   const j=rel*(1+BALL_E)/2;a.vx-=j*nx;a.vy-=j*ny;b.vx+=j*nx;b.vy+=j*ny;
   // Follow (top) carries the cue ball through the shot line; draw (back) pulls it back.
-  if(before&&this.follow){cue.vx+=before.ux*before.s*.62*this.follow;cue.vy+=before.uy*before.s*.62*this.follow;this.follow=0;}
+  // A struck cue ball slides, then picks up natural roll as it travels: a plain hit follows through a little,
+  // and top or back spin fades toward that natural roll over a long shot.
+  if(before){const r=this.travel/(90+.12*this.speed0),fade=1/(1+r+r*r/2),f=NATURAL+(this.follow-NATURAL)*fade;cue.vx+=before.ux*before.s*.62*f;cue.vy+=before.uy*before.s*.62*f;this.follow=0;}
   a.x+=a.vx*back;a.y+=a.vy*back;b.x+=b.vx*back;b.y+=b.vy*back;
   this.event('ball',rel);
  }

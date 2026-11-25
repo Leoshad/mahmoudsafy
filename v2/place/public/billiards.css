@@ -52,7 +52,9 @@
 
 #our-place-trial .billiards-stage{display:grid;grid-template-columns:30px minmax(0,1fr) 38px;gap:5px;align-items:stretch;min-height:0}
 #our-place-trial .billiards-side{display:grid;grid-template-rows:auto 1fr;gap:8px;justify-items:center;min-height:0;position:relative}
-#our-place-trial .billiards-spin-space{height:38px}
+#our-place-trial .billiards-spin-slot{position:relative;min-height:38px}
+#our-place-trial .billiards-fade{animation:billiards-fade .45s ease-out}
+@keyframes billiards-fade{0%{opacity:0;transform:translateY(-3px)}100%{opacity:1;transform:none}}
 #our-place-trial .billiards-table{position:relative;display:grid;place-items:center;min-width:0;min-height:0}
 #our-place-trial .billiards-table canvas{display:block;touch-action:none;border-radius:18px;box-shadow:0 8px 20px #0007}
 #our-place-trial .billiards-power{display:grid;grid-template-rows:auto 1fr auto;justify-items:center;gap:6px;padding:6px 0;touch-action:none;user-select:none;cursor:ns-resize}
