@@ -10,7 +10,7 @@ export function attentionEvents(before,after,actor){
   if(old&&old.status==='active'&&a.status!=='active')both('quiz-end:'+a.id,'Your round has ended.',target);
   for(const f of a.feedback??[])if(f.final&&f.status==='sent'&&!old?.feedback?.some(x=>x.id===f.id&&x.status==='sent'))for(const person of participantsOf(a))add('reaction:'+f.id+':'+person,person,'Echo’s round summary is ready.',target,'echo');
  }
- for(const game of ['ocho','domino']){const g=after[game]?.shared,old=before[game]?.shared;if(!g)continue;const target={tab:'together',game};const title=game==='ocho'?'Ocho':'Dominoes';
+ for(const game of ['ocho','domino','billiards']){const g=after[game]?.shared,old=before[game]?.shared;if(!g)continue;const target={tab:'together',game};const title={ocho:'Ocho',domino:'Dominoes',billiards:'Billiards'}[game];
   if(g.id!==old?.id&&g.status==='waiting')add(game+':invite:'+g.id,other(g.owner),g.owner+' invited you to '+title+'.',target);
   if(old?.id===g.id&&old.status==='waiting'&&g.status==='active')add(game+':accepted:'+g.id,g.owner,'Your '+title+' invitation was accepted.',target);
   if(g.status==='active'&&!g.paused&&!g.pausedBy?.length&&(old?.turn!==g.turn||old?.status!=='active'||old?.paused||old?.pausedBy?.length))add(game+':turn:'+g.id+':'+g.revision,g.turn,'It’s your turn in '+title+'.',target);

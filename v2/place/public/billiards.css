@@ -1,0 +1,99 @@
+/* Billiards — same family as Ocho and Dominoes: dark green felt tones, gold accents, Georgia titles. */
+#our-place-trial #billiards-open{display:flex;align-items:center;gap:16px;width:100%;min-height:108px;margin:18px 0;padding:20px 22px;text-align:left;color:#eee8e9;border:1px solid #6f806d;border-radius:16px;background:linear-gradient(125deg,#1f3a2d,#171c1a)}
+#our-place-trial #billiards-open[hidden]{display:none}
+#our-place-trial #billiards-open>span:last-child{min-width:0;flex:1}
+#our-place-trial #billiards-open strong{display:block;font:400 25px/1.2 Georgia,serif;color:#eee8e9}
+#our-place-trial #billiards-open small{display:block;font-size:12px;line-height:1.5;margin-top:6px;color:#b8c2b9}
+#our-place-trial #billiards-open>.activity-card-icon{display:block;flex:0 0 40px;width:40px;height:44px;color:#d1b078}
+#our-place-trial #billiards-invitation{display:flex;align-items:center;gap:8px;padding:10px;background:#25362b;border-bottom:1px solid #657d60}
+#our-place-trial #billiards-invitation span{flex:1;font-size:12px}
+#our-place-trial #billiards-invitation button{font-size:12px;padding:8px}
+
+#our-place-trial #billiards-panel{margin:16px 0;padding:10px;border:1px solid #596b5d;border-radius:16px;background:#16201b;color:#e3e4d9;min-width:0}
+#our-place-trial .billiards-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#our-place-trial .billiards-head h3{font:22px Georgia,serif;margin:0 auto 0 0;display:flex;align-items:center;gap:8px}
+#our-place-trial .billiards-head button{padding:6px 9px;min-height:36px;font-size:11px}
+#our-place-trial .billiards-tabs{display:flex;gap:6px;margin:10px 0 6px}
+#our-place-trial .billiards-tabs button{flex:1;font-size:12px;padding:9px;min-height:38px}
+#our-place-trial .billiards-tabs .selected{background:#d1b078;color:#171c18;border-color:#d1b078}
+#our-place-trial #billiards-records{display:flex;align-items:center;flex-wrap:wrap;gap:4px 12px;padding:6px 0;border-bottom:1px solid #42513e;font-size:11px;color:#cbb88c}
+#our-place-trial #billiards-records>small{font-size:8px;letter-spacing:.5px}
+#our-place-trial #billiards-error{font-size:12px;color:#ffb8b8;margin:6px 0;text-align:center}
+#our-place-trial #billiards-error:empty{display:none}
+#our-place-trial .billiards-rules{font-size:12px;margin-top:10px;color:#c2c9bd;line-height:1.55}
+#our-place-trial .billiards-rules summary{cursor:pointer;padding:8px 0}
+#our-place-trial .billiards-history-row{display:grid;gap:3px;padding:9px 0;border-bottom:1px solid #3a4a3d}
+#our-place-trial .billiards-history-row small{font-size:10px;color:#a8b5a3}
+
+#our-place-trial .billiards-setup{display:grid;gap:10px;margin:10px auto;max-width:380px;padding:16px;border:1px solid #4f6152;border-radius:14px;background:linear-gradient(140deg,#20302a,#19211d);text-align:center}
+#our-place-trial .billiards-setup h4{font:21px/1.3 Georgia,serif;margin:0;color:#f0ead8}
+#our-place-trial .billiards-setup label{display:grid;gap:6px;font-size:12px;text-align:left;color:#cbd0c2}
+#our-place-trial .billiards-setup select{min-height:42px;padding:8px;border-radius:9px;background:#121814;color:#eee;border:1px solid #4f6152}
+#our-place-trial .billiards-setup .primary{min-height:46px;font-size:15px}
+#our-place-trial .billiards-small{font-size:11px!important}
+
+#our-place-trial .billiards-scoreboard{display:grid;grid-template-columns:1fr 60px 1fr;gap:4px;padding:5px;border:1px solid #5e5a44;border-radius:12px;background:#1d2721}
+#our-place-trial .billiards-player{display:grid;gap:2px;padding:5px 7px;border:1px solid transparent;border-radius:9px;min-width:0}
+#our-place-trial .billiards-player:last-child{text-align:right;justify-items:end}
+#our-place-trial .billiards-player strong{font-size:15px;color:#d4bad0}
+#our-place-trial .billiards-player.safy strong{color:#edb9cb}
+#our-place-trial .billiards-player.computer strong{color:#c9d9bd}
+#our-place-trial .billiards-player small{font-size:11px;color:#b9bfae}
+#our-place-trial .billiards-player.turn{border-color:#c9a86f;background:#d1b0780d;box-shadow:0 0 12px #d1b07822}
+#our-place-trial .billiards-mini{display:flex;flex-wrap:wrap;gap:3px;min-height:13px}
+#our-place-trial .billiards-mini-ball{width:12px;height:12px;border-radius:50%;background:var(--c);box-shadow:inset -2px -2px 3px #0005}
+#our-place-trial .billiards-mini-ball.stripe{background:linear-gradient(#f6f1e4 0 25%,var(--c) 25% 75%,#f6f1e4 75%)}
+#our-place-trial .billiards-mini-ball.gone{opacity:.18}
+#our-place-trial .billiards-mid{display:grid;place-items:center;align-content:center;gap:2px;color:#c7b386}
+#our-place-trial .billiards-mid small{font-size:10px;letter-spacing:1.5px}
+#our-place-trial .billiards-clock{font:700 15px system-ui;font-variant-numeric:tabular-nums;color:#e8d09d;min-height:18px}
+#our-place-trial .billiards-clock.low{color:#ffb4a1}
+#our-place-trial .billiards-turn{margin:4px 0 3px;text-align:center;font-weight:650;font-size:14px;color:#e8cf97;min-height:20px}
+
+#our-place-trial .billiards-stage{display:grid;grid-template-columns:30px minmax(0,1fr) 38px;gap:5px;align-items:stretch;min-height:0}
+#our-place-trial .billiards-side{display:grid;grid-template-rows:auto 1fr;gap:8px;justify-items:center;min-height:0;position:relative}
+#our-place-trial .billiards-spin-space{height:38px}
+#our-place-trial .billiards-table{position:relative;display:grid;place-items:center;min-width:0;min-height:0}
+#our-place-trial .billiards-table canvas{display:block;touch-action:none;border-radius:18px;box-shadow:0 8px 20px #0007}
+#our-place-trial .billiards-power{display:grid;grid-template-rows:auto 1fr auto;justify-items:center;gap:6px;padding:6px 0;touch-action:none;user-select:none;cursor:ns-resize}
+#our-place-trial .billiards-power-title{font-size:8px;letter-spacing:1.2px;color:#c7b386;writing-mode:vertical-rl;transform:rotate(180deg)}
+#our-place-trial .billiards-power-track{position:relative;width:14px;height:100%;min-height:160px;border-radius:9px;background:#0f1411;border:1px solid #5d5a45;overflow:hidden}
+#our-place-trial .billiards-power-fill{position:absolute;left:0;right:0;top:0;height:0;background:linear-gradient(#f3d38a,#e2823d 70%,#d84b3b)}
+#our-place-trial .billiards-power-value{font-size:10px;color:#e8d09d;font-variant-numeric:tabular-nums}
+#our-place-trial .billiards-wheel{width:30px;border-radius:10px;border:1px solid #5d5a45;background:repeating-linear-gradient(#2c302b 0 6px,#3d423b 6px 8px,#2c302b 8px 20px);box-shadow:inset 0 10px 12px #000a,inset 0 -10px 12px #000a;touch-action:none;cursor:ns-resize}
+#our-place-trial .billiards-power.off,#our-place-trial .billiards-wheel.off{opacity:.35;pointer-events:none}
+#our-place-trial .billiards-spin-button{position:relative;width:38px;height:38px;min-height:38px;padding:0;border-radius:50%;border:2px solid #d1b078;background:radial-gradient(circle at 35% 35%,#fff,#ddd6c6);box-shadow:0 3px 8px #0008}
+#our-place-trial .billiards-spin-button i{position:absolute;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;background:#d23c33}
+#our-place-trial .billiards-spin-pop{position:absolute;top:46px;right:0;z-index:3;display:grid;gap:6px;justify-items:center;width:210px;padding:12px;border:1px solid #c9a86f;border-radius:14px;background:#1b241f;box-shadow:0 10px 24px #000a}
+#our-place-trial .billiards-spin-pop small{font-size:11px;color:#bcc4b5;text-align:center}
+#our-place-trial .billiards-spin-pad{position:relative;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,#d9d2c1 70%,#b9b2a2);box-shadow:inset -6px -8px 14px #0003;touch-action:none;cursor:crosshair}
+#our-place-trial .billiards-spin-pad::before,#our-place-trial .billiards-spin-pad::after{content:'';position:absolute;background:#00000018}
+#our-place-trial .billiards-spin-pad::before{left:50%;top:8%;bottom:8%;width:1px}
+#our-place-trial .billiards-spin-pad::after{top:50%;left:8%;right:8%;height:1px}
+#our-place-trial .billiards-spin-pad i{position:absolute;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#d23c33;box-shadow:0 0 0 3px #fff8}
+#our-place-trial .billiards-spin-label{font-size:12px;color:#e8d09d}
+#our-place-trial .billiards-spin-actions{display:flex;gap:6px;width:100%}
+#our-place-trial .billiards-spin-actions button{flex:1;min-height:36px;font-size:12px;padding:6px}
+#our-place-trial .billiards-hint{flex:1;text-align:left;font-size:11px;line-height:1.35;color:#b5c1b0;margin:0;min-height:18px}
+
+#our-place-trial .billiards-choice,#our-place-trial .billiards-result{position:relative;margin:8px 0;padding:14px;border:1px solid #c6a571;border-radius:14px;background:linear-gradient(130deg,#344232,#202a24);text-align:center}
+#our-place-trial .billiards-result{animation:billiards-in .6s ease-out both}
+#our-place-trial .billiards-choice h4{font:19px Georgia,serif;margin:0 0 4px;color:#f1d897}
+#our-place-trial .billiards-result small{display:block;font-size:9px;letter-spacing:1.5px;color:#c9b686}
+#our-place-trial .billiards-result h3{font:clamp(28px,7vw,36px)/1.2 Georgia,serif;color:#f1d897;margin:6px 0}
+#our-place-trial .billiards-result p,#our-place-trial .billiards-choice p{font-size:13px;margin:4px 0}
+#our-place-trial .billiards-choice-actions,#our-place-trial .billiards-result-actions{display:flex;gap:8px;margin-top:10px}
+#our-place-trial .billiards-choice-actions button,#our-place-trial .billiards-result-actions button{flex:1;min-height:44px;font-size:13px}
+@keyframes billiards-in{0%{opacity:0;transform:translateY(10px) scale(.97)}100%{opacity:1;transform:none}}
+#our-place-trial .billiards-footer{display:flex;align-items:center;gap:8px;padding-top:6px}
+#our-place-trial .billiards-leave{min-height:38px;padding:7px 13px;font-size:12px;border-radius:8px;color:#ecc5bd}
+
+/* A live game fills the phone: scoreboard, table and controls stay on one screen. */
+#our-place-trial #billiards-panel.billiards-focused{position:fixed;inset:0;z-index:100;margin:0;border:0;border-radius:0;display:flex;flex-direction:column;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom));height:100dvh;overflow-y:auto;overscroll-behavior:contain}
+#our-place-trial .billiards-focused .billiards-tabs,#our-place-trial .billiards-focused #billiards-records,#our-place-trial .billiards-focused .billiards-rules{display:none}
+#our-place-trial .billiards-focused #billiards-game{flex:1;display:flex;flex-direction:column;min-height:0}
+#our-place-trial .billiards-focused .billiards-stage{flex:1}
+#our-place-trial .billiards-focused .billiards-choice,#our-place-trial .billiards-focused .billiards-result{position:absolute;left:12px;right:12px;bottom:max(70px,env(safe-area-inset-bottom));z-index:4;box-shadow:0 12px 30px #000c}
+body.billiards-locked{overflow:hidden}
+@media (min-width:760px){#our-place-trial #billiards-panel.billiards-focused{inset:16px auto 16px 50%;width:600px;height:calc(100dvh - 32px);transform:translateX(-50%);border:1px solid #667b63;border-radius:16px;box-shadow:0 0 0 100vmax #0b110df2}}
+@media (prefers-reduced-motion:reduce){#our-place-trial .billiards-result{animation:none}}
