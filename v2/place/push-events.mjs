@@ -16,6 +16,17 @@ export function attentionEvents(before,after,actor){
   if(g.status==='active'&&!g.paused&&!g.pausedBy?.length&&(old?.turn!==g.turn||old?.status!=='active'||old?.paused||old?.pausedBy?.length))add(game+':turn:'+g.id+':'+g.revision,g.turn,'It’s your turn in '+title+'.',target);
   if(g.status==='complete'&&old?.status!=='complete')both(game+':result:'+g.id,title+' match result is ready.',target);
  }
+ {const target={tab:'together',game:'word'};
+  const c=after.word?.challenge,oc=before.word?.challenge;
+  if(c){if(c.id!==oc?.id&&c.status==='waiting')add('word:challenge:'+c.id,other(c.owner),c.owner+' sent you an Our Word challenge.',target,'invitation');
+   if(oc?.id===c.id&&oc.status==='waiting'&&c.status==='active')add('word:accepted:'+c.id,c.owner,other(c.owner)+' wrote a word for you. Your challenge has started.',target);
+   if(oc?.id===c.id&&c.status==='active')for(const n of people)if(c.players?.[n]?.finishedAt&&!oc.players?.[n]?.finishedAt)add('word:done:'+c.id+':'+n,other(n),n+' finished your word. Your turn.',target);
+   if(c.status==='complete'&&oc?.status!=='complete')both('word:result:'+c.id,'Our Word challenge result is ready.',target);}
+  const d=after.word?.daily,od=before.word?.daily;
+  if(d){if(d.id!==od?.id)add('word:daily:'+d.id,other(d.startedBy),d.startedBy+' started today’s word. Same word, your turn.',target);
+   if(od?.id===d.id&&d.status==='active')for(const n of people)if(d.players?.[n]?.finishedAt&&!od.players?.[n]?.finishedAt&&!d.players?.[other(n)]?.finishedAt)add('word:daily-done:'+d.id+':'+n,other(n),n+' finished today’s word. Your turn.',target);
+   if(d.status==='complete'&&od?.id===d.id&&od.status!=='complete')both('word:daily-result:'+d.id,'Today’s word result is ready.',target);}
+ }
  const media=after.media,prior=before.media;if(media?.invitation?.id!==prior?.invitation?.id&&media?.invitation)add('media:'+media.invitation.id,media.invitation.to,media.owner+' invited you to Watch & Listen.',{tab:'together',game:'media',session:media.id,invitation:media.invitation.id});
  if(media&&prior?.invitation&&!media.invitation&&media.participants?.length===2)add('media:accepted:'+media.id,media.owner,'Your Watch & Listen invitation was accepted.',{tab:'together',game:'media',session:media.id});
  for(const c of after.court?.cases??[]){const old=before.court?.cases?.find(x=>x.id===c.id),target={tab:'together',game:'court',caseId:c.id};

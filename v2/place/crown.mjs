@@ -19,7 +19,7 @@ export function updateCrown(s){
 // its legacy ledger, within the same persisted transaction as match completion.
 export function recordCompetitiveResult(s,{game,title,matchId,participants,mode,status,winner},now=Date.now()){
  updateCrown(s);
- if(!['domino','ocho'].includes(game)||mode!=='shared'||status!=='complete'||!players.includes(winner)||participants?.length!==2||!players.every(n=>participants.includes(n)))return false;
+ if(!['domino','ocho','word'].includes(game)||mode!=='shared'||status!=='complete'||!players.includes(winner)||participants?.length!==2||!players.every(n=>participants.includes(n)))return false;
  if(typeof game!=='string'||!game||typeof matchId!=='string'||!matchId)throw new Error('Competitive results require a game and stable match ID.');
  const c=s.competition,key=JSON.stringify([game,matchId]);if(c.results[key])return false;
  c.results[key]={game,matchId,winner,at:new Date(now).toISOString()};
@@ -27,4 +27,4 @@ export function recordCompetitiveResult(s,{game,title,matchId,participants,mode,
  c.games[game].wins[winner]++;c.totals[winner]++;const holder=leader(c.totals)??c.holder;
  if(holder!==c.holder){c.revision++;c.events.unshift({id:c.revision,holder,totals:{...c.totals},at:new Date(now).toISOString()});c.events=c.events.slice(0,30);}c.holder=holder;return true;
 }
-export function crownSnapshot(s,who){if(!players.includes(who))return null;updateCrown(s);const c=s.competition;return {mode:'shared',holder:c.holder,totals:{...c.totals},revision:c.revision,events:c.events,breakdown:Object.fromEntries(Object.entries(c.games).map(([k,g])=>[k,g.wins])),gameTitles:Object.fromEntries(Object.entries(c.games).map(([k,g])=>[k,g.title]))};}
+export function crownSnapshot(s,who){if(!players.includes(who))return null;updateCrown(s);const c=s.competition;const games={...c.games};if(!games.word)games.word={title:'Our Word',wins:empty()};return {mode:'shared',holder:c.holder,totals:{...c.totals},revision:c.revision,events:c.events,breakdown:Object.fromEntries(Object.entries(games).map(([k,g])=>[k,g.wins])),gameTitles:Object.fromEntries(Object.entries(games).map(([k,g])=>[k,g.title]))};}

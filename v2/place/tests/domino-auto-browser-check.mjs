@@ -29,7 +29,7 @@ try{
  await b.screenshot({path:'/tmp/domino-auto-message.png'});await b.click('.domino-head .game-chat-unread');await b.waitForSelector('#domino-panel[hidden]');await b.waitForFunction(()=>document.querySelector('.domino-head .game-chat-unread').hidden);
  await b.evaluate(()=>document.querySelector('[data-tab="together"]').click());await b.click('#ocho-open');await b.click('#ocho-size');
  await a.type('#compose','Message during Ocho');await a.click('#send');await b.waitForFunction(()=>!document.querySelector('.ocho-head .game-chat-unread').hidden);assert.equal(await b.$eval('.ocho-head .game-chat-unread span',n=>n.textContent),'1');
- await b.click('.ocho-head .game-chat-unread');await b.waitForSelector('#ocho-panel[hidden]');await b.waitForFunction(()=>document.querySelector('.ocho-head .game-chat-unread').hidden);assert.ok(await b.$('.draw-head .game-chat-unread'));
+ await b.click('.ocho-head .game-chat-unread');await b.waitForSelector('#ocho-panel[hidden]');await b.waitForFunction(()=>document.querySelector('.ocho-head .game-chat-unread').hidden);assert.ok(await b.$('.word-head .game-chat-unread'));
  // Inspect the table progressively, not only with a full deck. These are local fixtures.
  await a.setViewport({width:390,height:740,isMobile:true,hasTouch:true});
  await a.evaluate(()=>{document.querySelector('[data-tab="together"]').click();OurDomino.reset();});
