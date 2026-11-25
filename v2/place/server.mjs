@@ -38,7 +38,7 @@ import {courtView,courtCase,courtChange,courtRequest,courtApply,courtFailure} fr
 import {judge} from './court-ai.mjs';
 import {courtDocument,COURT_PRINT_SCRIPT} from './court-document.mjs';
 import {personalSnapshot,personalChange} from './personal.mjs';
-import {careSnapshot,careChange,careHistory,careExport,careSeedFromEnv,careReminders} from './care.mjs';
+import {careSnapshot,careChange,careHistory,careExport,careSeedFromEnv,careReminders,careNotices} from './care.mjs';
 // One-time private import: CARE_SEED (base64 JSON with labs/milestones) is set on the host only, never in the repo. Duplicates are skipped, so restarts change nothing.
 export function carePaperTable(store){store.db.exec('CREATE TABLE IF NOT EXISTS care_papers(id TEXT PRIMARY KEY,mime TEXT NOT NULL,bytes BLOB NOT NULL,created INTEGER NOT NULL)');}
 // Optional one-time import of original papers. Files in care-seed/ are AES-256-GCM encrypted; CARE_SEED_KEY lives only on the host.
@@ -490,7 +490,7 @@ publishPresence(true);});return;
   const raceSaveTimer=setInterval(()=>{if(race.matches.size)try{saveRaces();}catch{console.error('Race save failed.');}},2000);raceSaveTimer.unref();
   const raceTimer=setInterval(()=>{try{race.tick();}catch{console.error('Race update failed.');}},16);raceTimer.unref();
   const pushTimer=setInterval(()=>notifications.drain().catch(()=>console.error('Notification delivery failed.')),250);pushTimer.unref();
-  const careTimer=setInterval(()=>{try{for(const r of careReminders(store.state()))notifications.enqueue({key:r.key,to:r.to,kind:'daily',body:r.body,target:{tab:'care'}});}catch{console.error('Care reminder failed.');}},60000);careTimer.unref();
+  const careTimer=setInterval(()=>{try{for(const r of careReminders(store.state()))notifications.enqueue({key:r.key,to:r.to,kind:'daily',body:r.body,target:{tab:'care'}});const sent=store.tx(()=>{const s=store.state();const out=careNotices(s);if(out.length)store.save(s);return out;});for(const r of sent)notifications.enqueue({key:r.key,to:r.to,kind:'daily',body:r.body,target:{tab:'care'}});}catch{console.error('Care reminder failed.');}},60000);careTimer.unref();
   const dailyTimer=setInterval(()=>daily.tick().catch(()=>console.error('Daily Echo update failed.')),15000);dailyTimer.unref();
   server.on('close',()=>{void memoryJobs.close();clearInterval(touchTimer);clearInterval(raceTimer);clearInterval(raceSaveTimer);saveRaces();clearInterval(dailyTimer);daily.stop();clearTimeout(presenceTimer);clearInterval(presenceSweep);clearInterval(pushTimer);notifications.stopped=true;clearInterval(dominoTimer);for(const j of running.values())j.controller.abort();for(const r of streams.keys())r.end();});return server;
 }

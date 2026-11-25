@@ -182,6 +182,7 @@ export function careChange(s,who,type,d={},now=Date.now()){
  }else if(type==='care.crohn.save'){
   care.crohn={treatment:text(d.treatment,200,'the treatment')};
  }else check(false,'Unknown care action.');
+ if(!seeding)noteForSafy(s,who,type,d,result,now);
  care.revision++;s.version++;return result;
 }
 
@@ -259,7 +260,8 @@ export function careExport(s,who){
 }
 
 // Import a private seed (labs and story steps) supplied by the host. Same rules as the in-app import.
-export function careSeedFromEnv(s,raw,now=Date.now()){
+export function careSeedFromEnv(s,raw,now=Date.now()){seeding=true;try{const r=seedFromEnv(s,raw,now);if(r.added>0)pushNote(s,{what:'updates'},now);return r;}finally{seeding=false;}}
+function seedFromEnv(s,raw,now){
  const buf=Buffer.from(raw.trim(),'base64');const data=JSON.parse((buf[0]===0x1f&&buf[1]===0x8b?gunzipSync(buf):buf).toString('utf8'));let added=0,skipped=0;
  const before=JSON.stringify([s.care?.labs?.length??0,s.care?.milestones?.length??0,s.care?.guide?.length??0]);
  for(let i=0;i<(data.labs??[]).length;i+=LIMITS.import){const r=careChange(s,'Mahmoud','care.labs.import',{labs:data.labs.slice(i,i+LIMITS.import)},now);added+=r.added;skipped+=r.skipped;}
@@ -272,6 +274,41 @@ export function careSeedFromEnv(s,raw,now=Date.now()){
  for(const k of data.cases??[]){check(k&&typeof k.id==='string'&&/^[\w-]{2,40}$/.test(k.id),'Invalid case.');check(JSON.stringify(k).length<20000,'Case too long.');s.care??={};s.care.cases??=[];const old=s.care.cases.find(x=>x.id===k.id);const next={...k,photos:old?.photos??[]};if(old&&JSON.stringify(old)===JSON.stringify(next)){skipped++;continue;}if(old)s.care.cases[s.care.cases.indexOf(old)]=next;else s.care.cases.push(next);added++;}
  if((data.guide??[]).length){const r=careChange(s,'Mahmoud','care.guide.import',{guide:data.guide},now);added+=r.added;skipped+=r.skipped;}
  return {added,skipped,changed:added>0};
+}
+
+// Tell Safy when Mahmoud logs something about her. Quick entries are merged into one message,
+// sent after two quiet minutes, and never between 23:00 and 08:00 in her time zone.
+let seeding=false;
+const NOTE_GAP=2*60000;
+const ENTRY_WORDS={sleep:'your sleep',period:'your period',note:'a note',checkin:'a check-in',belly:'belly pain',bathroom:'a bathroom visit',dose:'a dose',flare:'a flare'};
+const timeFormats=new Map();
+function clock(ms,zone){let f=timeFormats.get(zone);if(!f){f=new Intl.DateTimeFormat('en-US',{timeZone:zone,hour:'numeric',minute:'2-digit'});timeFormats.set(zone,f);}return f.format(ms);}
+function localHour(ms,zone){return Number(new Intl.DateTimeFormat('en-GB',{timeZone:zone,hour:'2-digit',hourCycle:'h23'}).format(ms));}
+function pushNote(s,item,now){const care=s.care??=empty();const n=care.notify??={items:[],last:0};n.items=[...n.items,item].slice(-20);n.last=now;}
+function noteForSafy(s,who,type,d,result,now){
+ if(who!=='Mahmoud')return;
+ if(type==='care.entry.add'){if((d.visibility??'shared')!=='shared')return;const e=s.care.entries.find(x=>x.id===result.id);if(!e)return;
+  if(e.kind==='sleep'&&num(e.data.start)&&num(e.data.end))return pushNote(s,{what:'sleep',start:e.data.start,end:e.data.end},now);
+  return pushNote(s,{what:ENTRY_WORDS[e.kind]??'an entry',logged:true},now);}
+ if(type==='care.lab.save'&&!d.id)return pushNote(s,{what:'a lab result'},now);
+ if(type==='care.labs.import'&&result.added>0)return pushNote(s,{what:result.added===1?'a lab result':result.added+' lab results',count:result.added},now);
+ if(type==='care.appt.save'&&!d.id)return pushNote(s,{what:'an appointment'},now);
+ if(type==='care.paper.add')return pushNote(s,{what:'a paper'},now);
+ if(type==='care.med.save'&&!d.id)return pushNote(s,{what:'a medicine'},now);
+}
+function noteBody(items,zone){
+ if(items.length===1){const i=items[0];
+  if(i.what==='sleep'){const h=Math.round((i.end-i.start)/360000)/10;return 'Mahmoud logged your sleep: '+clock(i.start,zone)+' → '+clock(i.end,zone)+' ('+h+' h).';}
+  if(i.logged)return 'Mahmoud logged '+i.what+'.';
+  if(i.what==='updates')return 'Mahmoud updated your health page.';
+  return 'Mahmoud added '+i.what+' to your health page.';}
+ const count=items.reduce((a,i)=>a+(i.count??1),0);return 'Mahmoud added '+count+' things to your health page.';
+}
+// Returns the message to send now (if any) and clears the queue. The caller saves the state.
+export function careNotices(s,now=Date.now()){
+ const n=s.care?.notify;if(!n?.items?.length)return [];if(now-n.last<NOTE_GAP)return [];
+ const zone=careZone(s),h=localHour(now,zone);if(h>=23||h<8)return [];
+ const out=[{key:'care:update:'+n.last,to:'Safy',body:noteBody(n.items,zone)}];n.items=[];return out;
 }
 
 // Reminders the evening before each appointment (19:00 in Safy's time zone, or right away if added later that evening).
