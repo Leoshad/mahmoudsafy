@@ -34,9 +34,9 @@ function loseSound(){[330,262].forEach((hz,i)=>tone(hz,i*.18,.25,.05));}
 // ---------- shell ----------
 function save(){try{if(who)localStorage.setItem('our-place:word:'+who,JSON.stringify({tab,opened,fullView}));}catch{}}
 function playing(){const m=match();return !!m&&m.status==='active'&&m.me.started&&!m.me.finished;}
-function focused(){return opened&&fullView&&playing();}
+function focused(){return opened&&fullView;}
 let wasFocused=false;
-function show(){const p=$('#word-panel'),now=focused();p.hidden=!opened;p.classList.toggle('word-focused',now);if(wasFocused&&!now&&opened)requestAnimationFrame(()=>host?.revealPanel?.('#word-panel'));wasFocused=now;$('#word-open').hidden=opened;document.body.classList.toggle('word-locked',focused());save();}
+function show(){const p=$('#word-panel'),now=focused();p.hidden=!opened;p.classList.toggle('word-focused',now);p.classList.toggle('word-playing',now&&playing());const size=$('#word-size');if(size){const label=now?'Exit full screen':'Full screen';size.innerHTML=now?'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>':'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';size.setAttribute('aria-label',label);size.title=label;size.setAttribute('aria-pressed',String(now));}if(wasFocused&&!now&&opened)requestAnimationFrame(()=>host?.revealPanel?.('#word-panel'));wasFocused=now;$('#word-open').hidden=opened;document.body.classList.toggle('word-locked',focused());save();}
 function error(e){$('#word-error').textContent=e?.message||'Could not connect. Your game is saved.';}
 function btn(label,root,fn,cls){const b=make('button',label,root,cls);b.type='button';b.onclick=()=>{unlockSound();return Promise.resolve(fn()).catch(error);};b.disabled=busy;return b;}
 async function command(type,payload={}){
@@ -141,7 +141,8 @@ function renderDaily(root){
   make('small','TODAY’S WORD · '+dayLabel(d.today).toUpperCase(),card,'label');make('h4','Same word. Same day. Who finds it first?',card);
   make('p','Choose today’s language. '+other()+' plays the same word. Your clock starts when you press Start.',card,'muted');
   langPicker(card,dailyLang,k=>{dailyLang=k;try{localStorage.setItem('our-place:word:lang',k);}catch{}render(true);});
-  btn('Start today’s word',card,()=>command('daily',{lang:dailyLang}),'primary word-start-button');
+  btn('Start · invite '+other(),card,async()=>{if(await command('daily',{lang:dailyLang})){fullView=true;render(true);}},'primary word-start-button');
+  make('p',other()+' gets a notification to play the same word.',card,'muted word-small');
   return;
  }
  const title='Today’s word · '+m.length+' letters · '+LANGS[m.lang];
@@ -149,7 +150,7 @@ function renderDaily(root){
  if(!m.me.started){
   const card=make('div',undefined,root,'word-start');make('small','TODAY’S WORD · '+dayLabel(m.date).toUpperCase(),card,'label');
   make('h4',(m.startedBy===who?'You':m.startedBy)+' chose '+LANGS[m.lang]+' today',card);make('p',m.length+' letters · 6 tries. Your clock starts when you press Start.',card,'muted');
-  rivalLine(card,m);btn('Start today’s word',card,()=>command('daily',{lang:m.lang}),'primary word-start-button');return;
+  rivalLine(card,m);btn('Start today’s word',card,async()=>{if(await command('daily',{lang:m.lang})){fullView=true;render(true);}},'primary word-start-button');return;
  }
  statusRow(root,title,m);rivalLine(root,m);
  boardView(root,m.me,m.length,m.lang,{live:!m.me.finished});
@@ -162,7 +163,7 @@ function waitingCard(root,m,answer,lang){
  make('p','Waiting for '+other()+' to finish. The result appears for both of you.',card,'muted');
 }
 function lastDay(root,l){
- const box=make('details',undefined,root,'word-last');make('summary',dayLabel(l.date)+' · '+(l.status==='void'?'no match':l.winner?(l.winner===who?'you won':l.winner+' won'):'tie')+' · '+l.answer,box);
+ const box=make('details',undefined,root,'word-last');box.dataset.persistent='true';make('summary',dayLabel(l.date)+' · '+(l.status==='void'?'no match':l.winner?(l.winner===who?'you won':l.winner+' won'):'tie')+' · '+l.answer,box);
  const row=make('div',undefined,box,'word-result-sides');for(const [name,b] of [[who,l.me],[other(),l.rival]]){const s=make('div',undefined,row,'word-result-side');make('strong',name===who?'You':name,s);make('span',!b.started?'Did not play':b.solved?tries(b.tries)+' · '+clock(b.ms):'Not solved',s);}
 }
 
@@ -191,7 +192,7 @@ function wordForm(root,lang,{answering=false}={}){
  field('Surprise message · opens after '+other()+' finishes','note',400,true,'Something sweet to read after the game…');
  photoPicker(form);
  const actions=make('div',undefined,form,'word-form-actions');
- const send=btn(answering?'Start the challenge':'Send to '+other(),actions,()=>sendWord(answering),'primary');send.disabled=busy||!okShape||draft.uploading;
+ const send=btn(answering?'Send my word · start':'Send challenge to '+other(),actions,()=>sendWord(answering),'primary');send.disabled=busy||!okShape||draft.uploading;
  if(answering)btn('Not now',actions,()=>command('decline',{id:data.challenge.id}));
  form.onsubmit=e=>{e.preventDefault();if(!send.disabled)send.click();};
 }
@@ -214,7 +215,7 @@ function renderChallenge(root){
  }
  if(c.status==='complete'){resultCard(root,c,c.lang,{title:'CHALLENGE COMPLETE',answer:null});reveal(root,c);const yours=make('p','Your word was ',root,'muted word-yours');yours.append(make('strong',c.myWord?.display||''));btn('New challenge',root,()=>{dismissed=c.id;render(true);},'primary word-start-button');return;}
  const title=other()+'’s word · '+c.length+' letters · '+LANGS[c.lang];
- if(!c.me.started){const card=make('div',undefined,root,'word-start');make('small','CHALLENGE',card,'label');make('h4',other()+'’s word is ready',card);make('p',c.length+' letters · 6 tries'+(c.hint?' · Hint: '+c.hint:'')+'. Your clock starts when you press Start.',card,'muted');rivalLine(card,c);btn('Start',card,()=>command('start',{id:c.id}),'primary word-start-button');return;}
+ if(!c.me.started){const card=make('div',undefined,root,'word-start');make('small','CHALLENGE',card,'label');make('h4',other()+'’s word is ready',card);make('p',c.length+' letters · 6 tries'+(c.hint?' · Hint: '+c.hint:'')+'. Your clock starts when you press Start.',card,'muted');rivalLine(card,c);btn('Start',card,async()=>{if(await command('start',{id:c.id})){fullView=true;render(true);}},'primary word-start-button');return;}
  statusRow(root,title,c);if(c.hint)make('p','Hint · '+c.hint,root,'word-hint').dir='auto';rivalLine(root,c);
  boardView(root,c.me,c.length,c.lang,{live:!c.me.finished});
  if(c.me.finished){waitingCard(root,c,null,c.lang);reveal(root,c);return;}
@@ -258,14 +259,14 @@ function render(force=false){
  if(tab==='daily')renderDaily(root);else renderChallenge(root);
  const m=match();
  if(m&&m.status==='active'&&m.me.started&&!m.me.finished){const foot=make('div',undefined,root,'word-footer');
-  btn(focused()?'Exit full screen':'Full screen',foot,()=>{fullView=!fullView;show();render(true);},'word-size-toggle');
   btn('Give up',foot,async()=>{if(await window.OurGameUI.confirm({title:'Give up this word?',message:'It counts as not solved. If '+other()+' solves it, '+other()+' wins.',confirmLabel:'Give up'}))await command('giveup',{match:tab,id:m.id});},'word-leave');}
  if(field){const again=root.querySelector('[data-field="'+field+'"]');if(again){again.focus();try{again.setSelectionRange(...caret);}catch{}}}
 }
 function focusAttention(){const c=data?.challenge;if(c&&(c.status==='waiting'&&c.owner!==who||c.status==='active'&&!c.me.finished))tab='challenge';else if(data?.daily?.current?.status==='active'||!data?.daily?.current)tab='daily';opened=true;render(true);}
 function init(h){
  host=h;soundButton();window.OurGameUI?.registerChat?.($('.word-head'),()=>{opened=false;show();host.goto('chat');});
- $('#word-open').onclick=()=>{unlockSound();opened=true;fullView=true;render(true);host.revealPanel?.('#word-panel');};
+ $('#word-open').onclick=()=>{unlockSound();opened=true;fullView=playing();render(true);host.revealPanel?.('#word-panel');};
+ $('#word-size').onclick=()=>{fullView=!fullView;show();render(true);};
  $('#word-collapse').onclick=()=>{opened=false;show();};
  $('#word-chat').onclick=()=>{opened=false;show();host.goto('chat');};
  $('#word-sound').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('our-place:word:sound',soundOn?'on':'off');}catch{}soundButton();if(soundOn){unlockSound();tap();}};

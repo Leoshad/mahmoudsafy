@@ -14,6 +14,7 @@
 #our-place-trial .word-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 #our-place-trial .word-head h3{font:22px Georgia,serif;margin:0 auto 0 0;display:flex;align-items:center;gap:8px}
 #our-place-trial .word-head button{padding:6px 9px;min-height:36px;font-size:11px}
+#our-place-trial #word-size{display:grid;place-items:center;min-width:36px;padding:6px;color:#e7cc95}
 #our-place-trial .word-tabs{display:flex;gap:6px;margin:12px 0 8px}
 #our-place-trial .word-tabs button{flex:1;font-size:12px;padding:9px;min-height:38px}
 #our-place-trial .word-tabs .selected{background:#d1b078;color:#1d171d;border-color:#d1b078}
@@ -137,8 +138,9 @@
 
 /* Full screen while playing: the board and keyboard fill the phone like the other games. */
 #our-place-trial #word-panel.word-focused{position:fixed;inset:0;z-index:100;margin:0;border:0;border-radius:0;display:flex;flex-direction:column;padding:max(8px,env(safe-area-inset-top)) 10px max(8px,env(safe-area-inset-bottom));height:100dvh;overflow-y:auto;overscroll-behavior:contain}
-#our-place-trial .word-focused .word-tabs,#our-place-trial .word-focused #word-records,#our-place-trial .word-focused .word-rules{display:none}
-#our-place-trial .word-focused #word-game{flex:1;display:flex;flex-direction:column;justify-content:space-between;min-height:0}
+#our-place-trial .word-playing .word-tabs,#our-place-trial .word-playing #word-records,#our-place-trial .word-playing .word-rules{display:none}
+#our-place-trial .word-playing #word-game{flex:1;display:flex;flex-direction:column;justify-content:space-between;min-height:0}
+#our-place-trial .word-small{font-size:11px!important;margin-top:8px!important}
 #our-place-trial .word-focused .word-board{width:min(100%,calc(var(--len) * 62px),calc((100dvh - 330px) * var(--len) / 6))}
 body.word-locked{overflow:hidden}
 @media (min-width:760px){#our-place-trial #word-panel.word-focused{inset:16px auto 16px 50%;width:560px;height:calc(100dvh - 32px);transform:translateX(-50%);border:1px solid #6e5163;border-radius:16px;box-shadow:0 0 0 100vmax #0e0a0ef2}}
