@@ -11,7 +11,6 @@ import {Store} from '../store.mjs';
 import {unusedPhotos,reclaimPhotos} from '../photo-storage.mjs';
 import {createRecoveryBackup,restoreRecoveryBackup} from '../backup.mjs';
 import {exportArchive} from '../export.mjs';
-import {drawChange,strokeEvent} from '../draw.mjs';
 
 test('long Echo context keeps newest complete messages and valid JSON within the cap',()=>{
  const messages=Array.from({length:50},(_,i)=>({author:'Mahmoud',text:`message-${i}:`+'x'.repeat(1000)}));
@@ -49,9 +48,6 @@ test('user export embeds authorized photos but excludes unreferenced private med
  await exportArchive(s,s.snapshot('Mahmoud'),res);const result=JSON.parse(text);
  assert.equal(Buffer.from(result.photos[visible].data,'base64').toString(),'photo-'+visible);assert.equal(result.photos[privateImage],undefined);assert.equal(result.format,'our-place-export-v2');
  }finally{s.close();}
-});
-test('drawing updates include only the accepted segment and never secret words or unrelated state',()=>{
- const s=new Store(':memory:');try{const state=s.state(),p={mode:'shared',boardId:state.draw.shared.id,strokeId:randomUUID(),offset:0,color:'#ff0000',width:5,tool:'pen',points:[[0.1,0.2],[0.2,0.3]]};state.items=[{title:'private other state'}];drawChange(state,'Mahmoud','draw.stroke',p);const e=strokeEvent(state,p);assert.equal(e.revision,1);assert.equal(e.stroke.points.length,2);assert.ok(!JSON.stringify(e).includes('private other state'));p.offset=2;p.points=[[0.3,0.4]];drawChange(state,'Mahmoud','draw.stroke',p);assert.equal(strokeEvent(state,p).stroke.points.length,1);}finally{s.close();}
 });
 
 test('a heavily escaped latest message still supplies bounded valid context',()=>{

@@ -16,14 +16,6 @@ export function attentionEvents(before,after,actor){
   if(g.status==='active'&&!g.paused&&!g.pausedBy?.length&&(old?.turn!==g.turn||old?.status!=='active'||old?.paused||old?.pausedBy?.length))add(game+':turn:'+g.id+':'+g.revision,g.turn,'It’s your turn in '+title+'.',target);
   if(g.status==='complete'&&old?.status!=='complete')both(game+':result:'+g.id,title+' match result is ready.',target);
  }
- const m=after.draw?.match,old=before.draw?.match;
- if(m){const target={tab:'together',game:'draw'};
-  if(m.status==='invited'&&old?.id!==m.id)add('draw:invite:'+m.id,other(m.owner),m.owner+' invited you to Draw & Guess.',target);
-  if(old?.status==='invited'&&m.status==='preparing')add('draw:accepted:'+m.id,m.owner,'Your drawing invitation was accepted.',target);
-  if(m.status==='ready'&&(old?.status!=='ready'||old?.round!==m.round))both('draw:ready:'+m.id+':'+m.round,'Your drawing round is ready.',target);
-  if(m.status==='active'&&(old?.status!=='active'||old?.round!==m.round))both('draw:turn:'+m.id+':'+m.round,'Your Draw & Guess round has started.',target);
-  if(['review','complete'].includes(m.status)&&old?.status!==m.status)both('draw:end:'+m.id+':'+m.round,'Your drawing round result is ready.',target);
- }
  const media=after.media,prior=before.media;if(media?.invitation?.id!==prior?.invitation?.id&&media?.invitation)add('media:'+media.invitation.id,media.invitation.to,media.owner+' invited you to Watch & Listen.',{tab:'together',game:'media',session:media.id,invitation:media.invitation.id});
  if(media&&prior?.invitation&&!media.invitation&&media.participants?.length===2)add('media:accepted:'+media.id,media.owner,'Your Watch & Listen invitation was accepted.',{tab:'together',game:'media',session:media.id});
  for(const c of after.court?.cases??[]){const old=before.court?.cases?.find(x=>x.id===c.id),target={tab:'together',game:'court',caseId:c.id};
