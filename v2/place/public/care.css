@@ -270,7 +270,7 @@
 #care .calm-bar-col em.q{position:absolute;bottom:-28px;width:6px;height:6px;border-radius:3px}
 #care em.q.good{background:#A7D3B3}#care em.q.ok{background:#E8C78A}#care em.q.bad{background:#E79A9A}
 #care .calm-bars-goal{position:absolute;left:0;right:0;border-top:1px dashed #9FB2F088;pointer-events:none}
-#care .calm-bars.big .calm-bars-goal{margin-bottom:30px}
+
 /* Breast check row */
 #care .calm-breast{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:18px;border:1px solid #45303B;background:#1C1720;width:100%}
 #care .calm-breast-icon{width:36px;height:36px;flex:none;border-radius:18px;background:#2E1F28;display:flex;align-items:center;justify-content:center;font-size:17px}
@@ -467,3 +467,9 @@
 #care .case-f-verdict p{margin:0;font-size:15px;line-height:1.5;color:var(--case-ink)}
 #care .case-f-verdict small{color:var(--case-chip-ink);font-size:12.5px}
 #care .case-f-item.key+.case-f-item.key{margin-top:8px}
+#care button.calm-bar-col{background:none;border:0;padding:0;margin:0;min-height:0;border-radius:8px;color:inherit;font:inherit;cursor:pointer}
+#care button.calm-bar-col.on{background:#ffffff10}
+#care .calm-night-info{margin-top:14px}
+#care .calm-chart-hint{display:block;margin-top:8px;color:#7E7380;font-size:12px}
+#care .calm-legend i.qdot{width:8px;height:8px;border-radius:50%}
+#care .calm-legend i.qdot.good{background:#A7D3B3}#care .calm-legend i.qdot.ok{background:#E8C78A}#care .calm-legend i.qdot.bad{background:#E79A9A}
