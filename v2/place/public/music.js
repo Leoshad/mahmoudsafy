@@ -3,7 +3,9 @@ let headerControls,dock,audio,dockUI,current=null,name='',token=0,inChat=true,in
 const cards=new Set(),durations=new Map();
 let context,analyser,edge,frame=0,energy=0,glowOn=true,beatTracker,travel=0,applyVersion=0;
 try{glowOn=localStorage.getItem('our-music-glow')!=='off';}catch{}
-function unlock(){ensure();try{if(!context){const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;context=new AudioContext();analyser=context.createAnalyser();analyser.fftSize=4096;analyser.minDecibels=-85;analyser.maxDecibels=-10;analyser.smoothingTimeConstant=0;context.createMediaElementSource(audio).connect(analyser);analyser.connect(context.destination);}void context.resume().catch(()=>{});}catch{}}
+// iPhone/iPad suspend Web Audio when the app leaves the screen; audio routed through it would go silent, so play it directly there.
+ const appleTouch=/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+ function unlock(){ensure();if(appleTouch)return;try{if(!context){const AudioContext=window.AudioContext||window.webkitAudioContext;if(!AudioContext)return;context=new AudioContext();analyser=context.createAnalyser();analyser.fftSize=4096;analyser.minDecibels=-85;analyser.maxDecibels=-10;analyser.smoothingTimeConstant=0;context.createMediaElementSource(audio).connect(analyser);analyser.connect(context.destination);}void context.resume().catch(()=>{});}catch{}}
 function pulseLayout(){
  if(!edge)return;
  const v=window.visualViewport,bottom=v?Math.max(0,innerHeight-v.height-v.offsetTop):0;
@@ -108,13 +110,15 @@ async function play(id,title,remote=false){
  else if(audio.error)audio.load();
  name=title||'Shared music';
  if(navigator.mediaSession){
-  if(window.MediaMetadata)navigator.mediaSession.metadata=new window.MediaMetadata({title:name,artist:'Our Place'});
+  if(window.MediaMetadata)navigator.mediaSession.metadata=new window.MediaMetadata(trackInfo(name));
   const handlers={play:()=>{if(!window.OurPlaylist?.control('play',current,name))audio.play().catch(()=>{});},pause:()=>{if(!window.OurPlaylist?.control('pause',current,name))audio.pause();},stop:()=>{if(!window.OurPlaylist?.stop())reset();},previoustrack:()=>window.OurPlaylist?.step(-1),nexttrack:()=>window.OurPlaylist?.step(1),seekto:d=>{if(window.OurPlaylist?.control('seek',current,name,d.seekTime))return;if(Number.isFinite(d.seekTime)&&Number.isFinite(audio.duration))audio.currentTime=Math.max(0,Math.min(audio.duration,d.seekTime));},seekbackward:d=>{const position=Math.max(0,audio.currentTime-(d.seekOffset||10));if(!window.OurPlaylist?.control('seek',current,name,position))audio.currentTime=position;},seekforward:d=>{if(window.OurPlaylist?.control('seek',current,name,Math.min(audio.duration,audio.currentTime+(d.seekOffset||10))))return;if(Number.isFinite(audio.duration))audio.currentTime=Math.min(audio.duration,audio.currentTime+(d.seekOffset||10));}};
   for(const [action,handler]of Object.entries(handlers))try{navigator.mediaSession.setActionHandler(action,handler);}catch{}
  }
  refresh();try{await audio.play();}catch{if(attempt===token){paint();if(remote)window.OurPlaylist?.blocked();}}
 }
-function toggle(id,title){if(!id)return;if(window.OurPlaylist?.control('toggle',id,title))return;if(id===current&&audio&&!audio.paused){audio.pause();paint();}else void play(id,title);}
+// Lock-screen card: song name as title, singer underneath, heart cover art.
+ function trackInfo(raw){const clean=String(raw||'Shared music').replace(/\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|webm|mp4)$/i,'').replace(/_/g,' ').trim()||'Shared music';const cut=clean.indexOf(' - ');const song=cut>0?clean.slice(0,cut).trim():clean,singer=cut>0?clean.slice(cut+3).trim():'';return {title:song,artist:singer||'Our Place',album:'Our Place',artwork:[{src:'/icon-512.png',sizes:'512x512',type:'image/png'},{src:'/icon-192.png',sizes:'192x192',type:'image/png'}]};}
+ function toggle(id,title){if(!id)return;if(window.OurPlaylist?.control('toggle',id,title))return;if(id===current&&audio&&!audio.paused){audio.pause();paint();}else void play(id,title);}
 function mount(bubble,id,text){
  const root=make('div','music-card'),ui=controls(root);ui.id=id;ui.name=text.textContent||'Shared music';ui.label.replaceWith(text);ui.label=text;text.classList.add('music-title');text.title=ui.name;
  bubble.classList.add('music-bubble');bubble.append(root);ui.button.onclick=()=>toggle(id,ui.name);
@@ -123,5 +127,5 @@ function mount(bubble,id,text){
  observer?.observe(root);
 }
 window.addEventListener('resize',refresh);
-window.OurMusic={play,toggle,reset,mount,refresh,unlock,pause(){audio?.pause();},state(){return {id:current,position:audio?.currentTime||0,paused:audio?.paused??true};},glowEnabled(){return glowOn;},glow(){glowOn=!glowOn;try{localStorage.setItem('our-music-glow',glowOn?'on':'off');}catch{}glowFrame();return glowOn;},apply(id,title,position,playing){ensure();const version=++applyVersion;const seek=()=>{if(version===applyVersion&&current===id&&Number.isFinite(audio.duration))audio.currentTime=Math.min(position,Math.max(0,audio.duration-.05));};if(playing){void play(id,title,true).then(seek);}else{token++;if(current!==id){audio.src='/api/voices/'+encodeURIComponent(id);current=id;name=title;}audio.pause();seek();}if(audio.readyState<1)audio.addEventListener('loadedmetadata',seek,{once:true});},tab(next){inChat=next==='chat';refresh();}};
+window.OurMusic={trackInfo,pulseAvailable:!appleTouch,play,toggle,reset,mount,refresh,unlock,pause(){audio?.pause();},state(){return {id:current,position:audio?.currentTime||0,paused:audio?.paused??true};},glowEnabled(){return glowOn;},glow(){glowOn=!glowOn;try{localStorage.setItem('our-music-glow',glowOn?'on':'off');}catch{}glowFrame();return glowOn;},apply(id,title,position,playing){ensure();const version=++applyVersion;const seek=()=>{if(version===applyVersion&&current===id&&Number.isFinite(audio.duration))audio.currentTime=Math.min(position,Math.max(0,audio.duration-.05));};if(playing){void play(id,title,true).then(seek);}else{token++;if(current!==id){audio.src='/api/voices/'+encodeURIComponent(id);current=id;name=title;}audio.pause();seek();}if(audio.readyState<1)audio.addEventListener('loadedmetadata',seek,{once:true});},tab(next){inChat=next==='chat';refresh();}};
 })();

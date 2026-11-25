@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import vm from 'node:vm';import {readFileSync} from 'node:fs';import {isMP3} from '../audio-format.mjs';
 test('MP3 validation handles ID3 and rejects truncated tags and reserved frames',()=>{const frame=Buffer.concat([Buffer.from([255,251,144,0]),Buffer.alloc(100)]);assert.equal(isMP3(frame),true);assert.equal(isMP3(Buffer.concat([Buffer.from([73,68,51,4,0,0,0,0,0,0]),frame])),true);assert.equal(isMP3(Buffer.from('ID3 this is not an MP3')),false);assert.equal(isMP3(Buffer.from([255,251,252,0])),false);});
-function player(){
+function player(extra={}){
  const nodes=[],actions={};
  class Node{
   constructor(tag){this.tagName=tag;this.hidden=false;this.children=[];this.parent=null;this.paused=true;this.ended=false;this.error=null;this.readyState=0;this.listeners={};this.attrs={};this.currentTime=0;this.duration=NaN;this.rect={top:50,bottom:130,height:80};this.props={};this.style={setProperty:(k,v)=>this.props[k]=v};this.classList={toggle(){},add:(c)=>this.className=(this.className||'')+' '+c};this.loads=0;}
@@ -16,7 +16,7 @@ function player(){
   pause(){this.paused=true;this.emit('pause');}load(){this.loads++;this.readyState=0;}
  }
  const document={documentElement:new Node('html'),addEventListener(){},body:new Node('body'),createElement:tag=>{const n=new Node(tag);nodes.push(n);return n;}},app=new Node('div'),shell=new Node('div'),timeline=new Node('div');timeline.rect={top:0,bottom:500,height:500};document.body.append(app);app.append(shell);shell.append(timeline);document.querySelector=s=>({'#app':app,'.shell':shell,'#timeline':timeline}[s]||null);
- const window={addEventListener(){},IntersectionObserver:class{observe(){}unobserve(){}}},navigator={mediaSession:{setActionHandler:(k,v)=>actions[k]=v}};
+ const window={addEventListener(){},IntersectionObserver:class{observe(){}unobserve(){}},...extra.window},navigator={mediaSession:{setActionHandler:(k,v)=>actions[k]=v},...extra.navigator};
  vm.runInNewContext(readFileSync(new URL('../public/music.js',import.meta.url),'utf8'),{window,document,navigator,encodeURIComponent,cancelAnimationFrame(){}});
  const card=(id,title)=>{const bubble=new Node('div'),p=new Node('p');p.textContent=title;timeline.append(bubble);bubble.append(p);window.OurMusic.mount(bubble,id,p);return bubble.children.find(x=>x.className==='music-card');};
  const audio=()=>nodes.find(x=>x.tagName==='audio'),dock=()=>nodes.find(x=>x.className==='music-dock');
@@ -44,3 +44,5 @@ test('seek, switching tracks, error retry and close update both controls without
  audio.error={};audio.pause();audio.emit('error');assert.match(second.children[1].children[1].textContent,/retry/);second.children[0].onclick();assert.equal(audio.loads,1);
  h.window.OurMusic.reset();assert.equal(audio.paused,true);assert.equal(audio.src,undefined);assert.equal(h.dock().hidden,true);assert.equal(h.actions.play,null);assert.equal(second.children[0].textContent,'▶');assert.equal(h.nodes.filter(n=>n.tagName==='audio').length,1);
 });
+test('lock-screen info shows song, singer and heart art without the file extension',()=>{const {window}=player(),info=window.OurMusic.trackInfo('Affection - Cigarettes After Sex.mp3');assert.equal(info.title,'Affection');assert.equal(info.artist,'Cigarettes After Sex');assert.equal(info.album,'Our Place');assert.equal(info.artwork[0].src,'/icon-512.png');const plain=window.OurMusic.trackInfo('Our song.m4a');assert.equal(plain.title,'Our song');assert.equal(plain.artist,'Our Place');});
+for(const [agent,platform,touch,routed] of [['Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X)','iPhone',5,false],['Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)','MacIntel',5,false],['Mozilla/5.0 (Linux; Android 14)','Linux',5,true]])test('music keeps playing in the background on iPhone: Web Audio routing only off Apple touch devices ('+platform+')',()=>{let created=0;class AudioContext{constructor(){created++;this.sampleRate=48000;this.destination={};}createAnalyser(){return {connect(){}};}createMediaElementSource(){return {connect(){}};}resume(){return Promise.resolve();}}const {window}=player({window:{AudioContext},navigator:{userAgent:agent,platform,maxTouchPoints:touch}});window.OurMusic.unlock();assert.equal(created,routed?1:0);assert.equal(window.OurMusic.pulseAvailable,routed);});
