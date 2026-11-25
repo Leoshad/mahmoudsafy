@@ -19,7 +19,7 @@ export function updateCrown(s){
 // its legacy ledger, within the same persisted transaction as match completion.
 export function recordCompetitiveResult(s,{game,title,matchId,participants,mode,status,winner},now=Date.now()){
  updateCrown(s);
- if(!['domino','ocho','word'].includes(game)||mode!=='shared'||status!=='complete'||!players.includes(winner)||participants?.length!==2||!players.every(n=>participants.includes(n)))return false;
+ if(!['domino','ocho','word','billiards'].includes(game)||mode!=='shared'||status!=='complete'||!players.includes(winner)||participants?.length!==2||!players.every(n=>participants.includes(n)))return false;
  if(typeof game!=='string'||!game||typeof matchId!=='string'||!matchId)throw new Error('Competitive results require a game and stable match ID.');
  const c=s.competition,key=JSON.stringify([game,matchId]);if(c.results[key])return false;
  c.results[key]={game,matchId,winner,at:new Date(now).toISOString()};
