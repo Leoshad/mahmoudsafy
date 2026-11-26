@@ -1,0 +1,10 @@
+import {Store} from './store.mjs';import {createApp} from './server.mjs';import puppeteer from 'puppeteer-core';import chromium from '@sparticuz/chromium';
+process.env.MAHMOUD_EMAIL='mahmoud@example.test';process.env.SAFY_EMAIL='safy@example.test';
+const store=new Store(':memory:');const server=createApp({store,origin:'http://localhost',secret:'connection-browser-test-only-secret-long',testing:true,pushSend:async()=>{},authFetch:async()=>Response.json({})});
+await new Promise(r=>server.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+server.address().port;
+const b=await puppeteer.launch({executablePath:await chromium.executablePath(),args:chromium.args,headless:true});const page=await b.newPage();
+const errs=[];page.on('pageerror',e=>errs.push(e.message));page.on('console',m=>{if(m.type()==='error')errs.push('console: '+m.text());});
+await page.setViewport({width:390,height:844,isMobile:true,hasTouch:true});
+await page.goto(base,{waitUntil:'networkidle2'});await new Promise(r=>setTimeout(r,3500));
+console.log('splash hidden',await page.$eval('#welcome-splash',s=>s.hidden),'login visible',await page.$eval('#login',s=>!s.hidden));console.log(errs.slice(0,5));
+await b.close();server.close();

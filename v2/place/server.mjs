@@ -480,7 +480,9 @@ if(process.argv[1]===fileURLToPath(import.meta.url)){
   const store=new Store(join(dir,'our-place.sqlite'),{enforceLifetimeBudget:false});console.info(JSON.stringify(store.budgetReport()));carePaperTable(store);seedCare(store);seedCarePapers(store);try{const c=store.state().care??{};console.info(JSON.stringify({event:'care_counts',cases:(c.cases??[]).map(k=>k.id+'|'+(k.photos??[]).length),labs:(c.labs??[]).length,milestones:(c.milestones??[]).length,guide:(c.guide??[]).length,papers:(c.papers??[]).length,paperBlobs:store.db.prepare('SELECT COUNT(*) n FROM care_papers').get().n,paperTitles:(c.papers??[]).map(p=>p.date+'|'+p.title.length),meds:(c.meds??[]).length,appointments:(c.appointments??[]).length,entries:(c.entries??[]).length}));}catch{}const server=createApp({store,origin:resolveOrigin(),secret:process.env.SESSION_SECRET});server.listen(Number(process.env.PORT??3000),'0.0.0.0',()=>{console.log('Our Place server ready.');import('./compose-diagnostic.mjs').then(m=>m.diagnoseCompose(store)).catch(()=>console.error('Compose diagnostic unavailable.'));});
   if(process.env.YOUTUBE_API_KEY)youtubeService().resolve('M7lc1UVf-VE').then(()=>console.log('YouTube connection verified')).catch(()=>console.error('YouTube connection check failed; verify the configured key and API restrictions.'));
   void verifyEchoModels();
-  const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET,{upload:path=>server.driveBackup.upload(path)});
+  // Automatic Google Drive upload is paused: on the 512 MB instance it ran out of memory and restarted the app.
+  // Local verified recovery backups (and Render's daily disk snapshots) continue. Set GOOGLE_BACKUP_AUTO=on to resume.
+  const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET,process.env.GOOGLE_BACKUP_AUTO==='on'?{upload:path=>server.driveBackup.upload(path)}:{});
   server.runRecovery=stopMaintenance.run;
   process.on('SIGTERM',()=>{stopMaintenance().then(()=>server.close(()=>{store.close();process.exit(0);}));});
 }
