@@ -17,7 +17,7 @@ services:
     disk:
       name: our-place-data
       mountPath: /var/data
-      sizeGB: 1
+      sizeGB: 3
     envVars:
       - key: NODE_VERSION
         value: 24.19.0

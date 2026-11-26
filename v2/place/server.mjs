@@ -62,6 +62,8 @@ import {billiardsChange,billiardsSnapshot,billiardsTick,billiardsDue} from './bi
 import {resolveOrigin} from './config.mjs';
 
 const here=dirname(fileURLToPath(import.meta.url));
+// Songs and voice notes together. Sized for the 3 GB disk; the free-space guard still protects backups.
+const VOICE_STORAGE_BYTES=600*1024*1024;
 const V2='https://hvjcugehjwqtrvzgbwnq.supabase.co';
 const security={
   'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin',
@@ -358,7 +360,7 @@ publishPresence(true);});return;
         check(mime&&String(p.mime).split(';')[0]===mime,'Unsupported recording format.');
         if(mime==='audio/mpeg'){const existing=store.db.prepare('SELECT id FROM voices WHERE mime=? AND bytes=?').all(mime,bytes).find(v=>canHear(store,who,v.id));if(existing)return send(res,201,{id:existing.id});}
         const total=store.db.prepare('SELECT COALESCE(SUM(length(bytes)),0) AS n FROM voices').get().n;
-        check(total+bytes.length<=150*1024*1024,'Voice storage is full.',413);
+        check(total+bytes.length<=VOICE_STORAGE_BYTES,'Voice storage is full.',413);
         requireStorage(store,bytes.length);const id=randomUUID();store.db.prepare('INSERT INTO voices VALUES(?,?,?,?,?)').run(id,who,mime,bytes,new Date().toISOString());return send(res,201,{id});
       }
       if(path.startsWith('/api/voices/')&&req.method==='GET'){
