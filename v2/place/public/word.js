@@ -2,7 +2,8 @@
 // Our Word: today's shared word and word-for-word challenges. The server keeps every secret word.
 const $=s=>document.querySelector(s),make=(tag,text,root,cls)=>{const e=document.createElement(tag);if(text!==undefined&&text!==null)e.textContent=text;if(cls)e.className=cls;root?.append(e);return e;};
 const LANGS={ar:'العربية',en:'English'};
-const KEYS={en:[[...'qwertyuiop'],[...'asdfghjkl'],['enter',...'zxcvbnm','back']],ar:[[...'ضصثقفغعهخحج'],[...'شسيبلاتنمكط'],['enter',...'ذئءؤروزظد','back']]};
+// Enter lives as the gold Submit button beside Give up, so the keyboard keeps letters and delete only.
+const KEYS={en:[[...'qwertyuiop'],[...'asdfghjkl'],[...'zxcvbnm','back']],ar:[[...'ضصثقفغعهخحج'],[...'شسيبلاتنمكط'],[...'ذئءؤروزظد','back']]};
 const RANK={absent:1,present:2,correct:3};
 let host,who=null,data=null,tab='daily',opened=false,busy=false,fullView=true,signature='',clockOffset=0,version=-1;
 let typed=[],shake=false,dailyLang='ar',soundOn=true,audio=null;
@@ -273,7 +274,8 @@ function render(force=false){
  if(tab==='daily')renderDaily(root);else renderChallenge(root);
  const m=match();
  if(m&&m.status==='active'&&m.me.started&&!m.me.finished){const foot=make('div',undefined,root,'word-footer');
-  btn('Give up',foot,async()=>{if(await window.OurGameUI.confirm({title:'Give up this word?',message:'It counts as not solved. If '+other()+' solves it, '+other()+' wins.',confirmLabel:'Give up'}))await command('giveup',{match:tab,id:m.id});},'word-leave');}
+  btn('Give up',foot,async()=>{if(await window.OurGameUI.confirm({title:'Give up this word?',message:'It counts as not solved. If '+other()+' solves it, '+other()+' wins.',confirmLabel:'Give up'}))await command('giveup',{match:tab,id:m.id});},'word-leave');
+  const ready=typed.length===m.length,submit=btn('Submit ✓',foot,()=>press('enter'),'word-submit'+(ready?' ready':''));submit.setAttribute('aria-label','Submit your word');}
  if(field){const again=root.querySelector('[data-field="'+field+'"]');if(again){again.focus();try{again.setSelectionRange(...caret);}catch{}}}
 }
 // Back button: an open game is its own history step, so Back closes it and you stay on Do Together.
