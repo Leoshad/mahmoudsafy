@@ -6,11 +6,11 @@ const LANGS={ar:'العربية',en:'English'};
 const KEYS={en:[[...'qwertyuiop'],[...'asdfghjkl'],[...'zxcvbnm','back']],ar:[[...'ضصثقفغعهخحج'],[...'شسيبلاتنمكط'],[...'ذئءؤروزظد','back']]};
 const RANK={absent:1,present:2,correct:3};
 let host,who=null,data=null,tab='daily',opened=false,busy=false,fullView=true,signature='',clockOffset=0,version=-1;
-let typed=[],shake=false,dailyLang='ar',soundOn=true,audio=null;
+let typed=[],shake=false,dailyLang='en',soundOn=true,audio=null;
 const revealed=new Map(),celebrated=new Map();let dismissed=null;
 const ANIM=1800;
-const draft={lang:'ar',word:'',hint:'',note:'',photo:null,uploading:false};
-try{soundOn=localStorage.getItem('our-place:word:sound')!=='off';const l=localStorage.getItem('our-place:word:lang');if(LANGS[l]){dailyLang=l;draft.lang=l;}}catch{}
+const draft={lang:'en',word:'',hint:'',note:'',photo:null,uploading:false};
+try{soundOn=localStorage.getItem('our-place:word:sound')!=='off';}catch{}
 
 // Same normalization as the server: Arabic without diacritics, one alef, ة→ه, ى→ي.
 function normalize(text,lang){let w=String(text??'').trim();if(lang==='ar')return w.replace(/[ً-ْٰـ\s]/g,'').replace(/[أإآٱ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي');return w.toLowerCase().replace(/\s/g,'');}
@@ -153,7 +153,7 @@ function renderDaily(root){
   const card=make('div',undefined,root,'word-start');
   make('small','TODAY’S WORD · '+dayLabel(d.today).toUpperCase(),card,'label');make('h4','Same word. Same day. Who finds it first?',card);
   const todayLang=d.lang||'en';
-  make('p','Today is '+(todayLang==='ar'?'an Arabic':'an English')+' day '+(todayLang==='ar'?'🇪🇬':'🇬🇧')+' · tomorrow is '+(todayLang==='ar'?'English':'Arabic')+'. '+other()+' plays the same word. Your clock starts when you press Start.',card,'muted');
+  make('p',other()+' plays the same word. Your clock starts when you press Start.',card,'muted');
   btn('Start · invite '+other(),card,async()=>{if(await command('daily',{lang:todayLang})){fullView=true;render(true);}},'primary word-start-button');
   make('p',other()+' gets a notification to play the same word.',card,'muted word-small');
   return;
@@ -162,7 +162,7 @@ function renderDaily(root){
  if(m.status!=='active'){resultCard(root,m,m.lang,{title:'TODAY’S WORD · '+dayLabel(m.date).toUpperCase(),answer:m.answer,note:'A new word arrives at midnight Riyadh time.'});return;}
  if(!m.me.started){
   const card=make('div',undefined,root,'word-start');make('small','TODAY’S WORD · '+dayLabel(m.date).toUpperCase(),card,'label');
-  make('h4',(m.startedBy===who?'You':m.startedBy)+' chose '+LANGS[m.lang]+' today',card);make('p',m.length+' letters · 6 tries · a topic clue and up to 2 letters to reveal. Your clock starts when you press Start.',card,'muted');
+  make('h4',(m.startedBy===who?'You':m.startedBy)+' started today’s word',card);make('p',m.length+' letters · 6 tries · a topic clue and up to 2 letters to reveal. Your clock starts when you press Start.',card,'muted');
   rivalLine(card,m);btn('Start today’s word',card,async()=>{if(await command('daily',{lang:m.lang})){fullView=true;render(true);}},'primary word-start-button');return;
  }
  statusRow(root,title,m);rivalLine(root,m);
@@ -197,7 +197,6 @@ async function upload(file){
 }
 function wordForm(root,lang,{answering=false}={}){
  const form=make('form',undefined,root,'word-form');form.noValidate=true;
- if(!answering)langPicker(form,draft.lang,k=>{draft.lang=k;try{localStorage.setItem('our-place:word:lang',k);}catch{}render(true);},'Language of both words');
  const use=answering?lang:draft.lang,n=[...normalize(draft.word,use)].length,okShape=LETTERS[use].test(normalize(draft.word,use))&&n>=4&&n<=7;
  const field=(label,key,max,area=false,placeholder='')=>{const l=make('label',undefined,form,'word-field');make('span',label,l,'word-field-label');const i=make(area?'textarea':'input',undefined,l);if(!area)i.type='text';i.maxLength=max;i.value=draft[key];i.dir='auto';i.placeholder=placeholder;i.dataset.field=key;i.autocomplete='off';i.spellcheck=false;i.oninput=()=>{draft[key]=i.value;if(key==='word')render(true);};return i;};
  field('Your word for '+other()+' · 4 to 7 letters','word',20,false,use==='ar'?'مثال: قهوة':'e.g. coffee');

@@ -45,9 +45,10 @@ test('one-time clean slate clears the 26 Nov daily word once and never again',()
 });
 
 import {dailyLang,tierFor,LEVEL_ODDS} from '../word.mjs';
-test('today’s word alternates: Arabic one day, English the next',()=>{
- assert.equal(dailyLang('2026-11-27'),'ar');assert.equal(dailyLang('2026-11-28'),'en');assert.equal(dailyLang('2026-11-29'),'ar');
- const s=fresh();wordChange(s,'Mahmoud','word.daily',{lang:'en'},Date.parse('2026-11-27T10:00:00Z'));assert.equal(s.word.daily.lang,'ar','the day decides, not the button');
+test('Our Word is English only: today’s word every day, whatever the button asks',()=>{
+ for(const d of ['2026-11-27','2026-11-28','2026-11-29'])assert.equal(dailyLang(d),'en');
+ const s=fresh();wordChange(s,'Mahmoud','word.daily',{lang:'ar'},Date.parse('2026-11-27T10:00:00Z'));assert.equal(s.word.daily.lang,'en');
+ assert.match(s.word.daily.answer.word,/^[a-z]+$/);
 });
 test('every answer has a level; each level has words in both languages; odds add to 100',()=>{
  assert.equal(Object.values(LEVEL_ODDS).reduce((a,b)=>a+b,0),100);

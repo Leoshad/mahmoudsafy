@@ -60,22 +60,22 @@ test('daily: an unfinished started board counts as not solved at midnight',()=>{
 
 test('challenge: each writes a word; any letters allowed; surprise opens only after you finish',()=>{
  const s=fresh();
- assert.throws(()=>wordChange(s,'Mahmoud','word.challenge',{lang:'ar',word:'صا'},T),/4 to 7/);
- assert.throws(()=>wordChange(s,'Mahmoud','word.challenge',{lang:'ar',word:'cafe'},T),/Arabic/);
- wordChange(s,'Mahmoud','word.challenge',{lang:'ar',word:'صافيتي',hint:'اسم دلع',note:'بحبك',photo:ids()},T);
- const c=s.word.challenge;let safy=wordSnapshot(s,'Safy',T).challenge;
- assert.equal(safy.status,'waiting');assert.equal(JSON.stringify(safy).includes('صافيتي'),false);assert.equal(JSON.stringify(safy).includes('بحبك'),false);
- assert.throws(()=>wordChange(s,'Mahmoud','word.answer',{id:c.id,word:'قهوة'},T),/expired or changed/);
- wordChange(s,'Safy','word.answer',{id:c.id,word:'محمودي'},T+1000);
- let m=wordSnapshot(s,'Mahmoud',T+1000).challenge;assert.equal(m.status,'active');assert.equal(m.length,6);assert.equal(m.reveal,null);assert.equal(JSON.stringify(m).includes('محمودي'),false);
- assert.throws(()=>wordChange(s,'Mahmoud','word.guess',{match:'challenge',id:c.id,guess:'محمودي'},T),/Start/);
+ assert.throws(()=>wordChange(s,'Mahmoud','word.challenge',{word:'ab'},T),/4 to 7/);
+ assert.throws(()=>wordChange(s,'Mahmoud','word.challenge',{lang:'ar',word:'قهوة'},T),/English/);// English only, whatever the client asks
+ wordChange(s,'Mahmoud','word.challenge',{lang:'ar',word:'Safyty',hint:'a nickname',note:'love you',photo:ids()},T);
+ const c=s.word.challenge;assert.equal(c.lang,'en');let safy=wordSnapshot(s,'Safy',T).challenge;
+ assert.equal(safy.status,'waiting');assert.equal(JSON.stringify(safy).includes('safyty'),false);assert.equal(JSON.stringify(safy).includes('love you'),false);
+ assert.throws(()=>wordChange(s,'Mahmoud','word.answer',{id:c.id,word:'coffee'},T),/expired or changed/);
+ wordChange(s,'Safy','word.answer',{id:c.id,word:'mahmud'},T+1000);
+ let m=wordSnapshot(s,'Mahmoud',T+1000).challenge;assert.equal(m.status,'active');assert.equal(m.length,6);assert.equal(m.reveal,null);assert.equal(JSON.stringify(m).includes('mahmud'),false);
+ assert.throws(()=>wordChange(s,'Mahmoud','word.guess',{match:'challenge',id:c.id,guess:'mahmud'},T),/Start/);
  wordChange(s,'Mahmoud','word.start',{id:c.id},T+2000);wordChange(s,'Safy','word.start',{id:c.id},T+2000);
- wordChange(s,'Mahmoud','word.guess',{match:'challenge',id:c.id,guess:'ابجدهو'},T+3000);// not a dictionary word: allowed in challenges
- wordChange(s,'Mahmoud','word.guess',{match:'challenge',id:c.id,guess:'محمودى'},T+9000);
- m=wordSnapshot(s,'Mahmoud',T+9000).challenge;assert.equal(m.me.solved,true);assert.equal(m.reveal.word,'محمودي');
- safy=wordSnapshot(s,'Safy',T+9000).challenge;assert.equal(safy.reveal,null);assert.equal(safy.hint,'اسم دلع');
- wordChange(s,'Safy','word.guess',{match:'challenge',id:c.id,guess:'صافيتى'},T+20000);
- safy=wordSnapshot(s,'Safy',T+20000).challenge;assert.equal(safy.status,'complete');assert.equal(safy.winner,'Safy','one try beats two');assert.equal(safy.reveal.note,'بحبك');assert.equal(safy.reveal.photo,ids());
+ wordChange(s,'Mahmoud','word.guess',{match:'challenge',id:c.id,guess:'qwerty'},T+3000);// not a dictionary word: allowed in challenges
+ wordChange(s,'Mahmoud','word.guess',{match:'challenge',id:c.id,guess:'MAHMUD'},T+9000);
+ m=wordSnapshot(s,'Mahmoud',T+9000).challenge;assert.equal(m.me.solved,true);assert.equal(m.reveal.word,'mahmud');
+ safy=wordSnapshot(s,'Safy',T+9000).challenge;assert.equal(safy.reveal,null);assert.equal(safy.hint,'a nickname');
+ wordChange(s,'Safy','word.guess',{match:'challenge',id:c.id,guess:'SAFYTY'},T+20000);
+ safy=wordSnapshot(s,'Safy',T+20000).challenge;assert.equal(safy.status,'complete');assert.equal(safy.winner,'Safy','one try beats two');assert.equal(safy.reveal.note,'love you');assert.equal(safy.reveal.photo,ids());
  assert.equal(crownSnapshot(s,'Safy').breakdown.word.Safy,1);
  wordChange(s,'Mahmoud','word.challenge',{lang:'en',word:'coffee'},T+30000);assert.equal(s.word.challenge.status,'waiting');
 });

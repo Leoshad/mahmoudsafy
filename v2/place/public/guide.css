@@ -60,6 +60,7 @@ html.guide-open,html.guide-open body{overflow:hidden}
 .our-guide .g-tbl tr:last-child td{border-bottom:0}
 .our-guide .g-no{color:#e59a9a;font-weight:700;white-space:nowrap}
 .our-guide .g-row{display:flex;gap:5px;margin:4px 0}
+.our-guide .g-try .g-row{justify-self:start;width:max-content}
 .our-guide .g-t{width:32px;height:32px;border-radius:7px;display:grid;place-items:center;font-weight:800;font-size:16px;border:1px solid #4a3f4a;background:#231d25;color:#eee8e9;flex:none}
 .our-guide .g-c{background:#c9a465;border-color:#c9a465;color:#1d171d}
 .our-guide .g-p{background:#b9708f;border-color:#b9708f;color:#fff}

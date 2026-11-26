@@ -26,7 +26,8 @@ let topics=null;
 function topicsData(){return topics??=JSON.parse(readFileSync(new URL('./word-lists/categories.json',import.meta.url),'utf8'));}
 export function tierFor(display,lang){return topicsData().tiers?.[lang]?.[display]??'easy';}
 // One day Arabic, the next English: 27 Nov 2026 is an Arabic day.
-export function dailyLang(date){return Math.floor(Date.parse(date+'T00:00:00Z')/86400000)%2===0?'ar':'en';}
+// Our Word is English only (daily and challenge). Arabic support stays for old history records.
+export function dailyLang(){return 'en';}
 export function topicFor(display,lang){const t=topicsData(),key=t[lang]?.[display];return key?{key,label:t.labels[lang][key]}:null;}
 
 let dictionaries=null;
@@ -144,8 +145,8 @@ export function wordChange(s,who,type,p={},now=Date.now()){
  }else if(type==='word.challenge'){
   const old=w.challenge;
   check(!old||['complete','declined','cancelled'].includes(old.status)||old.status==='waiting'&&old.expires<=now,'Finish your current challenge first.',409);
-  check(['ar','en'].includes(p.lang),'Choose Arabic or English.');
-  w.challenge={id:randomUUID(),owner:who,lang:p.lang,status:'waiting',expires:now+CHALLENGE_WAIT,winner:null,revision:1,words:{[who]:secretInput(p,p.lang)},players:Object.fromEntries(names.map(n=>[n,board()]))};
+  const lang='en';
+  w.challenge={id:randomUUID(),owner:who,lang,status:'waiting',expires:now+CHALLENGE_WAIT,winner:null,revision:1,words:{[who]:secretInput(p,lang)},players:Object.fromEntries(names.map(n=>[n,board()]))};
  }else if(['word.answer','word.decline','word.cancel','word.start'].includes(type)){
   const m=w.challenge;check(m&&m.id===p.id,'This challenge is no longer available.',409);
   if(type==='word.answer'){check(m.status==='waiting'&&m.owner!==who&&m.expires>now,'This challenge has expired or changed.',409);m.words[who]=secretInput(p,m.lang);m.status='active';m.startedAt=now;}
