@@ -88,6 +88,8 @@
 #our-place-trial .billiards-choice-actions button,#our-place-trial .billiards-result-actions button{flex:1;min-height:44px;font-size:13px}
 @keyframes billiards-in{0%{opacity:0;transform:translateY(10px) scale(.97)}100%{opacity:1;transform:none}}
 #our-place-trial .billiards-footer{display:flex;align-items:center;gap:8px;padding-top:6px}
+#our-place-trial .billiards-switch{min-height:38px;padding:7px 11px;font-size:12px;border-radius:8px;white-space:nowrap;color:#e9d3a2;border-color:#8a7650}
+#our-place-trial .billiards-switch[hidden]{display:none}
 #our-place-trial .billiards-leave{min-height:38px;padding:7px 13px;font-size:12px;border-radius:8px;color:#ecc5bd}
 
 /* A live game fills the phone: scoreboard, table and controls stay on one screen. */

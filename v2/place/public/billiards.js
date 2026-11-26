@@ -34,8 +34,10 @@ function click(kind,strength=.5){
 }
 
 // ---------- shell ----------
-function save(){try{if(who)localStorage.setItem('our-place:billiards:'+who,JSON.stringify({mode,opened}));}catch{}}
-function focused(){return opened&&isLive(game());}
+function save(){try{if(who)localStorage.setItem('our-place:billiards:'+who,JSON.stringify({mode,opened,dismissed}));}catch{}}
+// A finished game you closed with Back stays closed: you get the start screen (Solo / Together) instead of its result.
+let dismissed={};const closedResult=g=>g?.status==='complete'&&dismissed[g.mode]===g.id;
+function focused(){const g=game();return opened&&isLive(g)&&!closedResult(g);}
 function show(){const p=$('#billiards-panel');p.hidden=!opened;p.classList.toggle('billiards-focused',focused());$('#billiards-open').hidden=opened;document.body.classList.toggle('billiards-locked',focused());save();}
 function error(e){$('#billiards-error').textContent=e?.message||'Could not connect. Your game is saved.';}
 function btn(label,root,fn,cls){const b=make('button',label,root,cls);b.type='button';b.disabled=busy;b.onclick=()=>{unlock();return Promise.resolve(fn()).catch(error);};return b;}
@@ -241,6 +243,7 @@ function buildLive(root){
  const sideCol=make('div',undefined,stage,'billiards-side');view.spinSlot=make('div',undefined,sideCol,'billiards-spin-slot');
  view.wheel=make('div',undefined,sideCol,'billiards-wheel');view.wheel.setAttribute('aria-label','Fine aim: drag up or down');
  const foot=make('div',undefined,root,'billiards-footer');view.hint=make('p','',foot,'billiards-hint');
+ view.together=btn('Play with '+other(),foot,()=>{switchMode('shared');save();},'billiards-switch');view.together.title='Your game with the computer stays saved';
  view.leave=btn('Leave game',foot,async()=>{const g=game();if(await window.OurGameUI.confirm({title:'Leave this game?',message:'The game ends without a win. Minimize instead to keep it saved.',confirmLabel:'Leave game'}))await command('leave',{},g);},'billiards-leave');
  view.overlay=make('div',undefined,root,'billiards-overlay');
  bindPower(bar);bindWheel(view.wheel);view.liveSig='';
@@ -272,7 +275,7 @@ function updateClock(){
 function updateLive(){
  const g=shown();if(!g||!view.score)return;
  scoreboard(g);const text=statusText(g);if(view.turn.textContent!==text){view.turn.textContent=text;view.turn.classList.remove('billiards-fade');void view.turn.offsetWidth;view.turn.classList.add('billiards-fade');}
- const mine=myTurn(g);view.bar.classList.toggle('off',!mine);view.wheel.classList.toggle('off',!mine);view.leave.hidden=g.status!=='active';view.leave.disabled=busy;
+ const mine=myTurn(g);view.bar.classList.toggle('off',!mine);view.wheel.classList.toggle('off',!mine);view.leave.hidden=g.status!=='active';view.leave.disabled=busy;view.together.hidden=g.mode!=='solo'||g.status!=='active';
  const spinSig=mine+':'+spinOpen;if(view.spinSig!==spinSig){view.spinSig=spinSig;view.spinSlot.replaceChildren();if(mine)spinPad(view.spinSlot);}
  const over=job||queue.length?'':g.status==='complete'?'result:'+g.id:g.choice?.who===who?'choice:'+g.revision:'';
  if(view.overSig!==over){view.overSig=over;view.overlay.replaceChildren();if(over.startsWith('result'))result(view.overlay,g);else if(over.startsWith('choice'))choice(view.overlay,g);}
@@ -286,7 +289,7 @@ function choice(root,g){
 function result(root,g){
  const card=make('div',undefined,root,'billiards-result');card.setAttribute('role','status');make('small',g.mode==='shared'?'MATCH COMPLETE · SAVED TO THE CROWN':'GAME COMPLETE',card);
  make('h3',g.winner===who?'You won!':g.winner+' won',card);make('p',g.last,card);
- const row=make('div',undefined,card,'billiards-result-actions');btn('Rematch',row,()=>command('rematch'),'primary');btn('Back',row,()=>minimize());
+ const row=make('div',undefined,card,'billiards-result-actions');btn('Rematch',row,()=>command('rematch'),'primary');btn('Back',row,()=>{dismissed[g.mode]=g.id;save();refresh(true);});
 }
 
 // ---------- setup screens ----------
@@ -321,23 +324,24 @@ function refresh(force=false){
  if(!who)return;show();invitation();records();
  $('#billiards-solo').classList.toggle('selected',mode==='solo');$('#billiards-shared').classList.toggle('selected',mode==='shared');
  $('#billiards-open-note').textContent=data.shared?.status==='active'?(data.shared.turn===who?'Your shot. The table is waiting.':'Your game with '+other()+' is saved.'):data.solo?.status==='active'?'Your solo game is saved.':'Eight balls. One little rivalry.';
- const g=shown(),root=$('#billiards-game'),type=!g||['ended','declined','expired'].includes(g.status)?'setup':g.status==='waiting'?'waiting':'live',key=mode+':'+(g?.id??'none')+':'+type;
+ const g=shown(),root=$('#billiards-game'),type=!g||['ended','declined','expired'].includes(g.status)||closedResult(g)?'setup':g.status==='waiting'?'waiting':'live',key=mode+':'+(g?.id??'none')+':'+type;
  if(type==='live'){if(screenKey!==key||!view.score?.isConnected){screenKey=key;view.scoreSig=null;view.spinSig=null;view.overSig=null;buildLive(root);}if(force)view.spinSig=null;updateLive();draw();return;}
  const sig=key+JSON.stringify([g?.status,g?.revision,busy]);if(screenKey===key&&setupSig===sig&&!force)return;screenKey=key;setupSig=sig;root.replaceChildren();view.score=null;
  if(type==='setup')setup(root,g);else waiting(root,g);
 }
+function switchMode(m){if(mode===m)return;mode=m;place=null;spinOpen=false;queue=[];job=null;frozen=null;refresh(true);}
 let resizeTimer;window.addEventListener('resize',()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(fit,120);});
 function init(h){
  host=h;soundButton();window.OurGameUI?.registerChat?.($('.billiards-head'),()=>minimize(true));
  $('#billiards-open').onclick=()=>{unlock();opened=true;stepIn();refresh(true);host.revealPanel?.('#billiards-panel');requestAnimationFrame(fit);};
  $('#billiards-collapse').onclick=()=>minimize();$('#billiards-chat').onclick=()=>minimize(true);
  $('#billiards-sound').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('our-place:billiards:sound',soundOn?'on':'off');}catch{}soundButton();if(soundOn){unlock();click('ball',.6);}};
- for(const m of ['solo','shared'])$('#billiards-'+m).onclick=()=>{if(mode===m)return;mode=m;place=null;spinOpen=false;queue=[];job=null;frozen=null;refresh(true);};
+ for(const m of ['solo','shared'])$('#billiards-'+m).onclick=()=>switchMode(m);
  setInterval(updateClock,250);
 }
 window.OurBilliards={init,sync(s){
  if(!s?.billiards)return;if(Number.isFinite(s.version)&&who===s.who&&s.version<version)return;
- if(who!==s.who){who=s.who;opened=false;mode='solo';seen={};try{const saved=JSON.parse(localStorage.getItem('our-place:billiards:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;}}catch{}if(opened)stepIn();}
+ if(who!==s.who){who=s.who;opened=false;mode='solo';seen={};dismissed={};try{const saved=JSON.parse(localStorage.getItem('our-place:billiards:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;dismissed=saved.dismissed&&typeof saved.dismissed==='object'?saved.dismissed:{};}}catch{}if(opened)stepIn();}
  if(Number.isFinite(s.serverNow))clockOffset=s.serverNow-Date.now();version=s.version;
  const first=!Object.keys(seen).length,before=data;data=s.billiards;
  for(const m of ['solo','shared']){const g=data[m],key=g?.lastShot?g.id+':'+g.lastShot.n:null;if(!key){seen[m]=null;continue;}
