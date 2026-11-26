@@ -133,7 +133,7 @@
 
 /* footer */
 #our-place-trial .word-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:6px}
-#our-place-trial .word-leave{min-height:40px;padding:8px 14px;font-size:12px;border-radius:8px;color:#ecc5bd}
+#our-place-trial .word-leave{min-height:44px;padding:9px 15px;font-size:13.2px;border-radius:9px;color:#ecc5bd}
 #our-place-trial .word-size-toggle{min-height:40px;padding:8px 14px;font-size:12px}
 
 /* Full screen while playing: the board and keyboard fill the phone like the other games. */
@@ -157,6 +157,6 @@ body.word-locked{overflow:hidden}
 #our-place-trial .word-try-count{font-size:13px;color:#bdacb7}
 #our-place-trial .word-hint-button{min-height:34px;padding:6px 12px;border:1px solid #6b5636;border-radius:18px;background:#231c16;color:#edce96;font:inherit;font-size:13px}
 #our-place-trial .word-hint-button:disabled{opacity:.5}
-#our-place-trial .word-submit{min-height:52px;min-width:46%;padding:10px 22px;border:0;border-radius:14px;background:linear-gradient(180deg,#e0c38f,#c9a465);color:#1d171d;font:inherit;font-size:17px;font-weight:800;letter-spacing:.3px;box-shadow:0 6px 18px #c9a46533;opacity:.55;transition:opacity .2s,transform .15s}
+#our-place-trial .word-submit{min-height:44px;padding:9px 15px;border:0;border-radius:9px;background:linear-gradient(180deg,#e0c38f,#c9a465);color:#1d171d;font:inherit;font-size:13.2px;font-weight:800;box-shadow:0 4px 12px #c9a46533;opacity:.55;transition:opacity .2s,transform .15s}
 #our-place-trial .word-submit.ready{opacity:1}
 #our-place-trial .word-submit:active{transform:scale(.97)}
