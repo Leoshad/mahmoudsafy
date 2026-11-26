@@ -145,3 +145,15 @@
 body.word-locked{overflow:hidden}
 @media (min-width:760px){#our-place-trial #word-panel.word-focused{inset:16px auto 16px 50%;width:560px;height:calc(100dvh - 32px);transform:translateX(-50%);border:1px solid #6e5163;border-radius:16px;box-shadow:0 0 0 100vmax #0e0a0ef2}}
 @media (prefers-reduced-motion:reduce){#our-place-trial .word-tile.flip,#our-place-trial .word-row.shake,#our-place-trial .word-result-enter,#our-place-trial .word-tile.filled{animation:none}}
+
+/* Clues: the topic of the word, letters you revealed, try counter and the 💡 button. */
+#our-place-trial .word-clues{display:grid;gap:8px;margin:4px 0 10px;padding:10px 12px;border:1px solid #4a3c2a;border-radius:14px;background:linear-gradient(115deg,#231c16,#1b171e 70%)}
+#our-place-trial .word-topic{display:flex;align-items:baseline;gap:8px;margin:0;flex-wrap:wrap}
+#our-place-trial .word-clue-label{font-size:11px;letter-spacing:1.6px;text-transform:uppercase;color:#d1b078}
+#our-place-trial .word-topic strong{font-size:16px;color:#f1e6d2;font-weight:600}
+#our-place-trial .word-known{display:flex;gap:5px;justify-content:center}
+#our-place-trial .word-known .word-tile{width:30px;font-size:15px;border-width:1px;border-radius:7px}
+#our-place-trial .word-clue-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#our-place-trial .word-try-count{font-size:13px;color:#bdacb7}
+#our-place-trial .word-hint-button{min-height:34px;padding:6px 12px;border:1px solid #6b5636;border-radius:18px;background:#231c16;color:#edce96;font:inherit;font-size:13px}
+#our-place-trial .word-hint-button:disabled{opacity:.5}

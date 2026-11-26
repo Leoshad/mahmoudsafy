@@ -17,14 +17,14 @@ try{
  await page.waitForSelector('.guide-launch');assert.match(await page.$eval('.guide-launch',b=>b.textContent),/Game Guide/);
  await page.$eval('.guide-launch',b=>b.scrollIntoView({block:'center'}));if(shots)await page.screenshot({path:shots+'/1-launcher.png'});
  await page.click('.guide-launch');await page.waitForSelector('.our-guide:not([hidden])');
- assert.equal(await page.$eval('.our-guide',r=>r.dir),'ltr');assert.match(await page.$eval('.g-count',n=>n.textContent),/^1 \/ 9$/);
+ assert.equal(await page.$eval('.our-guide',r=>r.dir),'ltr');assert.match(await page.$eval('.g-count',n=>n.textContent),/^1 \/ 10$/);
  if(shots)await page.screenshot({path:shots+'/2-cover.png'});
  // Swipe up (scroll) to the crown page.
  await page.$eval('.g-scroll',s=>{const p=s.querySelectorAll('.g-page')[1];s.scrollTo({top:p.offsetTop-s.offsetTop});});await wait(500);
- assert.match(await page.$eval('.g-count',n=>n.textContent),/^2 \/ 9$/);if(shots)await page.screenshot({path:shots+'/3-crown-en.png'});
+ assert.match(await page.$eval('.g-count',n=>n.textContent),/^2 \/ 10$/);if(shots)await page.screenshot({path:shots+'/3-crown-en.png'});
  // Switch to Arabic, stay on the same page.
  await page.click('.g-lang button[data-lang="ar"]');await wait(400);
- assert.equal(await page.$eval('.our-guide',r=>r.dir),'rtl');assert.match(await page.$eval('.g-count',n=>n.textContent),/^2 \/ 9$/);assert.match(await page.$eval('.g-title',n=>n.textContent),/دليل الألعاب/);
+ assert.equal(await page.$eval('.our-guide',r=>r.dir),'rtl');assert.match(await page.$eval('.g-count',n=>n.textContent),/^2 \/ 10$/);assert.match(await page.$eval('.g-title',n=>n.textContent),/دليل الألعاب/);
  if(shots)await page.screenshot({path:shots+'/4-crown-ar.png'});
  // Back closes the guide and keeps you on Do Together.
  await page.goBack();await wait(500);
@@ -36,10 +36,10 @@ try{
  await page.$eval('#word-open',b=>b.scrollIntoView({block:'center'}));await page.click('#word-open');await wait(700);
  await page.$eval('.guide-mini[data-for="word"]',b=>b.scrollIntoView({block:'center'}));if(shots)await page.screenshot({path:shots+'/5-word-button.png'});
  await page.click('.guide-mini[data-for="word"]');await page.waitForSelector('.our-guide:not([hidden])');await wait(400);
- assert.match(await page.$eval('.g-count',n=>n.textContent),/^3 \/ 9$/);if(shots)await page.screenshot({path:shots+'/6-word-page.png'});
+ assert.match(await page.$eval('.g-count',n=>n.textContent),/^3 \/ 10$/);if(shots)await page.screenshot({path:shots+'/6-word-page.png'});
  await page.goBack();await wait(500);assert.equal(await page.$eval('.our-guide',r=>r.hidden),true);assert.equal(await page.$eval('#word-panel',p=>!p.hidden),true,'game panel stays open');
  // Billiards button opens the billiards page; last page offers the PDF.
- await page.evaluate(()=>window.OurGuide.open('billiards'));await wait(400);assert.match(await page.$eval('.g-count',n=>n.textContent),/^6 \/ 9$/);
+ await page.evaluate(()=>window.OurGuide.open('billiards'));await wait(400);assert.match(await page.$eval('.g-count',n=>n.textContent),/^7 \/ 10$/);
  if(shots)await page.screenshot({path:shots+'/7-billiards.png'});
  const pdf=await page.$eval('.g-download',a=>a.getAttribute('href'));const r=await fetch(base+pdf);assert.equal(r.status,200);assert.equal(r.headers.get('content-type'),'application/pdf');
  // Overflow check: nothing wider than the screen.

@@ -6,7 +6,7 @@ import {randomUUID,randomInt} from 'node:crypto';
 import {check,names} from './domain.mjs';
 import {recordCompetitiveResult} from './crown.mjs';
 
-export const MAX_TRIES=6,MIN_LENGTH=4,MAX_LENGTH=7;
+export const MAX_TRIES=6,MIN_LENGTH=4,MAX_LENGTH=7,MAX_HINTS=2;
 const TITLE='Our Word',CHALLENGE_WAIT=48*3600000;
 const other=n=>names.find(p=>p!==n);
 const list=file=>readFileSync(new URL('./word-lists/'+file,import.meta.url),'utf8').split('\n').map(w=>w.trim()).filter(Boolean);
@@ -20,6 +20,11 @@ export function normalize(text,lang){
 const letters={ar:/^[ء-غف-ي]+$/,en:/^[a-z]+$/};
 export function letterCount(word){return [...word].length;}
 function validShape(word,lang){return letters[lang]?.test(word)&&letterCount(word)>=MIN_LENGTH&&letterCount(word)<=MAX_LENGTH;}
+
+// Every daily answer has a topic, shown from the start as a free clue.
+let topics=null;
+function topicsData(){return topics??=JSON.parse(readFileSync(new URL('./word-lists/categories.json',import.meta.url),'utf8'));}
+export function topicFor(display,lang){const t=topicsData(),key=t[lang]?.[display];return key?{key,label:t.labels[lang][key]}:null;}
 
 let dictionaries=null;
 function words(){
@@ -44,16 +49,18 @@ export function score(guess,answer){
 export function dayKey(now=Date.now()){return new Date(now+3*3600000).toISOString().slice(0,10);}
 export function nextDayAt(now=Date.now()){const d=new Date(dayKey(now)+'T00:00:00Z');return d.getTime()+86400000-3*3600000;}
 
-function board(){return {startedAt:null,finishedAt:null,solved:false,guesses:[]};}
+function board(){return {startedAt:null,finishedAt:null,solved:false,guesses:[],hints:[]};}
+const hintsUsed=b=>b?.hints?.length??0;
 function ensure(s){s.word??={daily:null,challenge:null,records:{wins:{Mahmoud:0,Safy:0},ties:0,history:[]}};s.word.records??={wins:{Mahmoud:0,Safy:0},ties:0,history:[]};return s.word;}
 const finished=b=>!!b?.finishedAt;
 const elapsed=b=>b?.startedAt&&b.finishedAt?b.finishedAt-b.startedAt:null;
 
-// Solved beats unsolved, then fewer tries, then the faster clock. Anything else is a tie.
+// Solved beats unsolved, then fewer tries, then fewer letter hints, then the faster clock. Anything else is a tie.
 export function decide(a,b){
  if(a.solved!==b.solved)return a.solved?-1:1;
  if(!a.solved)return 0;
  if(a.guesses.length!==b.guesses.length)return a.guesses.length<b.guesses.length?-1:1;
+ if(hintsUsed(a)!==hintsUsed(b))return hintsUsed(a)<hintsUsed(b)?-1:1;
  const ta=elapsed(a),tb=elapsed(b);if(ta===tb||ta===null||tb===null)return 0;return ta<tb?-1:1;
 }
 function settle(s,m,kind,now,{voidIfMissing=false}={}){
@@ -65,7 +72,7 @@ function settle(s,m,kind,now,{voidIfMissing=false}={}){
  const w=ensure(s);
  recordCompetitiveResult(s,{game:'word',title:TITLE,matchId:m.id,participants:names,mode:'shared',status:'complete',winner:m.winner},now);
  if(m.winner)w.records.wins[m.winner]=(w.records.wins[m.winner]??0)+1;else w.records.ties=(w.records.ties??0)+1;
- w.records.history.unshift({id:m.id,kind,date:new Date(now).toISOString(),day:m.date??null,lang:m.lang,winner:m.winner,...(kind==='daily'?{answer:m.answer.word,answerDisplay:m.answer.display}:{}),results:Object.fromEntries(names.map(n=>[n,{solved:m.players[n].solved,tries:m.players[n].guesses.length,ms:elapsed(m.players[n])}]))});
+ w.records.history.unshift({id:m.id,kind,date:new Date(now).toISOString(),day:m.date??null,lang:m.lang,winner:m.winner,...(kind==='daily'?{answer:m.answer.word,answerDisplay:m.answer.display}:{}),results:Object.fromEntries(names.map(n=>[n,{solved:m.players[n].solved,tries:m.players[n].guesses.length,hints:hintsUsed(m.players[n]),ms:elapsed(m.players[n])}]))});
  w.records.history=w.records.history.slice(0,60);
  return true;
 }
@@ -88,6 +95,17 @@ function guess(s,m,kind,who,raw,now){
  if(marks.every(x=>x==='correct')){me.solved=true;me.finishedAt=now;}
  else if(me.guesses.length>=MAX_TRIES){me.solved=false;me.finishedAt=now;}
 }
+// A letter hint shows one letter of the answer in its place: never one you already have in gold,
+// never the same one twice. At most MAX_HINTS per word; fewer hints break a tie in tries.
+function hint(m,kind,who){
+ const me=m.players[who],secret=secretFor(m,kind,who);
+ check(me.startedAt,'Start the word first.',409);check(!me.finishedAt,'You already finished this word.',409);
+ me.hints??=[];check(me.hints.length<MAX_HINTS,'No letter hints left for this word.',409);
+ const letters=[...secret.word],known=new Set(me.hints.map(h=>h.i));
+ for(const g of me.guesses)g.marks.forEach((x,i)=>{if(x==='correct')known.add(i);});
+ const open=letters.map((_,i)=>i).filter(i=>!known.has(i));check(open.length>1,'You already know almost every letter. Go for it!',409);
+ const i=open[randomInt(open.length)];me.hints.push({i,letter:letters[i]});
+}
 function secretInput(p,lang){
  const word=normalize(p.word,lang);
  check(validShape(word,lang),'Write one '+(lang==='ar'?'Arabic':'English')+' word of '+MIN_LENGTH+' to '+MAX_LENGTH+' letters, without spaces.');
@@ -105,17 +123,18 @@ export function wordChange(s,who,type,p={},now=Date.now()){
   if(!w.daily||w.daily.date!==today){
    check(['ar','en'].includes(p.lang),'Choose Arabic or English.');
    const pick=pickDaily(w,p.lang);
-   w.daily={id:randomUUID(),date:today,lang:p.lang,startedBy:who,answer:{word:normalize(pick,p.lang),display:pick},status:'active',winner:null,revision:0,players:Object.fromEntries(names.map(n=>[n,board()]))};
+   w.daily={id:randomUUID(),date:today,lang:p.lang,startedBy:who,answer:{word:normalize(pick,p.lang),display:pick,topic:topicFor(pick,p.lang)?.key??null},status:'active',winner:null,revision:0,players:Object.fromEntries(names.map(n=>[n,board()]))};
   }
   const m=w.daily;check(m.status==='active','Today’s word is finished. A new one arrives at midnight Riyadh time.',409);
   m.players[who].startedAt??=now;m.revision++;
- }else if(type==='word.guess'||type==='word.giveup'){
+ }else if(type==='word.guess'||type==='word.giveup'||type==='word.hint'){
   const kind=p.match==='challenge'?'challenge':'daily',m=w[kind];
   check(m&&m.id===p.id,'This word changed. Try again.',409);check(m.status==='active','This match has ended.',409);
   if(kind==='daily')check(m.date===dayKey(now),'Today’s word has changed.',409);
   if(type==='word.guess')guess(s,m,kind,who,p.guess,now);
+  else if(type==='word.hint')hint(m,kind,who);
   else{const me=m.players[who];check(me.startedAt&&!me.finishedAt,'Nothing to give up.',409);me.finishedAt=now;me.solved=false;}
-  maybeSettle(s,m,kind,now);m.revision++;
+  if(type!=='word.hint')maybeSettle(s,m,kind,now);m.revision++;
  }else if(type==='word.challenge'){
   const old=w.challenge;
   check(!old||['complete','declined','cancelled'].includes(old.status)||old.status==='waiting'&&old.expires<=now,'Finish your current challenge first.',409);
@@ -134,19 +153,24 @@ export function wordChange(s,who,type,p={},now=Date.now()){
 
 // Closes yesterday's daily word: unfinished boards count as unsolved, and a day
 // where only one of you played gives no point.
-export function wordDue(s,now=Date.now()){const d=s.word?.daily;return !!d&&d.status==='active'&&d.date!==dayKey(now);}
+const RESET_DAILY='2026-11-26';
+export function wordDue(s,now=Date.now()){const w=s.word;if(w&&!(w.resets??[]).includes('daily-'+RESET_DAILY))return true;const d=w?.daily;return !!d&&d.status==='active'&&d.date!==dayKey(now);}
+// One-time clean slate for 26 Nov 2026, requested by Mahmoud when topics and letter hints arrived:
+// today's unfinished word (and its invitation) is cleared so you both start fresh.
 export function wordTick(s,now=Date.now()){
+ const w=s.word;
+ if(w&&!(w.resets??[]).includes('daily-'+RESET_DAILY)){(w.resets??=[]).push('daily-'+RESET_DAILY);if(w.daily?.date===RESET_DAILY&&w.daily.status==='active')w.daily=null;s.version++;return true;}
  const d=s.word?.daily;if(!d||d.status!=='active'||d.date===dayKey(now))return false;
  settle(s,d,'daily',now,{voidIfMissing:true});d.revision++;s.version++;return true;
 }
 
-function publicBoard(b){return {started:!!b.startedAt,startedAt:b.startedAt,finished:!!b.finishedAt,solved:b.solved,tries:b.guesses.length,ms:elapsed(b),guesses:b.guesses.map(g=>({word:g.word,marks:g.marks}))};}
+function publicBoard(b){return {started:!!b.startedAt,startedAt:b.startedAt,finished:!!b.finishedAt,solved:b.solved,tries:b.guesses.length,hints:(b.hints??[]).map(h=>({i:h.i,letter:h.letter})),ms:elapsed(b),guesses:b.guesses.map(g=>({word:g.word,marks:g.marks}))};}
 function rivalBoard(b){return {started:!!b.startedAt,finished:!!b.finishedAt};}
 function dailyView(d,who,now){
  const today=dayKey(now),current=d&&d.date===today?d:null,closed=d&&!['active'].includes(d.status)?d:null;
  const view={today,nextAt:nextDayAt(now),current:null,last:null};
  if(current){const ended=current.status!=='active',mine=current.players[who];
-  view.current={id:current.id,date:current.date,lang:current.lang,length:letterCount(current.answer.word),startedBy:current.startedBy,status:current.status,revision:current.revision,winner:current.winner,
+  view.current={id:current.id,date:current.date,lang:current.lang,length:letterCount(current.answer.word),topic:current.answer.topic?topicsData().labels[current.lang][current.answer.topic]:topicFor(current.answer.display,current.lang)?.label??null,startedBy:current.startedBy,status:current.status,revision:current.revision,winner:current.winner,
    me:publicBoard(mine),rival:ended?publicBoard(current.players[other(who)]):{...rivalBoard(current.players[other(who)]),...(finished(mine)?{tries:current.players[other(who)].finishedAt?current.players[other(who)].guesses.length:null,solved:current.players[other(who)].finishedAt?current.players[other(who)].solved:null}:{})},
    answer:ended||finished(mine)?current.answer.display:null};}
  if(closed&&closed!==current)view.last={id:closed.id,date:closed.date,lang:closed.lang,status:closed.status,winner:closed.winner,answer:closed.answer.display,me:publicBoard(closed.players[who]),rival:publicBoard(closed.players[other(who)])};
@@ -165,5 +189,5 @@ function challengeView(c,who,now){
 }
 export function wordSnapshot(s,who,now=Date.now()){
  if(!names.includes(who))return null;const w=s.word;
- return {daily:dailyView(w?.daily,who,now),challenge:challengeView(w?.challenge,who,now),records:w?.records??{wins:{Mahmoud:0,Safy:0},ties:0,history:[]},limits:{min:MIN_LENGTH,max:MAX_LENGTH,tries:MAX_TRIES}};
+ return {daily:dailyView(w?.daily,who,now),challenge:challengeView(w?.challenge,who,now),records:w?.records??{wins:{Mahmoud:0,Safy:0},ties:0,history:[]},limits:{min:MIN_LENGTH,max:MAX_LENGTH,tries:MAX_TRIES,hints:MAX_HINTS}};
 }

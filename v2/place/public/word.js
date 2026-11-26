@@ -54,7 +54,7 @@ function letterStates(guesses){const out={};for(const g of guesses)[...g.word].f
 function tile(root,ch,mark,cls=''){const t=make('span',ch||'',root,'word-tile'+(mark?' '+mark:'')+(ch&&!mark?' filled':'')+(cls?' '+cls:''));t.setAttribute('aria-label',ch?(ch+(mark?' · '+mark:'')):'empty');return t;}
 function boardView(root,m,length,lang,{live=false,mini=false}={}){
  const grid=make('div',undefined,root,'word-board'+(mini?' mini':''));grid.dir=lang==='ar'?'rtl':'ltr';grid.style.setProperty('--len',length);grid.setAttribute('role','grid');grid.setAttribute('aria-label',mini?'Board':'Your board');
- const guesses=m.guesses||[],rows=data?.limits?.tries||6,key=live?matchKey(match()):null;
+ const guesses=m.guesses||[],max=data?.limits?.tries||6,rows=mini?max:Math.min(max,guesses.length+(live?1:0)),key=live?matchKey(match()):null;
  for(let r=0;r<rows;r++){
   const row=make('div',undefined,grid,'word-row');row.setAttribute('role','row');
   const g=guesses[r];
@@ -92,6 +92,18 @@ function onKey(e){
  const ch=normalize(e.key,lang);if(ch.length===1&&LETTERS[lang].test(ch)){e.preventDefault();press(ch);}
 }
 
+// ---------- clues ----------
+// Topic of the word (free), letters you revealed with 💡, and how many tries are left.
+function cluePanel(root,m,lang,topic,label){
+ const box=make('div',undefined,root,'word-clues');
+ if(topic){const t=make('p',undefined,box,'word-topic');make('span',label||(lang==='ar'?'الموضوع':'Topic'),t,'word-clue-label');make('strong',topic,t);t.dir='auto';}
+ const hints=m.me.hints||[],max=data?.limits?.hints??2;
+ if(hints.length){const row=make('div',undefined,box,'word-known');row.dir=lang==='ar'?'rtl':'ltr';row.setAttribute('aria-label','Letters you revealed');const at=new Map(hints.map(h=>[h.i,h.letter]));for(let i=0;i<m.length;i++)tile(row,at.get(i)||'',at.has(i)?'correct':null,'known');}
+ const foot=make('div',undefined,box,'word-clue-row');
+ make('span',(lang==='ar'?'محاولة ':'Try ')+Math.min((m.me.guesses?.length??0)+1,data?.limits?.tries||6)+(lang==='ar'?' من ':' of ')+(data?.limits?.tries||6),foot,'word-try-count');
+ const left=max-hints.length,b=btn(left?'💡 Show a letter · '+left+' left':'💡 No letters left',foot,()=>command('hint',{match:tab,id:m.id}),'word-hint-button');b.disabled=busy||!left;b.title='Reveals one letter in its place. If you tie on tries, fewer letters revealed wins.';
+}
+
 // ---------- pieces ----------
 function rivalLine(root,m){
  const r=m.rival,name=other(),chip=make('div',undefined,root,'word-rival');
@@ -113,10 +125,10 @@ function resultCard(root,m,lang,{title,answer,note}){
  const sides=make('div',undefined,card,'word-result-sides');
  for(const [name,b] of [[who,m.me],[other(),m.rival]]){
   const s=make('div',undefined,sides,'word-result-side'+(m.winner===name?' winner':''));make('strong',name===who?'You':name,s);
-  make('span',!b.started?'Did not play':b.solved?tries(b.tries)+' · '+clock(b.ms):'Not solved'+(b.ms!=null?' · '+clock(b.ms):''),s);
+  make('span',!b.started?'Did not play':b.solved?tries(b.tries)+(b.hints?.length?' · '+b.hints.length+' letter'+(b.hints.length>1?'s':'')+' shown':'')+' · '+clock(b.ms):'Not solved'+(b.ms!=null?' · '+clock(b.ms):''),s);
   if(b.guesses?.length)boardView(s,b,[...b.guesses[0].word].length,lang,{mini:true});
  }
- make('p',m.status==='void'?'Only one of you played, so no point this time.':m.winner?'Fewer tries wins; equal tries go to the faster clock. Saved to the crown.':'Same result for both of you. No point this time.',card,'word-result-note');
+ make('p',m.status==='void'?'Only one of you played, so no point this time.':m.winner?'Fewer tries wins; then fewer letters shown; then the faster clock. Saved to the crown.':'Same result for both of you. No point this time.',card,'word-result-note');
  if(note)make('p',note,card,'word-result-note');
  return card;
 }
@@ -149,10 +161,11 @@ function renderDaily(root){
  if(m.status!=='active'){resultCard(root,m,m.lang,{title:'TODAY’S WORD · '+dayLabel(m.date).toUpperCase(),answer:m.answer,note:'A new word arrives at midnight Riyadh time.'});return;}
  if(!m.me.started){
   const card=make('div',undefined,root,'word-start');make('small','TODAY’S WORD · '+dayLabel(m.date).toUpperCase(),card,'label');
-  make('h4',(m.startedBy===who?'You':m.startedBy)+' chose '+LANGS[m.lang]+' today',card);make('p',m.length+' letters · 6 tries. Your clock starts when you press Start.',card,'muted');
+  make('h4',(m.startedBy===who?'You':m.startedBy)+' chose '+LANGS[m.lang]+' today',card);make('p',m.length+' letters · 6 tries · a topic clue and up to 2 letters to reveal. Your clock starts when you press Start.',card,'muted');
   rivalLine(card,m);btn('Start today’s word',card,async()=>{if(await command('daily',{lang:m.lang})){fullView=true;render(true);}},'primary word-start-button');return;
  }
  statusRow(root,title,m);rivalLine(root,m);
+ if(!m.me.finished)cluePanel(root,m,m.lang,m.topic);
  boardView(root,m.me,m.length,m.lang,{live:!m.me.finished});
  if(m.me.finished){waitingCard(root,m,m.answer,m.lang);return;}
  keyboard(root,m.lang,m.me.guesses);
@@ -216,7 +229,8 @@ function renderChallenge(root){
  if(c.status==='complete'){resultCard(root,c,c.lang,{title:'CHALLENGE COMPLETE',answer:null});reveal(root,c);const yours=make('p','Your word was ',root,'muted word-yours');yours.append(make('strong',c.myWord?.display||''));btn('New challenge',root,()=>{dismissed=c.id;render(true);},'primary word-start-button');return;}
  const title=other()+'’s word · '+c.length+' letters · '+LANGS[c.lang];
  if(!c.me.started){const card=make('div',undefined,root,'word-start');make('small','CHALLENGE',card,'label');make('h4',other()+'’s word is ready',card);make('p',c.length+' letters · 6 tries'+(c.hint?' · Hint: '+c.hint:'')+'. Your clock starts when you press Start.',card,'muted');rivalLine(card,c);btn('Start',card,async()=>{if(await command('start',{id:c.id})){fullView=true;render(true);}},'primary word-start-button');return;}
- statusRow(root,title,c);if(c.hint)make('p','Hint · '+c.hint,root,'word-hint').dir='auto';rivalLine(root,c);
+ statusRow(root,title,c);rivalLine(root,c);
+ if(!c.me.finished)cluePanel(root,c,c.lang,c.hint||null,'Hint from '+other());else if(c.hint)make('p','Hint · '+c.hint,root,'word-hint').dir='auto';
  boardView(root,c.me,c.length,c.lang,{live:!c.me.finished});
  if(c.me.finished){waitingCard(root,c,null,c.lang);reveal(root,c);return;}
  keyboard(root,c.lang,c.me.guesses);
