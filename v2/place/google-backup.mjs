@@ -6,9 +6,22 @@ import {basename,dirname,join} from 'node:path';
 import {Readable,Transform} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 import {restoreRecoveryBackup} from './backup.mjs';
+import {request as httpsRequest} from 'node:https';
+// Node's fetch reads a streamed request body as fast as the disk allows and buffers it
+// (a 470 MB backup peaked at ~550 MB RSS), which exceeded the 512 MB instance. https.request
+// with pipe() honours back-pressure, so the upload stays near ~90 MB however large the file.
+export function streamPut(url,headers,path,{timeout=300000}={}){
+ return new Promise((resolve,reject)=>{
+  const target=new URL(url);if(target.protocol!=='https:')return reject(Error('Upload destination must use HTTPS.'));
+  const req=httpsRequest(target,{method:'PUT',headers},res=>{const chunks=[];let size=0;res.on('data',c=>{size+=c.length;if(size<=1024*1024)chunks.push(c);});res.on('end',()=>{const text=Buffer.concat(chunks).toString('utf8');resolve({ok:res.statusCode>=200&&res.statusCode<300,status:res.statusCode,json:async()=>JSON.parse(text),text:async()=>text});});res.on('error',reject);});
+  req.setTimeout(timeout,()=>req.destroy(Error('Upload timed out.')));req.on('error',reject);
+  const source=createReadStream(path);source.on('error',e=>req.destroy(e));source.pipe(req);
+ });
+}
 const SCOPE='https://www.googleapis.com/auth/drive.file';
 const API='https://www.googleapis.com/drive/v3/files';
-export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=process.env,incrementalBackup=resticBackup}){
+export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=process.env,incrementalBackup=resticBackup,uploader}){
+ const put=uploader??(fetcher===fetch?(url,headers,path)=>streamPut(url,headers,path):(url,headers,path)=>fetcher(url,{method:'PUT',headers,body:createReadStream(path),duplex:'half',signal:AbortSignal.timeout(300000)}));
  store.db.exec('CREATE TABLE IF NOT EXISTS google_backup(id INTEGER PRIMARY KEY,token TEXT,lastSuccess INTEGER,lastAttempt INTEGER,error TEXT); CREATE TABLE IF NOT EXISTS google_backup_states(state TEXT PRIMARY KEY,sid TEXT,expires INTEGER)');
  const folder=()=>env.GOOGLE_BACKUP_FOLDER_ID||'';
  const family=()=>createHash('sha256').update('drive-backup-family:'+secret).digest('hex').slice(0,32);
@@ -109,7 +122,7 @@ export function googleBackup({store,origin,seal,open,secret,fetcher=fetch,env=pr
    const start=await fetcher('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,size,md5Checksum',{method:'POST',headers:{...headers,'Content-Type':'application/json','X-Upload-Content-Type':'application/octet-stream','X-Upload-Content-Length':String(size)},body:JSON.stringify({name:basename(path),appProperties:{ourPlaceBackup:'v1'},...(folder()?{parents:[folder()]}:{})}),signal:AbortSignal.timeout(20000)});
    if(!start.ok)throw failure('Could not start Google Drive upload.');
    const location=new URL(start.headers.get('location')||'https://invalid.invalid');if(location.origin!=='https://www.googleapis.com')throw failure('Invalid Google upload destination.');
-   const result=await fetcher(location.href,{method:'PUT',headers:{...headers,'Content-Type':'application/octet-stream','Content-Length':String(size)},body:createReadStream(path),duplex:'half',signal:AbortSignal.timeout(300000)});
+   const result=await put(location.href,{...headers,'Content-Type':'application/octet-stream','Content-Length':String(size)},path);
    if(!result.ok)throw failure('Google Drive upload failed. The local backup is safe.');
    const file=await result.json();if(!file.id||Number(file.size)!==size||file.md5Checksum!==checksum)throw failure('Google Drive backup verification failed.');
    await verifyDownload(file,headers,size,checksum,path);
