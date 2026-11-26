@@ -1,5 +1,5 @@
 import {uploadDocument,documentContent,validateAttachments} from './chat-attachments.mjs';
-import {snapshotWire} from './snapshot-wire.mjs';
+import {snapshotWire,wireToken,parseWireToken} from './snapshot-wire.mjs';
 import {requireStorage} from './storage-health.mjs';
 import {canHear,playlistChange} from './playlist.mjs';
 import {composeOptions} from './space-compose.mjs';
@@ -149,7 +149,7 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
   let presenceTimer=null;
   function publishPresence(delayed=false){clearTimeout(presenceTimer);const publish=()=>emit('presence',{online:['Mahmoud','Safy'].filter(who=>notifications.visible(who)),serverNow:Date.now()});if(delayed){presenceTimer=setTimeout(publish,1500);presenceTimer.unref();}else publish();}
   const presenceSweep=setInterval(()=>publishPresence(),1000);presenceSweep.unref();
-  function refresh(actor){try{notifications.scan(actor);}catch{console.error('Notification update failed.');}const views=new Map();for(const [res,meta]of streams){if(!views.has(meta.who))views.set(meta.who,snapshot(meta.who));const next=views.get(meta.who);if(meta.patch){const wire=snapshotWire(next,meta.hashes);meta.hashes=wire.hashes;res.write(`event: snapshot-patch\ndata: ${JSON.stringify(wire.snapshot)}\n\n`);}else res.write(`event: snapshot\ndata: ${JSON.stringify(next)}\n\n`);}}
+  function refresh(actor){try{notifications.scan(actor);}catch{console.error('Notification update failed.');}const views=new Map();for(const [res,meta]of streams){if(!views.has(meta.who))views.set(meta.who,snapshot(meta.who));const next=views.get(meta.who);if(meta.patch){const wire=snapshotWire(next,meta.hashes);meta.hashes=wire.hashes;res.write(`event: snapshot-patch\ndata: ${JSON.stringify(wire.snapshot)}\n\nevent: wire\ndata: ${wireToken(wire.hashes)}\n\n`);}else res.write(`event: snapshot\ndata: ${JSON.stringify(next)}\n\n`);}}
   function cancel(who,all=false){for(const [id,job]of running)if(all&&job.scope==='shared'||job.actor===who){store.status(id,'cancelled');job.controller.abort();}}
   function saveWallReply(post,id,value,status){const s=store.state(),item=s.items.find(i=>i.id===post),c=item?.comments?.find(c=>c.id===id);if(!c)return;c.text=value;c.status=status;if(status!=='streaming')item.revision++;store.save(s);}
   async function run(id){
@@ -342,12 +342,12 @@ export function createApp({store,origin,secret,authFetch=fetch,ai=respond,courtA
       if(path==='/api/typing'&&req.method==='POST'){limit('typing:'+who,120);const d=await body(req,200);check(typeof d.active==='boolean','Invalid typing status.');for(const [stream,meta] of streams)if(meta.who!==who)stream.write(`event: typing\ndata: ${JSON.stringify({who,active:d.active})}\n\n`);return send(res,200,{ok:true});}
       if(path==='/api/delivered'&&req.method==='POST'){const result=recordDeliveries(store,who,(await body(req,12000)).ids);if(result.ids.length)emit('delivered',result);return send(res,200,result);}
       if(path==='/api/read'&&req.method==='POST'){const result=recordReads(store,who,(await body(req,12000)).ids);if(result.ids.length)emit('read',result);return send(res,200,result);}
-      if(path==='/api/state'&&req.method==='GET')return send(res,200,snapshot(who));
+      if(path==='/api/state'&&req.method==='GET'){const view=snapshot(who),known=parseWireToken(url.searchParams.get('known')),wire=snapshotWire(view,known??{});return send(res,200,{...(known?{...wire.snapshot,wirePartial:true}:view),wireReceipt:wireToken(wire.hashes)});}
       if(path==='/api/chat-search'&&req.method==='GET')return send(res,200,searchChat(store,url.searchParams.get('q'),url.searchParams.get('offset')));
       if(path.startsWith('/api/messages/')&&req.method==='GET'){let messageId;try{messageId=decodeURIComponent(path.split('/').pop());}catch{check(false,'Invalid message ID.',400);}const m=store.db.prepare('SELECT rowid AS sequence,*,(SELECT mime FROM voices WHERE id=messages.audio) AS audioMime,(SELECT at FROM message_reads WHERE message=messages.id) AS readAt,(SELECT at FROM message_deliveries WHERE message=messages.id) AS deliveredAt FROM messages WHERE id=?').get(messageId);check(m,'The original message is unavailable.',404);return send(res,200,m);}
       if(path==='/api/history'&&req.method==='GET')return send(res,200,store.messages(url.searchParams.get('before')));
       if(path==='/api/events'&&req.method==='GET'){
-        res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive','X-Accel-Buffering':'no'});const first=snapshot(who);res.write(`retry: 250\n\nevent: snapshot\ndata: ${JSON.stringify(first)}\n\n`);streams.set(res,{who,sid:req.sessionId,patch:url.searchParams.get('patch')==='1',hashes:snapshotWire(first).hashes});publishPresence();
+        res.writeHead(200,{'Content-Type':'text/event-stream','Connection':'keep-alive','X-Accel-Buffering':'no'});const first=snapshot(who),patch=url.searchParams.get('patch')==='1',known=patch?parseWireToken(url.searchParams.get('known')):null,wire=snapshotWire(first,known??{});res.write(known?`retry: 250\n\nevent: snapshot-patch\ndata: ${JSON.stringify(wire.snapshot)}\n\n`:`retry: 250\n\nevent: snapshot\ndata: ${JSON.stringify(first)}\n\n`);if(patch)res.write(`event: wire\ndata: ${wireToken(wire.hashes)}\n\n`);streams.set(res,{who,sid:req.sessionId,patch,hashes:wire.hashes});publishPresence();
         const beat=setInterval(()=>res.write('event: heartbeat\ndata: {}\n\n'),15000);const expiry=setTimeout(()=>res.end(),60000);res.on('close',()=>{clearInterval(beat);clearTimeout(expiry);streams.delete(res);// Chat readiness has its own lease; routine SSE rotation is not a departure.
 publishPresence(true);});return;
       }
@@ -367,7 +367,7 @@ publishPresence(true);});return;
         const bytes=Buffer.from(v.bytes),range=req.headers.range;let start=0,end=bytes.length-1;
         res.setHeader('Accept-Ranges','bytes');
         if(range){const m=/^bytes=(\d+)-(\d*)$/.exec(range);if(!m||Number(m[1])>=bytes.length||m[2]&&Number(m[2])<Number(m[1])){res.writeHead(416,{'Content-Range':'bytes */'+bytes.length});return res.end();}start=Number(m[1]);if(m[2])end=Math.min(end,Number(m[2]));res.setHeader('Content-Range',`bytes ${start}-${end}/${bytes.length}`);}
-        res.writeHead(range?206:200,{'Content-Type':v.mime,'Content-Length':end-start+1});return res.end(bytes.subarray(start,end+1));
+        res.writeHead(range?206:200,{'Content-Type':v.mime,'Content-Length':end-start+1,'Cache-Control':'private, max-age=31536000, immutable'});return res.end(bytes.subarray(start,end+1));
       }
       if(path.startsWith('/api/photos/')&&req.method==='GET'){const id=path.split('/').pop(),p=store.db.prepare('SELECT * FROM photos WHERE id=?').get(id);check(p,'Photo not found.',404);res.writeHead(200,{'Content-Type':p.mime,'Content-Length':p.bytes.length,'Cache-Control':PHOTO_CACHE});return res.end(Buffer.from(p.bytes));}
       if(path==='/api/documents'&&req.method==='POST'){limit('document:'+who,10);return send(res,201,uploadDocument(store,who,await body(req,14*1024*1024)));}

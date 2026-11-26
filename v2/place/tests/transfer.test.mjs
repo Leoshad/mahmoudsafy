@@ -41,7 +41,7 @@ test('JSON responses are gzipped only when accepted and decode to the same data'
   assert.equal(zipped.status,200);assert.equal(plain.status,200);
   assert.equal(zipped.headers['content-encoding'],'gzip');assert.equal(plain.headers['content-encoding'],undefined);
   assert.equal(zipped.headers['cache-control'],'no-store','private data is still never cached');
-  const strip=t=>JSON.parse(t,(k,v)=>k==='serverNow'?undefined:v);assert.deepEqual(strip(gunzipSync(zipped.body)),strip(plain.body));
+  const strip=t=>JSON.parse(t,(k,v)=>k==='serverNow'||k==='wireReceipt'?undefined:v);assert.deepEqual(strip(gunzipSync(zipped.body)),strip(plain.body));
   const viaFetch=await fetch(base+'/api/state',{headers:{Cookie:cookie}});assert.equal(viaFetch.status,200);assert.equal(typeof (await viaFetch.json()),'object');
   const photo=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7','base64');
   const up=await fetch(base+'/api/photos',{method:'POST',headers:{Origin:'http://localhost',Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({data:photo.toString('base64')})});
