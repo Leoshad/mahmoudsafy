@@ -234,17 +234,11 @@ body{margin:0;background:#0b0b0e}
 #our-place-trial .compact-room .tools-content{top:44px;max-height:55dvh;overflow:auto}
 #our-place-trial .compact-room #echo-status{padding:10px}
 #our-place-trial .compact-room[open] .room-chevron{transform:rotate(180deg)}
-#our-place-trial #welcome-splash{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#111115;color:#eee8e9;font:500 clamp(25px,7vw,40px) Georgia,serif}
-#our-place-trial #welcome-splash small{font:13px system-ui;color:#d1b078;margin-top:18px;letter-spacing:2px}
 
 #our-place-trial #activity-reminder{flex-shrink:0;position:relative;padding:4px 0}
 #our-place-trial #resume-activities{width:100%;min-height:38px;font-size:12px;background:#282219;border-color:#655036;color:#d1b078}
 #our-place-trial #activity-list{position:absolute;bottom:100%;left:0;right:0;background:#211921;border:1px solid #655036;border-radius:12px;max-height:35dvh;overflow:auto;padding:8px;z-index:30}
 #our-place-trial #activity-list button{display:block;width:100%;text-align:left;margin:4px 0}
-#our-place-trial .splash-heart{font:90px/1 Georgia,serif;color:#ce9ab1;margin-bottom:24px}
-#our-place-trial #welcome-splash{transition:opacity .25s}
-#our-place-trial #welcome-splash.leaving{opacity:0;pointer-events:none}
-@media(prefers-reduced-motion:reduce){#our-place-trial #welcome-splash{transition:none}}
 
 #our-place-trial .conversation-window{position:relative;isolation:isolate;display:flex;flex-direction:column;flex:1;min-height:100px;overflow:hidden;border:1px solid #946079;border-radius:15px;background:#110f15;box-shadow:inset 0 0 0 1px #cf9ab114}
 #our-place-trial #chat-wallpaper{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.28);pointer-events:none;z-index:-1}
@@ -478,3 +472,21 @@ html,body{overscroll-behavior-y:auto}
 
 .game-chat-unread{display:none!important}
 #our-place-trial .domino-focused .game-chat-unread:not([hidden]),#our-place-trial .ocho-full .game-chat-unread:not([hidden]),#our-place-trial .draw-full .game-chat-unread:not([hidden]),#race-head .game-chat-unread:not([hidden]){display:inline-flex!important;vertical-align:middle;align-items:center;gap:3px;margin-left:7px;padding:4px 6px;min-width:36px;min-height:32px;border:1px solid #ce9eaf;border-radius:10px;background:#512e42;color:#ffe4ee;font:600 12px system-ui;cursor:pointer}
+
+/* Opening: the heart settles into its gold frame, beats twice, then our names arrive. */
+#our-place-trial #welcome-splash{position:fixed;inset:0;z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(60% 45% at 50% 42%,#1d1520 0%,#0b0b0e 70%);color:#eee8e9;font:500 clamp(25px,7vw,40px) Georgia,serif;transition:opacity .4s ease}
+#our-place-trial #welcome-splash.leaving{opacity:0;pointer-events:none}
+#our-place-trial #welcome-splash.leaving .splash-frame{transform:scale(1.06);transition:transform .4s ease}
+#our-place-trial .splash-frame{position:relative;width:clamp(150px,42vw,200px);aspect-ratio:1;border-radius:24%;background:#352530;border:2px solid #d1b078;display:grid;place-items:center;margin-bottom:30px;box-shadow:0 0 0 0 #d1b07800,0 18px 50px #00000080;animation:splash-frame .7s cubic-bezier(.2,.8,.2,1) both,splash-ring 2.4s ease-in-out .9s infinite}
+#our-place-trial .splash-frame::after{content:"";position:absolute;inset:18%;border-radius:50%;background:radial-gradient(circle,#ce9ab166 0%,#ce9ab100 70%);filter:blur(6px);opacity:0;animation:splash-glow 1.4s ease-in-out .55s infinite}
+#our-place-trial .splash-frame img{position:relative;z-index:1;width:64%;height:auto;filter:drop-shadow(0 6px 10px #0006);animation:splash-in .6s cubic-bezier(.3,1.4,.5,1) .15s both,splash-beat 1.4s ease-in-out .75s infinite}
+#our-place-trial .splash-names{opacity:0;animation:splash-rise .7s cubic-bezier(.2,.8,.2,1) .75s both}
+#our-place-trial #welcome-splash small{font:13px system-ui;color:#d1b078;margin-top:18px;letter-spacing:2px;opacity:0;animation:splash-spell .9s ease 1.05s both}
+@keyframes splash-frame{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:none}}
+@keyframes splash-ring{0%,100%{box-shadow:0 0 0 0 #d1b07800,0 18px 50px #00000080}35%{box-shadow:0 0 22px 2px #d1b07840,0 18px 50px #00000080}}
+@keyframes splash-in{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:scale(1)}}
+@keyframes splash-beat{0%,40%,100%{transform:scale(1)}12%{transform:scale(1.09)}24%{transform:scale(.98)}32%{transform:scale(1.05)}}
+@keyframes splash-glow{0%,40%,100%{opacity:.25}12%{opacity:.9}32%{opacity:.6}}
+@keyframes splash-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes splash-spell{from{opacity:0;letter-spacing:7px}to{opacity:1;letter-spacing:2px}}
+@media(prefers-reduced-motion:reduce){#our-place-trial #welcome-splash,#our-place-trial #welcome-splash *,#our-place-trial #welcome-splash .splash-frame::after{animation:none!important;transition:none!important;opacity:1!important}#our-place-trial .splash-frame::after{opacity:.3!important}}

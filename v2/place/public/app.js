@@ -522,7 +522,7 @@ window.readTracker=window.OurReads?.({getState:()=>state,isChat:()=>tab==='chat'
 // Race the initial snapshot with the real receive transport; neither gates the other.
 connect();
 let openingFinished=false;
-function finishOpening(){if(openingFinished)return;openingFinished=true;try{const saved=sessionStorage.getItem('our-place:tab');if(['together','space','care'].includes(saved)&&tab==='chat'){history.replaceState({placeTab:saved},'');goto(saved,true);}}catch{}setTimeout(()=>{const splash=$('#welcome-splash');splash.classList.add('leaving');setTimeout(()=>{splash.hidden=true;window.dispatchEvent(new Event('our-place-ready'));},250);},Math.max(0,2000-(performance.now()-openingStarted)));}
+function finishOpening(){if(openingFinished)return;openingFinished=true;try{const saved=sessionStorage.getItem('our-place:tab');if(['together','space','care'].includes(saved)&&tab==='chat'){history.replaceState({placeTab:saved},'');goto(saved,true);}}catch{}setTimeout(()=>{const splash=$('#welcome-splash');splash.classList.add('leaving');setTimeout(()=>{splash.hidden=true;window.dispatchEvent(new Event('our-place-ready'));},400);},Math.max(0,2000-(performance.now()-openingStarted)));}
 sync().then(connect).catch(e=>{if(state)error(e);}).finally(finishOpening);
 window.addEventListener('our-place-notification',event=>{Promise.resolve().then(async()=>{
  const target=event.detail;if(!state||!target)return;await sync();goto(target.tab);
