@@ -482,9 +482,9 @@ if(process.argv[1]===fileURLToPath(import.meta.url)){
   void verifyEchoModels();
   // Off-site copy to Google Drive. The upload now streams with back-pressure (it used to buffer the whole
   // file and OOM-kill the 512 MB instance). Each upload is the full archive and counts as outbound
-  // bandwidth, so it runs only when the last good upload is older than GOOGLE_BACKUP_EVERY_DAYS (default 7),
+  // bandwidth, so it runs only when the last good upload is older than GOOGLE_BACKUP_EVERY_DAYS (default 14),
   // never just because the app restarted. Local verified backups still run at start and daily.
-  const driveEvery=Math.max(1,Number(process.env.GOOGLE_BACKUP_EVERY_DAYS)||7)*86400000;
+  const driveEvery=Math.max(1,Number(process.env.GOOGLE_BACKUP_EVERY_DAYS)||14)*86400000;
   const driveUpload=path=>{const last=server.driveBackup.status().lastSuccess;if(last&&Date.now()-last<driveEvery-3600000)return Promise.resolve();return server.driveBackup.upload(path);};
   const stopMaintenance=startMaintenance(store,join(dir,'recovery'),process.env.SESSION_SECRET,process.env.GOOGLE_BACKUP_AUTO==='off'?{}:{upload:driveUpload});
   server.runRecovery=stopMaintenance.run;
