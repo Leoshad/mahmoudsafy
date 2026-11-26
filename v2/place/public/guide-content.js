@@ -1,0 +1,122 @@
+'use strict';
+// Game guide content. English is the default; Arabic is the same guide, written in simple Egyptian Arabic.
+// Pages share keys across languages so the reader stays on the same page when switching.
+(()=>{
+const tiles=(row)=>'<div class="g-row">'+row.map(([l,k])=>`<span class="g-t${k?' g-'+k:''}">${l}</span>`).join('')+'</div>';
+const tryRow=(who,row,say)=>`<div class="g-try"><span class="g-lbl">${who}</span>${tiles(row)}<span class="g-say">${say}</span></div>`;
+const table=(labels)=>`<svg class="g-table" viewBox="0 0 640 300" role="img" aria-label="${labels.aria}"><rect x="4" y="4" width="632" height="292" rx="26" fill="#4a3324"/><rect x="24" y="24" width="592" height="252" rx="10" fill="#1f3a2d"/><g fill="#0b0b0e"><circle cx="30" cy="30" r="15"/><circle cx="320" cy="24" r="13"/><circle cx="610" cy="30" r="15"/><circle cx="30" cy="270" r="15"/><circle cx="320" cy="276" r="13"/><circle cx="610" cy="270" r="15"/></g><line x1="470" y1="24" x2="470" y2="276" stroke="#6f806d" stroke-dasharray="4 6"/><text x="543" y="58" fill="#b8c2b9" font-size="22" text-anchor="middle">${labels.kitchen}</text><line x1="230" y1="150" x2="520" y2="150" stroke="#eee8e9" stroke-width="2" stroke-dasharray="7 7" opacity=".8"/><circle cx="230" cy="150" r="13" fill="none" stroke="#eee8e9" stroke-dasharray="3 4"/><line x1="220" y1="155" x2="105" y2="210" stroke="#d1b078" stroke-width="2" stroke-dasharray="5 6"/><line x1="545" y1="150" x2="635" y2="150" stroke="#c9a465" stroke-width="7" stroke-linecap="round"/><circle cx="530" cy="150" r="13" fill="#f4efe6"/><circle cx="205" cy="162" r="13" fill="#e2b33c"/><text x="205" y="167" fill="#1d171d" font-size="12" font-weight="800" text-anchor="middle">1</text><circle cx="175" cy="112" r="13" fill="#1a1a1e"/><text x="175" y="117" fill="#fff" font-size="12" font-weight="800" text-anchor="middle">8</text><circle cx="330" cy="225" r="13" fill="#f4efe6"/><rect x="317" y="219" width="26" height="12" fill="#c0392b"/><text x="330" y="229" fill="#fff" font-size="11" font-weight="800" text-anchor="middle">11</text><text x="370" y="132" fill="#eee8e9" font-size="21" text-anchor="middle">${labels.line}</text><text x="130" y="246" fill="#d1b078" font-size="22" text-anchor="middle">${labels.goes}</text></svg>`;
+const balls=(stripes)=>['#e2b33c','#2d5fb8','#c0392b','#6b3fa0','#e07b2a','#2e8b57','#7b2d26'].slice(0,stripes?4:7).map(c=>`<svg class="g-ball" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="9" fill="${stripes?'#f4efe6':c}"/>${stripes?`<rect x="1" y="6" width="18" height="8" fill="${c}"/>`:''}</svg>`).join('');
+const steps=list=>'<div class="g-steps">'+list.map((t,i)=>`<div class="g-step"><span class="g-k">${i+1}</span><p>${t}</p></div>`).join('')+'</div>';
+const ul=list=>'<ul>'+list.map(t=>`<li>${t}</li>`).join('')+'</ul>';
+
+const en={
+ dir:'ltr',lang:'en',title:'Game Guide',close:'Close guide',download:'Download PDF',swipe:'Swipe up for the next page',
+ pages:[
+  {key:'cover',over:'OUR PLACE · GAME NIGHT',html:`<h1 class="g-cover-title">The <span class="g-gold">Game</span> Guide</h1><p class="g-lead">How to play Our Word and Billiards, and how the crown moves between you.</p><div class="g-heart">♥</div><div class="g-chips"><span>👑 <b>The Crown</b></span><span>🔤 <b>Our Word</b></span><span>🎱 <b>Billiards</b></span></div><p class="g-names">Mahmoud ♥ Safy</p>`},
+  {key:'crown',over:'THE CROWN',html:`<h1>👑 How the <span class="g-gold">crown</span> works</h1><p class="g-lead">A small rivalry: every win you play together adds one point. Whoever has more points wears the crown.</p><div class="g-card g-goldcard">${steps([
+   '<b>Only 4 games count:</b> Ocho, Dominoes, Our Word and Billiards.',
+   '<b>You must play together:</b> one of you sends an invitation from Together and the other accepts. Playing alone against the computer (Solo) <span class="g-rose">does not count</span>.',
+   '<b>Every win = one point</b>, however big or small the margin.',
+   '<b>Leave</b> ends the game and nobody gets a point, not even the one who stayed.',
+   '<b>The crown goes to the higher total</b> across all games. On a tie, it <b>stays with whoever already wears it</b>.',
+   '<b>A game never counts twice</b>, and your earlier Dominoes and Ocho wins are already included.'])}</div>
+   <h2>When does each game give a point?</h2><table class="g-tbl"><tr><th>Game</th><th>You get the point when…</th><th>Tie</th></tr><tr><td>🃏 Ocho</td><td>you win the game</td><td class="g-no">no point</td></tr><tr><td>🁫 Dominoes</td><td>you win <b>the whole match</b> (first to 50 or 100), not each round</td><td class="g-no">no point</td></tr><tr><td>🔤 Our Word</td><td>you win today's word or a challenge</td><td class="g-no">no point</td></tr><tr><td>🎱 Billiards</td><td>you win the game</td><td>—</td></tr></table>`},
+  {key:'word',over:'OUR WORD',html:`<h1>🔤 <span class="g-gold">Our Word</span></h1><p class="g-lead">Guess the word in <b>6 tries</b>. Words are 4 to 7 letters, in Arabic or English.</p>
+   <div class="g-two"><div class="g-card"><h2>What the colors mean</h2><div class="g-legend"><div><span class="g-t g-c">S</span><span><b>Gold:</b> right letter, right place</span></div><div><span class="g-t g-p">L</span><span><b class="g-rose">Rose:</b> in the word, but somewhere else</span></div><div><span class="g-t g-a">K</span><span><b class="g-grey">Dark:</b> not in the word</span></div></div></div>
+   <div class="g-card"><h2>Small rules</h2>${ul(['Use <b>the same number of letters</b> as the word.','In today\'s word, a guess must be <b>a real word</b>. If it isn\'t, it is <b>not counted</b> as a try.','In Arabic, <bdi dir="rtl">أ إ آ ا</bdi> are the same letter, and so are <bdi>ة</bdi> and <bdi>ه</bdi>, and <bdi>ى</bdi> and <bdi>ي</bdi>.','Your clock starts when <b>you</b> press Start and stops when you finish.'])}</div></div>
+   <h2><span class="g-n">1</span> Today's word</h2><div class="g-card g-goldcard">${ul(['<b>One word for both of you each day</b>. There is no replay for the same day.','The first one to press Start picks the language; the other plays <b>the same word in the same language</b>.','Each of you plays <b>whenever it suits you</b>; you don\'t have to play at the same time.','<b>It has an end:</b> it closes at <b>11 pm Egypt time</b> (midnight in Riyadh), then a new word arrives.','If you started but did not finish by then, it counts as <span class="g-rose">not solved</span>.','If only one of you played, <b>nobody gets a point</b>.','While playing you only see whether the other started or finished, <b>not their letters</b>. Once you both finish, you can see each other\'s tries.'])}</div>`},
+  {key:'word-example',over:'OUR WORD',html:`<div class="g-card g-rosecard"><h2>🏆 Who wins?</h2><ol class="g-order"><li>Solving beats not solving.</li><li>If you both solved it: <b>fewer tries</b> wins.</li><li>Same number of tries: <b>the faster clock</b> wins.</li><li>Anything else is a tie, and nobody gets a point.</li></ol></div>
+   <h2>🎬 Example: today's word is <span class="g-badge">SMILE</span></h2><div class="g-card">
+   ${tryRow('Safy · 1',[['P','a'],['L','p'],['A','a'],['N','a'],['T','a']],'L is in the word, elsewhere')}
+   ${tryRow('Safy · 2',[['S','c'],['L','p'],['I','c'],['C','a'],['E','c']],'Before this, “SMIEL” was rejected and not counted')}
+   ${tryRow('Safy · 3',[['S','c'],['M','c'],['I','c'],['L','c'],['E','c']],'Solved ✅ in 2:40')}
+   <div class="g-sep"></div>
+   ${tryRow('Mahmoud · 1',[['S','c'],['M','c'],['O','a'],['K','a'],['E','c']],'Close!')}
+   ${tryRow('Mahmoud · 2',[['S','c'],['M','c'],['I','c'],['L','c'],['E','c']],'Solved ✅ in 4:00')}
+   <p class="g-result"><b>Result:</b> Mahmoud wins with fewer tries (2 vs 3), even though his clock was slower. <b>+1 to the crown 👑</b></p></div>`},
+  {key:'challenge',over:'OUR WORD',html:`<h2><span class="g-n">2</span> The challenge</h2><div class="g-card g-rosecard">${ul([
+   '<b>Each of you writes a word for the other:</b> a nickname, a place, a song, anything from your life. It must be <b>one word of 4 to 7 letters</b>, no spaces. Names are fine.',
+   'When solving a challenge you <b>can guess any letters</b>; it doesn\'t have to be a real word, because the answer may be a name.',
+   'You can add a <b>hint</b> the other sees while solving. A <b>surprise message</b> and a <b>photo</b> open for them after they finish.',
+   'The other has <b>two days</b> to answer with their own word; otherwise the challenge cancels itself. They can also decline, and the sender can cancel before an answer.',
+   'Once both words are in, each of you solves <b>whenever you like</b>. The challenge <b>has no deadline</b>; the result appears when you both finish.',
+   'You can press <b>Give up</b> at any time; it counts as not solved.',
+   'There is <b>one challenge at a time</b>; finish it before starting a new one.'])}</div>
+   <div class="g-two"><div class="g-card"><h3>Safy wrote for Mahmoud</h3>${tiles([['R'],['I'],['Y'],['A'],['D'],['H']])}<p class="g-note">Hint: “Your city 😄” + a message and a photo</p></div><div class="g-card"><h3>Mahmoud wrote for Safy</h3>${tiles([['Q'],['E'],['N'],['A']])}<p class="g-note">Hint: “Your hometown”</p></div></div>`},
+  {key:'billiards',over:'BILLIARDS · 8-BALL',html:`<h1>🎱 <span class="g-gold">Billiards</span></h1><p class="g-lead">Standard 8-ball: each of you owns a group. Pot all of yours, then the 8.</p>${table({aria:'Billiards table example',kitchen:'Break area',line:'Dotted line = first ball you hit',goes:'and where it goes'})}
+   <h2>✋ Controls</h2><div class="g-ctrl"><span class="g-ic">🎯</span><p><b>Aim:</b> put your finger on the stick or the white line and drag; the stick turns around the white ball with you. Or tap any spot to aim straight at it. <span class="g-note">Move fast and it turns fast; move slowly for fine aim.</span></p></div>
+   <div class="g-ctrl"><span class="g-ic">📏</span><p><b>Fine aim:</b> drag the bar on the right for tiny adjustments.</p></div>
+   <div class="g-ctrl"><span class="g-ic">💥</span><p><b>Shoot:</b> pull the power bar on the left down and let go. The further you pull, the harder the shot.</p></div>
+   <div class="g-ctrl"><span class="g-ic">🌀</span><p><b>Spin:</b> tap the small white ball. <b>Top</b> rolls forward after the hit, <b>bottom</b> draws back, <b>left/right</b> change how it comes off the side of the table.</p></div>
+   <div class="g-ctrl"><span class="g-ic g-x">✕</span><p><b>A red X</b> on a ball means it is not yours; hitting it first is a foul.</p></div>`},
+  {key:'billiards-rules',over:'BILLIARDS · 8-BALL',html:`<h2><span class="g-n">1</span> Who owns what?</h2><div class="g-two"><div class="g-card"><b>Solids</b><div class="g-balls">${balls(false)}</div><p class="g-note">1 to 7</p></div><div class="g-card"><b>Stripes</b><div class="g-balls">${balls(true)}</div><p class="g-note">9 to 15</p></div></div>
+   <div class="g-card g-goldcard">${ul(['<b>The break:</b> whoever sent the invitation breaks first and places the white ball <b>behind the dotted line only</b>. Pot a ball on the break and you shoot again. If the white goes in or hits nothing, the turn passes and the other places it behind the line.','Balls potted on the break <b>don\'t decide the groups</b>. The first ball you pot cleanly <b>after</b> the break does: pot a solid and solids are yours, stripes go to the other.','Until the groups are decided, don\'t hit the 8 first; that is a foul.','Pot all your balls, then <b>pot the 8</b> to win.','Pot one of yours and you <b>shoot again</b>.'])}</div>
+   <h2><span class="g-n">2</span> Fouls ⚠️</h2><div class="g-card g-rosecard"><p>Any of these passes the turn, and the other <b>places the white ball with a finger anywhere free</b> on the table:</p>${ul(['The white ball goes in.','You hit no ball.','You hit a ball that isn\'t yours first.','Nothing went in and no ball touched the side of the table after the hit.','With a shot clock, your time ran out.'])}</div>`},
+  {key:'billiards-eight',over:'BILLIARDS · 8-BALL',html:`<h2><span class="g-n">3</span> The black 8 🎱</h2><div class="g-card">${ul(['Pot the 8 <b>too early</b>, before your balls, or with a foul, and you <span class="g-rose">lose the game</span>.','When your balls are done, you must hit <b>the 8 first</b>.','<b>The 8 on the break never loses:</b> the breaker chooses to put it back on its spot or re-rack. If the white also went in on that break, the other player chooses.'])}</div>
+   <h2><span class="g-n">4</span> Before you start</h2><div class="g-two"><div class="g-card">${ul(['<b>Together:</b> pick a shot clock: none, 30, 45 or 60 seconds.','An invitation waits <b>10 minutes</b> for the other.','The clock <b>doesn\'t stop</b> if you leave the app on your turn, so with a clock, keep the game open.'])}</div><div class="g-card">${ul(['<b>Solo:</b> against the computer (easy, medium, hard), <span class="g-rose">not counted for the crown</span>.','On a Rematch, the breaker <b>switches</b>.'])}</div></div>
+   <div class="g-tip"><span>👑</span><p>Every billiards match you win <b>together</b> = <b>one crown point</b>. If someone leaves, nobody gets a point.</p></div>`},
+  {key:'faq',over:'QUESTIONS',html:`<h2>💬 Questions you might have</h2><div class="g-card g-faq">
+   <p><b>I played today's word and the other didn't?</b><br>No point for anyone. You both need to play it on the same day.</p>
+   <p><b>I started the word and forgot to finish?</b><br>At 11 pm Egypt time it counts as not solved, so if the other solved it, they win.</p>
+   <p><b>When does my clock start?</b><br>The moment <b>you</b> press Start, not at the start of the day or when the other began.</p>
+   <p><b>Can one of us play Arabic and the other English on the same day?</b><br>No. The first to press Start picks the language and the other plays the same word.</p>
+   <p><b>Does billiards against the computer add to the crown?</b><br>No. The crown is for playing together only.</p>
+   <p><b>If we tie on points, who gets the crown?</b><br>It stays with whoever is wearing it until someone pulls ahead.</p></div>`}
+ ]};
+
+const ar={
+ dir:'rtl',lang:'ar',title:'دليل الألعاب',close:'اقفل الدليل',download:'حمّل PDF',swipe:'اسحب لفوق للصفحة الجاية',
+ pages:[
+  {key:'cover',over:'OUR PLACE · GAME NIGHT',html:`<h1 class="g-cover-title">دليل <span class="g-gold">الألعاب</span> والتاج</h1><p class="g-lead">إزاي نلعب «كلمتنا» و«البلياردو»، وإزاي التاج بينتقل من واحد للتاني.</p><div class="g-heart">♥</div><div class="g-chips"><span>👑 <b>التاج</b></span><span>🔤 <b>كلمتنا</b></span><span>🎱 <b>البلياردو</b></span></div><p class="g-names">محمود ♥ صافي</p>`},
+  {key:'crown',over:'THE CROWN',html:`<h1>👑 التاج بيتحسب <span class="g-gold">إزاي؟</span></h1><p class="g-lead">منافسة صغيرة بيننا: كل مكسب في لعبة سوا بيزوّد نقطة، واللي نقطه أكتر بيلبس التاج.</p><div class="g-card g-goldcard">${steps([
+   '<b>4 ألعاب بس بتتحسب:</b> أوتشو، الدومينو، كلمتنا، البلياردو.',
+   '<b>لازم نلعب سوا:</b> واحد يبعت دعوة من «Together» والتاني يقبلها. اللعب لوحدك ضد الكمبيوتر (Solo) <span class="g-rose">مبيتحسبش</span>.',
+   '<b>كل مكسب = نقطة واحدة</b>، مهما كان الفرق كبير أو صغير.',
+   '<b>اللي يدوس Leave</b> بيقفل الجيم، ومحدش بياخد نقطة، ولا حتى اللي فضل في اللعبة.',
+   '<b>التاج للي مجموعه أكبر</b> من كل الألعاب مع بعض. لو اتعادلنا، التاج <b>بيفضل مع اللي كان معاه</b>.',
+   '<b>نفس الجيم مبيتحسبش مرتين</b> مهما حصل، ومكاسبنا القديمة في الدومينو وأوتشو محسوبة من الأول.'])}</div>
+   <h2>إمتى بتاخد النقطة في كل لعبة؟</h2><table class="g-tbl"><tr><th>اللعبة</th><th>النقطة بتتحسب لما…</th><th>التعادل</th></tr><tr><td>🃏 أوتشو</td><td>تكسب الجيم</td><td class="g-no">ملوش نقطة</td></tr><tr><td>🁫 الدومينو</td><td>تكسب <b>الماتش كله</b> (توصل الأول لـ 50 أو 100)، مش كل جولة</td><td class="g-no">ملوش نقطة</td></tr><tr><td>🔤 كلمتنا</td><td>تكسب كلمة النهارده أو تحدي</td><td class="g-no">ملوش نقطة</td></tr><tr><td>🎱 البلياردو</td><td>تكسب الجيم</td><td>—</td></tr></table>`},
+  {key:'word',over:'OUR WORD',html:`<h1>🔤 <span class="g-gold">كلمتنا</span></h1><p class="g-lead">خمّن الكلمة في <b>6 محاولات</b>. الكلمة من 4 لـ 7 حروف، عربي أو إنجليزي.</p>
+   <div class="g-two"><div class="g-card"><h2>الألوان بتقولك إيه؟</h2><div class="g-legend"><div><span class="g-t g-c">ق</span><span><b>دهبي:</b> الحرف صح وفي مكانه الصح</span></div><div><span class="g-t g-p">و</span><span><b class="g-rose">وردي:</b> الحرف موجود، بس في مكان تاني</span></div><div><span class="g-t g-a">ل</span><span><b class="g-grey">غامق:</b> الحرف مش في الكلمة</span></div></div></div>
+   <div class="g-card"><h2>قواعد صغيرة</h2>${ul(['لازم تكتب <b>نفس عدد حروف</b> الكلمة.','في كلمة النهارده التخمين لازم يكون <b>كلمة حقيقية</b>، ولو مش معروفة <b>مبتتحسبش محاولة</b>.','أ إ آ ا حرف واحد، وكمان ة وه، وى وي.','ساعتك بتبدأ لما <b>انت</b> تدوس Start، وبتقف لما تخلّص.'])}</div></div>
+   <h2><span class="g-n">1</span> كلمة النهارده</h2><div class="g-card g-goldcard">${ul(['<b>كلمة واحدة لينا احنا الاتنين كل يوم</b>، ومفيش إعادة لنفس اليوم.','أول واحد يدوس Start بيختار اللغة، والتاني بيلعب <b>نفس الكلمة بنفس اللغة</b>.','كل واحد بيلعب <b>في الوقت اللي يناسبه</b>، مش لازم نلعب مع بعض.','<b>ليها آخر:</b> بتخلص الساعة <b>11 بالليل بتوقيت مصر</b> (12 بالليل في الرياض)، وبعدها بتيجي كلمة جديدة.','اللي بدأ ومخلّصش قبلها، بتتحسب عليه إنه <span class="g-rose">محلّهاش</span>.','لو واحد بس فينا لعب، <b>محدش بياخد نقطة</b>.','وانت بتلعب، بتشوف التاني بدأ ولا خلّص بس، <b>من غير حروفه</b>. بعد ما الاتنين تخلّصوا، بتشوفوا محاولات بعض.'])}</div>`},
+  {key:'word-example',over:'OUR WORD',html:`<div class="g-card g-rosecard"><h2>🏆 مين بيكسب؟</h2><ol class="g-order"><li>اللي حلّها يكسب اللي محلّهاش.</li><li>لو الاتنين حلّوها: <b>المحاولات الأقل</b>.</li><li>لو نفس عدد المحاولات: <b>اللي ساعته أسرع</b>.</li><li>غير كده تعادل، ومحدش بياخد نقطة.</li></ol></div>
+   <h2>🎬 مثال: كلمة النهارده هي <span class="g-badge">قهوة</span></h2><div class="g-card">
+   ${tryRow('صافي · 1',[['ش','a'],['ج','a'],['ر','a'],['ة','c']],'ة صح في مكانها')}
+   ${tryRow('صافي · 2',[['ق','c'],['ل','a'],['ع','a'],['ة','c']],'قبلها كتبت «قوهة»: اترفضت ومتحسبتش')}
+   ${tryRow('صافي · 3',[['ق','c'],['ه','c'],['و','c'],['ة','c']],'حلّتها ✅ في 2:40 دقيقة')}
+   <div class="g-sep"></div>
+   ${tryRow('محمود · 1',[['ق','c'],['و','p'],['ل','a'],['ة','c']],'و موجودة بس مكانها غلط')}
+   ${tryRow('محمود · 2',[['ق','c'],['ه','c'],['و','c'],['ة','c']],'حلّها ✅ في 4 دقايق')}
+   <p class="g-result"><b>النتيجة:</b> محمود كسب، لأن محاولاته أقل (2 مقابل 3) حتى لو وقته أطول. <b>+1 للتاج 👑</b></p></div>`},
+  {key:'challenge',over:'OUR WORD',html:`<h2><span class="g-n">2</span> التحدي</h2><div class="g-card g-rosecard">${ul([
+   '<b>كل واحد بيكتب كلمة للتاني:</b> اسم دلع، مكان، أغنية، أي حاجة من حياتنا. لازم تكون <b>كلمة واحدة من 4 لـ 7 حروف</b> من غير مسافات، والأسامي تنفع.',
+   'وانت بتحل التحدي <b>تقدر تخمّن أي حروف</b>، مش لازم كلمة حقيقية، لأن الكلمة ممكن تكون اسم.',
+   'ممكن تحط مع كلمتك <b>تلميح</b> بيظهر للتاني وهو بيحل. و<b>الرسالة المفاجأة</b> و<b>الصورة</b> بيفتحوا له بعد ما يخلّص.',
+   'التاني عنده <b>يومين</b> يرد ويكتب كلمته، ولو ماردّش التحدي بيلغي نفسه. ممكن كمان يرفضه، وصاحبه ممكن يلغيه قبل الرد.',
+   'بعد ما الاتنين يكتبوا، كل واحد يحل <b>وقت ما يحب</b>. التحدي <b>ملوش ميعاد آخر</b>، والنتيجة بتطلع لما الاتنين يخلّصوا.',
+   'ممكن تدوس <b>Give up</b> في أي وقت، وساعتها بتتحسب إنك محلّيتش.',
+   'فيه <b>تحدي واحد بس</b> في نفس الوقت، ولازم يخلص قبل ما تبدأوا واحد جديد.'])}</div>
+   <div class="g-two"><div class="g-card"><h3>صافي كتبت لمحمود</h3>${tiles([['ا'],['ل'],['ر'],['ي'],['ا'],['ض']])}<p class="g-note">تلميح: «مدينتك 😄» + رسالة وصورة</p></div><div class="g-card"><h3>محمود كتب لصافي</h3>${tiles([['ص'],['ا'],['ف'],['ي']])}<p class="g-note">تلميح: «أحلى اسم» (قنا اترفضت، لأن أقل حاجة 4 حروف)</p></div></div>`},
+  {key:'billiards',over:'BILLIARDS · 8-BALL',html:`<h1>🎱 <span class="g-gold">البلياردو</span></h1><p class="g-lead"><bdi>8-Ball</bdi> بالقوانين العالمية: كل واحد ليه مجموعة، يدخّلها كلها وبعدين يدخّل الـ 8.</p>${table({aria:'مثال لترابيزة البلياردو',kitchen:'منطقة الكسرة',line:'الخط المنقّط = أول كورة هتخبطها',goes:'ودي رايحة فين'})}
+   <h2>✋ التحكم</h2><div class="g-ctrl"><span class="g-ic">🎯</span><p><b>التصويب:</b> حط صباعك على العصاية أو الخط الأبيض واسحب، والعصاية هتلف معاك حوالين الكورة البيضا. أو دوس على أي نقطة عشان تصوّب عليها على طول. <span class="g-note">لو حرّكت صباعك بسرعة العصاية بتلف أسرع، ولو بالراحة بتلف أدق.</span></p></div>
+   <div class="g-ctrl"><span class="g-ic">📏</span><p><b>التصويب الدقيق:</b> اسحب الشريط اللي على اليمين لتعديلات صغيرة جدًا.</p></div>
+   <div class="g-ctrl"><span class="g-ic">💥</span><p><b>الضربة:</b> اسحب شريط القوة اللي على الشمال لتحت وسيبه. كل ما تسحب أكتر الضربة تبقى أقوى.</p></div>
+   <div class="g-ctrl"><span class="g-ic">🌀</span><p><b>اللفّة (Spin):</b> دوس على الكورة البيضا الصغيرة. <b>فوق</b> البيضا بتكمّل قدام بعد الخبطة، و<b>تحت</b> بترجع لورا، و<b>يمين/شمال</b> بيغيّروا خروجها لما تخبط في جنب الترابيزة.</p></div>
+   <div class="g-ctrl"><span class="g-ic g-x">✕</span><p><b>علامة X حمرا</b> على الكورة معناها إنها مش بتاعتك، ولو خبطتها الأول يبقى فاول.</p></div>`},
+  {key:'billiards-rules',over:'BILLIARDS · 8-BALL',html:`<h2><span class="g-n">1</span> مين ليه إيه؟</h2><div class="g-two"><div class="g-card"><b>المليانة (Solids)</b><div class="g-balls">${balls(false)}</div><p class="g-note">من 1 لـ 7</p></div><div class="g-card"><b>المقلّمة (Stripes)</b><div class="g-balls">${balls(true)}</div><p class="g-note">من 9 لـ 15</p></div></div>
+   <div class="g-card g-goldcard">${ul(['<b>الكسرة:</b> اللي بعت الدعوة هو اللي بيكسر الأول، وبيحط البيضا <b>ورا الخط المنقّط بس</b>. لو دخّل كورة في الكسرة بيلعب تاني، ولو البيضا دخلت أو مخبطتش أي كورة، الدور بيروح للتاني ويحط البيضا ورا الخط.','الكور اللي بتدخل في الكسرة <b>مبتحددش المجموعات</b>. أول كورة تدخّلها صح <b>بعد</b> الكسرة هي اللي بتحدد: لو مليانة تبقى المليانة بتاعتك، والمقلّمة للتاني.','طول ما المجموعات لسه متحددتش، متخبطش الـ 8 الأول، عشان دي فاول.','دخّل كل كوراتك، وبعدين <b>دخّل الـ 8</b> عشان تكسب.','لو دخّلت كورة من بتوعك، <b>بتلعب تاني</b>.'])}</div>
+   <h2><span class="g-n">2</span> الفاول ⚠️</h2><div class="g-card g-rosecard"><p>أي واحدة من دول بتخلّي الدور يروح للتاني، و<b>يحط البيضا بصباعه في أي مكان فاضي</b> على الترابيزة:</p>${ul(['البيضا دخلت جوه.','مخبطتش أي كورة.','خبطت كورة مش بتاعتك الأول.','مدخّلتش أي كورة، ومفيش ولا كورة خبطت في جنب الترابيزة بعد الضربة.','لو فيه ساعة للضربة وخلص وقتك.'])}</div>`},
+  {key:'billiards-eight',over:'BILLIARDS · 8-BALL',html:`<h2><span class="g-n">3</span> الـ 8 السودا 🎱</h2><div class="g-card">${ul(['لو دخّلت الـ 8 <b>بدري</b> قبل كوراتك، أو دخّلتها مع فاول، <span class="g-rose">بتخسر الجيم</span>.','لازم تخبط <b>الـ 8 الأول</b> لما تخلّص كوراتك.','<b>الـ 8 في الكسرة عمرها ما بتخسّرك:</b> اللي كسر يختار يرجّعها مكانها أو يرصّ الكور من الأول. ولو البيضا كمان دخلت في الكسرة، التاني هو اللي يختار.'])}</div>
+   <h2><span class="g-n">4</span> قبل ما نبدأ</h2><div class="g-two"><div class="g-card">${ul(['<b>سوا:</b> بتختار ساعة الضربة: من غير وقت، أو 30، أو 45، أو 60 ثانية.','الدعوة بتستنى التاني <b>10 دقايق</b>.','الساعة <b>مبتقفش</b> لو خرجت من التطبيق في دورك، فلو اخترتوا وقت خليكوا فاتحين اللعبة.'])}</div><div class="g-card">${ul(['<b>لوحدك:</b> ضد الكمبيوتر (سهل، متوسط، صعب)، <span class="g-rose">ومبتتحسبش في التاج</span>.','في الـ Rematch، اللي بيكسر <b>بيتبدّل</b>.'])}</div></div>
+   <div class="g-tip"><span>👑</span><p>كل ماتش بلياردو <b>سوا</b> تكسبه = <b>نقطة في التاج</b>. لو حد خرج (Leave)، محدش بياخد نقطة.</p></div>`},
+  {key:'faq',over:'QUESTIONS',html:`<h2>💬 أسئلة ممكن تيجي في بالكم</h2><div class="g-card g-faq">
+   <p><b>لو أنا لعبت كلمة النهارده والتاني ملعبش؟</b><br>مفيش نقطة لحد. لازم الاتنين يلعبوها في نفس اليوم.</p>
+   <p><b>لو بدأت الكلمة ونسيت أكمّلها؟</b><br>الساعة 11 بالليل بتوقيت مصر بتتحسب إنك محلّيتهاش. فلو التاني حلّها، يكسب.</p>
+   <p><b>الساعة بتعدّ من إمتى؟</b><br>من لحظة ما <b>انت</b> تدوس Start، مش من أول اليوم ولا من وقت ما التاني بدأ.</p>
+   <p><b>ينفع واحد يلعب عربي والتاني إنجليزي في نفس اليوم؟</b><br>لأ، اللغة بيختارها أول واحد يدوس Start، والتاني بيلعب نفس الكلمة.</p>
+   <p><b>البلياردو ضد الكمبيوتر بيزوّد التاج؟</b><br>لأ. التاج للعب سوا بس.</p>
+   <p><b>لو اتعادلنا في النقط مين ياخد التاج؟</b><br>بيفضل مع اللي كان لابسه، لحد ما حد يعدّي التاني.</p></div>`}
+ ]};
+(typeof window!=='undefined'?window:globalThis).OurGuideContent={en,ar};
+})();

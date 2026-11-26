@@ -38,7 +38,7 @@ function builtInFile(file){
 export function serveBuiltIn(req,res,file,type){
  const entry=builtInFile(file);
  const revalidate=/(javascript|css|html|manifest)/.test(type);
- const headers={'Content-Type':type+(type.startsWith('image/')?'':'; charset=utf-8'),'ETag':entry.etag,'Cache-Control':revalidate?'no-cache':'public, max-age=86400','Vary':'Accept-Encoding'};
+ const headers={'Content-Type':type+(/^(text\/|application\/(json|manifest\+json))/.test(type)?'; charset=utf-8':''),'ETag':entry.etag,'Cache-Control':revalidate?'no-cache':'public, max-age=86400','Vary':'Accept-Encoding'};
  const tags=String(req.headers['if-none-match']||'').split(',').map(t=>t.trim().replace(/^W\//,''));
  if(tags.includes(entry.etag)){res.writeHead(304,headers);return res.end();}
  let body=entry.raw;
