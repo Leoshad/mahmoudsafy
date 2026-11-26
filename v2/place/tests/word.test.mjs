@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {score,normalize,isWord,decide,dayKey,nextDayAt,wordChange,wordSnapshot,wordTick,wordDue} from '../word.mjs';
 import {crownSnapshot} from '../crown.mjs';
 import {attentionEvents} from '../push-events.mjs';
-const T=Date.parse('2026-11-25T18:00:00Z');// 21:00 Riyadh
+const T=Date.parse('2026-11-24T18:00:00Z');// 21:00 Riyadh, an English day
 const fresh=()=>({version:0});
 const ids=()=>'11111111-2222-3333-4444-555555555555';
 
@@ -18,7 +18,7 @@ test('Arabic normalization treats hamza alef forms, taa marbuta and alef maqsura
 });
 test('the day changes at midnight Riyadh time',()=>{
  assert.equal(dayKey(Date.parse('2026-11-25T20:59:00Z')),'2026-11-25');assert.equal(dayKey(Date.parse('2026-11-25T21:00:00Z')),'2026-11-26');
- assert.equal(nextDayAt(T),Date.parse('2026-11-25T21:00:00Z'));
+ assert.equal(nextDayAt(T),Date.parse('2026-11-24T21:00:00Z'));
 });
 test('winner: solved beats unsolved, then fewer tries, then faster clock; otherwise a tie',()=>{
  const b=(solved,n,ms)=>({solved,guesses:Array(n).fill({}),startedAt:1,finishedAt:1+ms});

@@ -43,3 +43,19 @@ test('one-time clean slate clears the 26 Nov daily word once and never again',()
  assert.equal(wordDue(s,T),true);assert.equal(wordTick(s,T),true);assert.equal(s.word.daily,null);assert.deepEqual(s.word.resets,['daily-2026-11-26']);
  s.word.daily={id:'y',date:'2026-11-27',status:'active',players:{Mahmoud:{},Safy:{}}};assert.equal(wordDue(s,T),false);assert.equal(wordTick(s,T),false);assert.equal(s.word.daily.id,'y');
 });
+
+import {dailyLang,tierFor,LEVEL_ODDS} from '../word.mjs';
+test('today’s word alternates: Arabic one day, English the next',()=>{
+ assert.equal(dailyLang('2026-11-27'),'ar');assert.equal(dailyLang('2026-11-28'),'en');assert.equal(dailyLang('2026-11-29'),'ar');
+ const s=fresh();wordChange(s,'Mahmoud','word.daily',{lang:'en'},Date.parse('2026-11-27T10:00:00Z'));assert.equal(s.word.daily.lang,'ar','the day decides, not the button');
+});
+test('every answer has a level; each level has words in both languages; odds add to 100',()=>{
+ assert.equal(Object.values(LEVEL_ODDS).reduce((a,b)=>a+b,0),100);
+ for(const lang of ['en','ar']){const words=readFileSync(new URL(`../word-lists/answers-${lang}.txt`,import.meta.url),'utf8').split('\n').map(w=>w.trim()).filter(Boolean);
+  const count={easy:0,medium:0,hard:0};for(const w of words)count[tierFor(w,lang)]++;for(const k of Object.keys(count))assert.ok(count[k]>=30,lang+' '+k+' '+count[k]);}
+});
+test('over many days the levels come out near 30/45/25',()=>{
+ const seen={easy:0,medium:0,hard:0};
+ for(let i=0;i<600;i++){const s=fresh();wordChange(s,'Mahmoud','word.daily',{},Date.parse('2026-11-28T10:00:00Z'));seen[s.word.daily.answer.level]++;}
+ assert.ok(seen.easy>120&&seen.easy<240,JSON.stringify(seen));assert.ok(seen.medium>200&&seen.medium<340,JSON.stringify(seen));assert.ok(seen.hard>90&&seen.hard<210,JSON.stringify(seen));
+});

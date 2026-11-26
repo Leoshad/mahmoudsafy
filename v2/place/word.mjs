@@ -24,6 +24,9 @@ function validShape(word,lang){return letters[lang]?.test(word)&&letterCount(wor
 // Every daily answer has a topic, shown from the start as a free clue.
 let topics=null;
 function topicsData(){return topics??=JSON.parse(readFileSync(new URL('./word-lists/categories.json',import.meta.url),'utf8'));}
+export function tierFor(display,lang){return topicsData().tiers?.[lang]?.[display]??'easy';}
+// One day Arabic, the next English: 27 Nov 2026 is an Arabic day.
+export function dailyLang(date){return Math.floor(Date.parse(date+'T00:00:00Z')/86400000)%2===0?'ar':'en';}
 export function topicFor(display,lang){const t=topicsData(),key=t[lang]?.[display];return key?{key,label:t.labels[lang][key]}:null;}
 
 let dictionaries=null;
@@ -78,9 +81,13 @@ function settle(s,m,kind,now,{voidIfMissing=false}={}){
 }
 function maybeSettle(s,m,kind,now){if(m.status==='active'&&names.every(n=>finished(m.players[n])))settle(s,m,kind,now);}
 
+// Each day draws a level first (easy 30%, medium 45%, hard 25%), then a word of that level not used lately.
+export const LEVEL_ODDS={easy:30,medium:45,hard:25};
 function pickDaily(w,lang){
- const pool=words().answers[lang],recent=new Set(w.records.history.filter(h=>h.kind==='daily'&&h.lang===lang).slice(0,40).map(h=>h.answer).filter(Boolean));
- const fresh=pool.filter(x=>!recent.has(normalize(x,lang)));const options=fresh.length?fresh:pool;return options[randomInt(options.length)];
+ const all=words().answers[lang],recent=new Set(w.records.history.filter(h=>h.kind==='daily'&&h.lang===lang).slice(0,60).map(h=>h.answer).filter(Boolean));
+ const roll=randomInt(100);let level='hard',acc=0;for(const [k,v] of Object.entries(LEVEL_ODDS)){acc+=v;if(roll<acc){level=k;break;}}
+ const fresh=all.filter(x=>!recent.has(normalize(x,lang)));const pool=fresh.length?fresh:all;
+ const tiered=pool.filter(x=>tierFor(x,lang)===level);const options=tiered.length?tiered:pool;return options[randomInt(options.length)];
 }
 function secretFor(m,kind,who){return kind==='daily'?m.answer:m.words[other(who)];}
 
@@ -121,9 +128,8 @@ export function wordChange(s,who,type,p={},now=Date.now()){
  if(type==='word.daily'){
   const today=dayKey(now);
   if(!w.daily||w.daily.date!==today){
-   check(['ar','en'].includes(p.lang),'Choose Arabic or English.');
-   const pick=pickDaily(w,p.lang);
-   w.daily={id:randomUUID(),date:today,lang:p.lang,startedBy:who,answer:{word:normalize(pick,p.lang),display:pick,topic:topicFor(pick,p.lang)?.key??null},status:'active',winner:null,revision:0,players:Object.fromEntries(names.map(n=>[n,board()]))};
+   const lang=dailyLang(today),pick=pickDaily(w,lang);
+   w.daily={id:randomUUID(),date:today,lang,startedBy:who,answer:{word:normalize(pick,lang),display:pick,topic:topicFor(pick,lang)?.key??null,level:tierFor(pick,lang)},status:'active',winner:null,revision:0,players:Object.fromEntries(names.map(n=>[n,board()]))};
   }
   const m=w.daily;check(m.status==='active','Today’s word is finished. A new one arrives at midnight Riyadh time.',409);
   m.players[who].startedAt??=now;m.revision++;
@@ -168,9 +174,9 @@ function publicBoard(b){return {started:!!b.startedAt,startedAt:b.startedAt,fini
 function rivalBoard(b){return {started:!!b.startedAt,finished:!!b.finishedAt};}
 function dailyView(d,who,now){
  const today=dayKey(now),current=d&&d.date===today?d:null,closed=d&&!['active'].includes(d.status)?d:null;
- const view={today,nextAt:nextDayAt(now),current:null,last:null};
+ const view={today,lang:dailyLang(today),nextAt:nextDayAt(now),current:null,last:null};
  if(current){const ended=current.status!=='active',mine=current.players[who];
-  view.current={id:current.id,date:current.date,lang:current.lang,length:letterCount(current.answer.word),topic:current.answer.topic?topicsData().labels[current.lang][current.answer.topic]:topicFor(current.answer.display,current.lang)?.label??null,startedBy:current.startedBy,status:current.status,revision:current.revision,winner:current.winner,
+  view.current={id:current.id,date:current.date,lang:current.lang,length:letterCount(current.answer.word),level:current.answer.level??tierFor(current.answer.display,current.lang),topic:current.answer.topic?topicsData().labels[current.lang][current.answer.topic]:topicFor(current.answer.display,current.lang)?.label??null,startedBy:current.startedBy,status:current.status,revision:current.revision,winner:current.winner,
    me:publicBoard(mine),rival:ended?publicBoard(current.players[other(who)]):{...rivalBoard(current.players[other(who)]),...(finished(mine)?{tries:current.players[other(who)].finishedAt?current.players[other(who)].guesses.length:null,solved:current.players[other(who)].finishedAt?current.players[other(who)].solved:null}:{})},
    answer:ended||finished(mine)?current.answer.display:null};}
  if(closed&&closed!==current)view.last={id:closed.id,date:closed.date,lang:closed.lang,status:closed.status,winner:closed.winner,answer:closed.answer.display,me:publicBoard(closed.players[who]),rival:publicBoard(closed.players[other(who)])};

@@ -152,13 +152,13 @@ function renderDaily(root){
   if(d.last)lastDay(root,d.last);
   const card=make('div',undefined,root,'word-start');
   make('small','TODAY’S WORD · '+dayLabel(d.today).toUpperCase(),card,'label');make('h4','Same word. Same day. Who finds it first?',card);
-  make('p','Choose today’s language. '+other()+' plays the same word. Your clock starts when you press Start.',card,'muted');
-  langPicker(card,dailyLang,k=>{dailyLang=k;try{localStorage.setItem('our-place:word:lang',k);}catch{}render(true);});
-  btn('Start · invite '+other(),card,async()=>{if(await command('daily',{lang:dailyLang})){fullView=true;render(true);}},'primary word-start-button');
+  const todayLang=d.lang||'en';
+  make('p','Today is '+(todayLang==='ar'?'an Arabic':'an English')+' day '+(todayLang==='ar'?'🇪🇬':'🇬🇧')+' · tomorrow is '+(todayLang==='ar'?'English':'Arabic')+'. '+other()+' plays the same word. Your clock starts when you press Start.',card,'muted');
+  btn('Start · invite '+other(),card,async()=>{if(await command('daily',{lang:todayLang})){fullView=true;render(true);}},'primary word-start-button');
   make('p',other()+' gets a notification to play the same word.',card,'muted word-small');
   return;
  }
- const title='Today’s word · '+m.length+' letters · '+LANGS[m.lang];
+ const LEVEL={easy:'Easy',medium:'Medium',hard:'Hard 🔥'};const title='Today’s word · '+m.length+' letters · '+LANGS[m.lang]+(m.level?' · '+LEVEL[m.level]:'');
  if(m.status!=='active'){resultCard(root,m,m.lang,{title:'TODAY’S WORD · '+dayLabel(m.date).toUpperCase(),answer:m.answer,note:'A new word arrives at midnight Riyadh time.'});return;}
  if(!m.me.started){
   const card=make('div',undefined,root,'word-start');make('small','TODAY’S WORD · '+dayLabel(m.date).toUpperCase(),card,'label');
