@@ -20,10 +20,12 @@ export function attentionEvents(before,after,actor){
   const c=after.word?.challenge,oc=before.word?.challenge;
   if(c){if(c.id!==oc?.id&&c.status==='waiting')add('word:challenge:'+c.id,other(c.owner),c.owner+' sent you an Our Word challenge.',target,'invitation');
    if(oc?.id===c.id&&oc.status==='waiting'&&c.status==='active')add('word:accepted:'+c.id,c.owner,other(c.owner)+' wrote a word for you. Your challenge has started.',target);
+   if(oc?.id===c.id&&c.status==='active')for(const n of people)if(c.players?.[n]?.startedAt&&!oc.players?.[n]?.startedAt&&!c.players?.[n]?.finishedAt)add('word:started:'+c.id+':'+n,other(n),n+' started solving your word 👀',target);
    if(oc?.id===c.id&&c.status==='active')for(const n of people)if(c.players?.[n]?.finishedAt&&!oc.players?.[n]?.finishedAt)add('word:done:'+c.id+':'+n,other(n),n+' finished your word. Your turn.',target);
    if(c.status==='complete'&&oc?.status!=='complete')both('word:result:'+c.id,'Our Word challenge result is ready.',target);}
   const d=after.word?.daily,od=before.word?.daily;
   if(d){if(d.id!==od?.id)add('word:daily:'+d.id,other(d.startedBy),d.startedBy+' started today’s word. Same word, your turn.',target);
+   if(od?.id===d.id&&d.status==='active')for(const n of people)if(n!==d.startedBy&&d.players?.[n]?.startedAt&&!od.players?.[n]?.startedAt&&!d.players?.[n]?.finishedAt)add('word:daily-started:'+d.id+':'+n,other(n),n+' started today’s word 👀',target);
    if(od?.id===d.id&&d.status==='active')for(const n of people)if(d.players?.[n]?.finishedAt&&!od.players?.[n]?.finishedAt&&!d.players?.[other(n)]?.finishedAt)add('word:daily-done:'+d.id+':'+n,other(n),n+' finished today’s word. Your turn.',target);
    if(d.status==='complete'&&od?.id===d.id&&od.status!=='complete')both('word:daily-result:'+d.id,'Today’s word result is ready.',target);}
  }
