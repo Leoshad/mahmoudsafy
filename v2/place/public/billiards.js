@@ -19,6 +19,7 @@ const game=()=>data[mode];
 const shown=()=>frozen&&frozen.id===game()?.id?frozen:game();// what the screen shows while a shot plays
 const isLive=g=>!!g&&['active','complete'].includes(g.status);
 const other=()=>who==='Mahmoud'?'Safy':'Mahmoud';
+let crownHolder=null;const crownTag=(el,name)=>{if(name&&name===crownHolder){const c=document.createElement('span');c.className='game-crown';c.textContent='👑';c.title=name+' holds the crown';c.setAttribute('aria-label','holds the crown');el.append(c);}return el;};
 const myTurn=g=>!!g&&g.status==='active'&&g.turn===who&&!g.choice&&!job&&!queue.length;
 
 // ---------- sound ----------
@@ -251,9 +252,9 @@ function buildLive(root){
  requestAnimationFrame(fit);
 }
 function scoreboard(g){
- const sig=JSON.stringify([g.turn,g.status,g.groups,g.breakShot,g.balls.filter(b=>b.in).map(b=>b.id)]);if(view.scoreSig===sig&&view.score.childElementCount)return;view.scoreSig=sig;
+ const book=data.records?.[g.mode]??{wins:{}},sig=JSON.stringify([g.turn,g.status,g.groups,g.breakShot,g.balls.filter(b=>b.in).map(b=>b.id),crownHolder,book.wins]);if(view.scoreSig===sig&&view.score.childElementCount)return;view.scoreSig=sig;
  const box=view.score;box.replaceChildren();const names=g.mode==='shared'?['Mahmoud','Safy']:g.players;
- const card=name=>{const c=make('div',undefined,box,'billiards-player '+name.toLowerCase());c.classList.toggle('turn',g.turn===name&&g.status==='active');make('strong',name===who?'You':name,c);const group=g.groups?.[name];
+ const card=name=>{const c=make('div',undefined,box,'billiards-player '+name.toLowerCase());c.classList.toggle('turn',g.turn===name&&g.status==='active');crownTag(make('strong',(name===who?'You':name)+' · '+(book.wins?.[name]??0),c),name);const group=g.groups?.[name];
   make('small',group?group[0].toUpperCase()+group.slice(1):g.breakShot?(g.turn===name?'Breaks':'Waiting'):'Open table',c);const row=make('div',undefined,c,'billiards-mini');
   const ids=group==='solids'?[1,2,3,4,5,6,7]:group==='stripes'?[9,10,11,12,13,14,15]:[];for(const id of ids){const on=g.balls.find(b=>b.id===id&&!b.in);const m=make('i',undefined,row,'billiards-mini-ball'+(id>8?' stripe':'')+(on?'':' gone'));m.style.setProperty('--c',COLORS[id]);}
   if(group&&!ids.some(id=>g.balls.find(b=>b.id===id&&!b.in))){const m=make('i',undefined,row,'billiards-mini-ball');m.style.setProperty('--c',COLORS[8]);}};
@@ -342,7 +343,7 @@ function init(h){
 window.OurBilliards={init,sync(s){
  if(!s?.billiards)return;if(Number.isFinite(s.version)&&who===s.who&&s.version<version)return;
  if(who!==s.who){who=s.who;opened=false;mode='solo';seen={};dismissed={};try{const saved=JSON.parse(localStorage.getItem('our-place:billiards:'+who)||'null');if(saved){mode=saved.mode==='shared'?'shared':'solo';opened=!!saved.opened;dismissed=saved.dismissed&&typeof saved.dismissed==='object'?saved.dismissed:{};}}catch{}if(opened)stepIn();}
- if(Number.isFinite(s.serverNow))clockOffset=s.serverNow-Date.now();version=s.version;
+ if(Number.isFinite(s.serverNow))clockOffset=s.serverNow-Date.now();version=s.version;crownHolder=s.crown?.holder??null;
  const first=!Object.keys(seen).length,before=data;data=s.billiards;
  for(const m of ['solo','shared']){const g=data[m],key=g?.lastShot?g.id+':'+g.lastShot.n:null;if(!key){seen[m]=null;continue;}
   if(seen[m]!==key){const fresh=!first&&seen[m]!==undefined;seen[m]=key;

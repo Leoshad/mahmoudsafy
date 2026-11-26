@@ -6,6 +6,7 @@ const LANGS={ar:'العربية',en:'English'};
 const KEYS={en:[[...'qwertyuiop'],[...'asdfghjkl'],[...'zxcvbnm','back']],ar:[[...'ضصثقفغعهخحج'],[...'شسيبلاتنمكط'],[...'ذئءؤروزظد','back']]};
 const RANK={absent:1,present:2,correct:3};
 let host,who=null,data=null,tab='daily',opened=false,busy=false,fullView=true,signature='',clockOffset=0,version=-1;
+let crownHolder=null;const crownTag=(el,name)=>{if(name&&name===crownHolder){const c=document.createElement('span');c.className='game-crown';c.textContent='👑';c.title=name+' holds the crown';c.setAttribute('aria-label','holds the crown');el.append(c);}return el;};
 let typed=[],shake=false,dailyLang='en',soundOn=true,audio=null;
 const revealed=new Map(),celebrated=new Map();let dismissed=null;
 const ANIM=1800;
@@ -108,7 +109,8 @@ function cluePanel(root,m,lang,topic,label){
 // ---------- pieces ----------
 function rivalLine(root,m){
  const r=m.rival,name=other(),chip=make('div',undefined,root,'word-rival');
- make('span',name,chip,'word-rival-name '+name.toLowerCase());
+ if(crownHolder===who)crownTag(make('span','You',chip,'word-rival-name me'),who);
+ crownTag(make('span',name,chip,'word-rival-name '+name.toLowerCase()),name);
  make('span',!r.started?'not started yet':!r.finished?'playing…':r.tries!=null?(r.solved?'solved · '+tries(r.tries):'did not solve'):'finished',chip,'word-rival-state'+(r.finished?' done':r.started?' live':''));
 }
 function statusRow(root,title,m){
@@ -125,7 +127,7 @@ function resultCard(root,m,lang,{title,answer,note}){
  if(answer){make('p',lang==='ar'?'الكلمة':'The word',card,'word-result-label');wordTiles(card,answer,lang);}
  const sides=make('div',undefined,card,'word-result-sides');
  for(const [name,b] of [[who,m.me],[other(),m.rival]]){
-  const s=make('div',undefined,sides,'word-result-side'+(m.winner===name?' winner':''));make('strong',name===who?'You':name,s);
+  const s=make('div',undefined,sides,'word-result-side'+(m.winner===name?' winner':''));crownTag(make('strong',name===who?'You':name,s),name);
   make('span',!b.started?'Did not play':b.solved?tries(b.tries)+(b.hints?.length?' · '+b.hints.length+' letter'+(b.hints.length>1?'s':'')+' shown':'')+' · '+clock(b.ms):'Not solved'+(b.ms!=null?' · '+clock(b.ms):''),s);
   if(b.guesses?.length)boardView(s,b,[...b.guesses[0].word].length,lang,{mini:true});
  }
@@ -178,7 +180,7 @@ function waitingCard(root,m,answer,lang){
 }
 function lastDay(root,l){
  const box=make('details',undefined,root,'word-last');box.dataset.persistent='true';make('summary',dayLabel(l.date)+' · '+(l.status==='void'?'no match':l.winner?(l.winner===who?'you won':l.winner+' won'):'tie')+' · '+l.answer,box);
- const row=make('div',undefined,box,'word-result-sides');for(const [name,b] of [[who,l.me],[other(),l.rival]]){const s=make('div',undefined,row,'word-result-side');make('strong',name===who?'You':name,s);make('span',!b.started?'Did not play':b.solved?tries(b.tries)+' · '+clock(b.ms):'Not solved',s);}
+ const row=make('div',undefined,box,'word-result-sides');for(const [name,b] of [[who,l.me],[other(),l.rival]]){const s=make('div',undefined,row,'word-result-side');crownTag(make('strong',name===who?'You':name,s),name);make('span',!b.started?'Did not play':b.solved?tries(b.tries)+' · '+clock(b.ms):'Not solved',s);}
 }
 
 // ---------- challenge ----------
@@ -266,7 +268,7 @@ function render(force=false){
  if(!data||!who)return;show();invitation();renderRecords();openNote();
  $('#word-daily-tab').classList.toggle('selected',tab==='daily');$('#word-challenge-tab').classList.toggle('selected',tab==='challenge');
  $('#word-daily-tab').setAttribute('aria-selected',String(tab==='daily'));$('#word-challenge-tab').setAttribute('aria-selected',String(tab==='challenge'));
- const sig=JSON.stringify([tab,data.daily,data.challenge,typed,busy,dailyLang,draft.lang,draft.photo?.id,draft.uploading,fullView]);
+ const sig=JSON.stringify([tab,data.daily,data.challenge,typed,busy,dailyLang,draft.lang,draft.photo?.id,draft.uploading,fullView,crownHolder]);
  if(!force&&sig===signature)return;signature=sig;
  const active=document.activeElement,field=active?.dataset?.field,caret=field?[active.selectionStart,active.selectionEnd]:null;
  const root=$('#word-game');root.replaceChildren();root.setAttribute('aria-busy',String(busy));
@@ -294,7 +296,7 @@ function init(h){
  if(typeof setInterval!=='undefined')setInterval(tick,500);
 }
 window.OurWord={init,focusAttention,normalize,sync(s){
- if(!s?.word)return;
+ if(!s?.word)return;crownHolder=s.crown?.holder??null;
  if(Number.isFinite(s.version)&&who===s.who&&s.version<version)return;
  if(who!==s.who){who=s.who;opened=false;tab='daily';typed=[];revealed.clear();celebrated.clear();signature='';
   try{const saved=JSON.parse(localStorage.getItem('our-place:word:'+who)||'null');if(saved){tab=saved.tab==='challenge'?'challenge':'daily';opened=!!saved.opened;fullView=saved.fullView!==false;}}catch{}}
