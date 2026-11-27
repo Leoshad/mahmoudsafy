@@ -82,8 +82,8 @@ function settle(s,m,kind,now,{voidIfMissing=false}={}){
 }
 function maybeSettle(s,m,kind,now){if(m.status==='active'&&names.every(n=>finished(m.players[n])))settle(s,m,kind,now);}
 
-// Each day draws a level first (easy 30%, medium 45%, hard 25%), then a word of that level not used lately.
-export const LEVEL_ODDS={easy:30,medium:45,hard:25};
+// Each day draws a level first (easy 10%, medium 30%, hard 60%), then a word of that level not used lately.
+export const LEVEL_ODDS={easy:10,medium:30,hard:60};
 function pickDaily(w,lang){
  const all=words().answers[lang],recent=new Set(w.records.history.filter(h=>h.kind==='daily'&&h.lang===lang).slice(0,60).map(h=>h.answer).filter(Boolean));
  const roll=randomInt(100);let level='hard',acc=0;for(const [k,v] of Object.entries(LEVEL_ODDS)){acc+=v;if(roll<acc){level=k;break;}}

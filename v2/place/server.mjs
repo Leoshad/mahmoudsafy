@@ -58,6 +58,7 @@ import {mediaChange,youtubeService} from './media.mjs';
 import {ochoChange,ochoSnapshot,ochoTick,ochoDue} from './ocho.mjs';
 import {dominoChange,dominoSnapshot,dominoTick,dominoDue} from './domino.mjs';
 import {wordChange,wordSnapshot,wordTick,wordDue} from './word.mjs';
+import {saveWordWinCards} from './word-cards.mjs';
 import {billiardsChange,billiardsSnapshot,billiardsTick,billiardsDue} from './billiards.mjs';
 import {resolveOrigin} from './config.mjs';
 
@@ -402,7 +403,7 @@ publishPresence(true);});return;
           if(p.type?.startsWith('ocho.')){ochoChange(s,who,p.type,data);store.save(s);return {ok:true};}
           if(p.type?.startsWith('domino.')){dominoChange(s,who,p.type,data);store.save(s);return {ok:true};}
           if(p.type?.startsWith('billiards.')){billiardsChange(s,who,p.type,data);store.save(s);return {ok:true};}
-          if(p.type?.startsWith('word.')){if(data.photo)check(store.db.prepare('SELECT 1 FROM photos WHERE id=?').get(String(data.photo)),'That photo is not available.');wordChange(s,who,p.type,data);store.save(s);return {ok:true};}
+          if(p.type?.startsWith('word.')){if(data.photo)check(store.db.prepare('SELECT 1 FROM photos WHERE id=?').get(String(data.photo)),'That photo is not available.');wordChange(s,who,p.type,data);store.save(s);saveWordWinCards(store,s);return {ok:true};}
           if(p.type?.startsWith('media.')){if(verifiedTrack)data.track=verifiedTrack;mediaChange(s,who,p.type,data);recordListening(store,s);store.save(s);return {ok:true};}
           if(p.type==='message'){
             const images=validateAttachments(store,who,data);const value=data.text?.trim()?text(data.text,4000):'';check(value||data.image||images.length||data.document||data.audio||data.video,'Write a message or attach a photo, video or recording.');if(data.video){check(!data.image&&!data.audio,'Send the video separately from other attachments.');const v=videos.access(data.video,who);check(v.owner===who,'Choose a video you uploaded.',403);}if(data.audio){check(!data.image,'Send the recording separately from a photo.');const recording=canHear(store,who,data.audio,s);check(recording&&(recording.owner===who||recording.mime==='audio/mpeg'),'Choose your recording or a shared song.',403);}if(data.image)photoData(data.image);if(data.reply)check(store.db.prepare('SELECT 1 FROM messages WHERE id=?').get(data.reply),'The original message is unavailable.');
@@ -469,7 +470,7 @@ publishPresence(true);});return;
     route(req,res).catch(e=>{if(e.status===401)console.warn(JSON.stringify({event:'session_rejected',request_id:req.requestId??null,code:typeof e.code==='string'?e.code.slice(0,60):'authentication_rejected'}));if(!e.status||e.status>=500)console.error(JSON.stringify({event:'request_failed',request_id:req.requestId??null,status:e.status??500,code:typeof e.code==='string'?e.code.slice(0,60):'internal'}));if(!res.headersSent)send(res,e.status??500,{error:e.status?e.message:'Something went wrong. Your saved data is safe.'});else res.end();});});
   configureConnectionServer(server);
   server.driveBackup=driveBackup;
-  const dominoTimer=setInterval(()=>{try{const current=store.timerView,pinDue=store.nextPinExpiry<=Date.now();if(!pinDue&&!dominoDue(current)&&!ochoDue(current)&&!wordDue(current)&&!billiardsDue(current))return;const changed=store.tx(()=>{const s=store.state();const d=dominoTick(s),o=ochoTick(s),w=wordTick(s),b=billiardsTick(s);if(!d&&!o&&!w&&!b)return pinDue;store.save(s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
+  const dominoTimer=setInterval(()=>{try{const current=store.timerView,pinDue=store.nextPinExpiry<=Date.now();if(!pinDue&&!dominoDue(current)&&!ochoDue(current)&&!wordDue(current)&&!billiardsDue(current))return;const changed=store.tx(()=>{const s=store.state();const d=dominoTick(s),o=ochoTick(s),w=wordTick(s),b=billiardsTick(s);if(!d&&!o&&!w&&!b)return pinDue;store.save(s);if(w)saveWordWinCards(store,s);return true;});if(changed)refresh();}catch{console.error('Domino turn update failed; will retry.');}},250);dominoTimer.unref();
   const pushTimer=setInterval(()=>notifications.drain().catch(()=>console.error('Notification delivery failed.')),250);pushTimer.unref();
   const careTimer=setInterval(()=>{try{for(const r of careReminders(store.state()))notifications.enqueue({key:r.key,to:r.to,kind:'daily',body:r.body,target:{tab:'care'}});const sent=store.tx(()=>{const s=store.state();const out=careNotices(s);if(out.length)store.save(s);return out;});for(const r of sent)notifications.enqueue({key:r.key,to:r.to,kind:'daily',body:r.body,target:{tab:'care'}});}catch{console.error('Care reminder failed.');}},60000);careTimer.unref();
   const dailyTimer=setInterval(()=>daily.tick().catch(()=>console.error('Daily Echo update failed.')),15000);dailyTimer.unref();

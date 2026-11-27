@@ -55,8 +55,14 @@ test('every answer has a level; each level has words in both languages; odds add
  for(const lang of ['en','ar']){const words=readFileSync(new URL(`../word-lists/answers-${lang}.txt`,import.meta.url),'utf8').split('\n').map(w=>w.trim()).filter(Boolean);
   const count={easy:0,medium:0,hard:0};for(const w of words)count[tierFor(w,lang)]++;for(const k of Object.keys(count))assert.ok(count[k]>=30,lang+' '+k+' '+count[k]);}
 });
-test('over many days the levels come out near 30/45/25',()=>{
+test('over many days the levels come out near 10/30/60',()=>{
  const seen={easy:0,medium:0,hard:0};
  for(let i=0;i<600;i++){const s=fresh();wordChange(s,'Mahmoud','word.daily',{},Date.parse('2026-11-28T10:00:00Z'));seen[s.word.daily.answer.level]++;}
- assert.ok(seen.easy>120&&seen.easy<240,JSON.stringify(seen));assert.ok(seen.medium>200&&seen.medium<340,JSON.stringify(seen));assert.ok(seen.hard>90&&seen.hard<210,JSON.stringify(seen));
+ assert.ok(seen.easy>25&&seen.easy<100,JSON.stringify(seen));assert.ok(seen.medium>130&&seen.medium<230,JSON.stringify(seen));assert.ok(seen.hard>300&&seen.hard<420,JSON.stringify(seen));
+});
+test('the English bank is big and has no odd words',()=>{
+ const all=readFileSync(new URL('../word-lists/answers-en.txt',import.meta.url),'utf8').trim().split('\n');
+ const count={easy:0,medium:0,hard:0};for(const w of all)count[tierFor(w,'en')]++;
+ assert.ok(count.easy>=200&&count.medium>=300&&count.hard>=250,JSON.stringify(count));
+ for(const odd of ['thimble'])assert.ok(!all.includes(odd),odd);
 });
